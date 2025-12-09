@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Installation {
+  id          String   @id @default(uuid())
+  name        String
+  location    String?
+  email       String?
+  settings    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orders      Order[]
+}
+
+model Order {
+  id                    String   @id @default(uuid())
+  orderNumber           Int      @unique
+  installationId        String
+  installation         Installation @relation(fields: [installationId], references: [id])
+  
+  // Screen 1 - Ridicare
+  deliveryMethod        String
+  location              String?
+  address               String?
+  staffName             String
+  clientName            String
+  phoneNumber           String
+  pickupDate            DateTime
+  tomorrowVerification  Boolean  @default(false)
+  advance               Float?
+  
+  // Screen 2 - Sortiment
+  cakeType              String
+  weight                String
+  customWeight          String?
+  shape                 String?
+  floors                String?
+  otherProducts         String?
+  
+  // Screen 3 - Decor
+  coating               String
+  colors                String[]
+  decorType             String
+  decorDetails          String?
+  observations          String?
+  
+  // PDF
+  pdfPath               String?
+  
+  photos                Photo[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Photo {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  url       String
+  path      String?
+  createdAt DateTime @default(now())
+}
+
+model OrderCounter {
+  id        String   @id @default(uuid())
+  lastOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+

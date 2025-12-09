@@ -1,0 +1,72 @@
+interface ProgressStepperProps {
+  currentStep: number
+  onStepClick: (step: number) => void
+}
+
+const steps = [
+  { number: 1, label: 'Ridicare', icon: '📦' },
+  { number: 2, label: 'Sortiment', icon: '🎂' },
+  { number: 3, label: 'Decor', icon: '🎨' },
+  { number: 4, label: 'Finalizare', icon: '✓' },
+]
+
+function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
+  return (
+    <div className="flex items-center justify-center mb-12 px-4">
+      {steps.map((step, index) => (
+        <div key={step.number} className="flex items-center">
+          <div className="flex flex-col items-center">
+            <button
+              onClick={() => onStepClick(step.number)}
+              disabled={step.number > currentStep}
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl transition-all duration-300 ${
+                step.number === currentStep
+                  ? 'btn-active scale-110 shadow-glow-purple'
+                  : step.number < currentStep
+                  ? 'bg-gradient-to-r from-accent-purple/70 to-accent-pink/70 text-white shadow-neumorphic hover:scale-105'
+                  : 'btn-neumorphic text-secondary/40 cursor-not-allowed'
+              }`}
+            >
+              {step.number < currentStep ? (
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <span>{step.icon}</span>
+              )}
+              
+              {step.number === currentStep && (
+                <div className="absolute inset-0 rounded-full animate-ping bg-gradient-to-r from-accent-purple/30 to-accent-pink/30"></div>
+              )}
+            </button>
+            <span
+              className={`mt-4 text-sm font-bold transition-all duration-300 ${
+                step.number === currentStep
+                  ? 'text-gradient scale-110'
+                  : step.number < currentStep
+                  ? 'text-accent-purple'
+                  : 'text-secondary/40'
+              }`}
+            >
+              {step.label}
+            </span>
+          </div>
+          {index < steps.length - 1 && (
+            <div className="relative w-20 md:w-32 h-2 mx-6 rounded-full bg-primary shadow-neumorphic-inset overflow-hidden">
+              <div
+                className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${
+                  step.number < currentStep 
+                    ? 'w-full bg-gradient-to-r from-accent-purple to-accent-pink' 
+                    : 'w-0'
+                }`}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default ProgressStepper
+

@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: linear-gradient(135deg, #E8E9F3 0%, #F5F6FA 100%);
+    color: #2B2D42;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Neumorphic Button */
+  .btn-neumorphic {
+    background-color: #E8E9F3;
+    box-shadow: 8px 8px 16px #d1d2db, -8px -8px 16px #ffffff;
+    border-radius: 1rem;
+    transition: all 0.3s;
+  }
+  
+  .btn-neumorphic:hover {
+    box-shadow: 12px 12px 24px #d1d2db, -12px -12px 24px #ffffff;
+  }
+  
+  .btn-neumorphic:active {
+    box-shadow: inset 5px 5px 10px #d1d2db, inset -5px -5px 10px #ffffff;
+  }
+
+  /* Neumorphic Card */
+  .card-neumorphic {
+    background-color: #FFFFFF;
+    box-shadow: 8px 8px 16px #d1d2db, -8px -8px 16px #ffffff;
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    transition: all 0.3s;
+  }
+
+  /* Active/Selected State */
+  .btn-active {
+    background: linear-gradient(to right, #A855F7, #D946EF);
+    color: white;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+  }
+
+  /* Glass Morphism */
+  .glass-card {
+    background-color: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px 0 rgba(168, 85, 247, 0.1);
+    border-radius: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  /* Input Neumorphic */
+  .input-neumorphic {
+    background-color: #E8E9F3;
+    box-shadow: inset 5px 5px 10px #d1d2db, inset -5px -5px 10px #ffffff;
+    border-radius: 1rem;
+    padding: 0.75rem 1rem;
+    outline: none;
+    transition: all 0.3s;
+  }
+
+  .input-neumorphic:focus {
+    outline: none;
+    box-shadow: inset 5px 5px 10px #d1d2db, inset -5px -5px 10px #ffffff, 0 0 0 2px #A855F7;
+  }
+
+  /* Smooth gradient text */
+  .text-gradient {
+    background: linear-gradient(to right, #A855F7, #D946EF);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+}
+
