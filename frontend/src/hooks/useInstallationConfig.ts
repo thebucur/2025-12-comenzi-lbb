@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ColorOption } from '../constants/colors'
 
 interface InstallationConfig {
   sortiment?: {
@@ -9,7 +10,7 @@ interface InstallationConfig {
   }
   decor?: {
     coatings?: string[]
-    colors?: string[]
+    colors?: Array<string | ColorOption>
     decorTypes?: string[]
   }
 }
@@ -30,4 +31,6 @@ export const useInstallationConfig = () => {
 
   return config
 }
+
+
 

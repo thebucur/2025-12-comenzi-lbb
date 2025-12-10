@@ -3,9 +3,36 @@ interface NavigationButtonsProps {
   onNext: () => void
   onPrevious: () => void
   canProceed: boolean
+  isEditMode?: boolean
+  onFinishEdit?: () => void
 }
 
-function NavigationButtons({ currentStep, onNext, onPrevious, canProceed }: NavigationButtonsProps) {
+function NavigationButtons({
+  currentStep,
+  onNext,
+  onPrevious,
+  canProceed,
+  isEditMode = false,
+  onFinishEdit
+}: NavigationButtonsProps) {
+  if (isEditMode) {
+    return (
+      <div className="flex justify-center mt-12">
+        <button
+          onClick={onFinishEdit}
+          disabled={!canProceed}
+          className={`px-12 py-5 rounded-2xl font-bold text-2xl transition-all duration-300 ${
+            canProceed
+              ? 'btn-active hover:scale-105 shadow-glow-purple'
+              : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+          }`}
+        >
+          GATA!
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex justify-between items-center mt-12 gap-4">
       <button

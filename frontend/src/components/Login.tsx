@@ -108,12 +108,22 @@ function Login() {
           </button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-3">
           <button
             onClick={() => navigate('/admin')}
-            className="text-secondary/60 hover:text-accent-purple transition-colors text-sm font-medium"
+            className="text-secondary/60 hover:text-accent-purple transition-colors text-sm font-medium block w-full"
           >
             Acces panou administrare →
+          </button>
+          <button
+            onClick={() => {
+              // Skip login and go directly to wizard
+              localStorage.setItem('skipAuth', 'true')
+              navigate('/')
+            }}
+            className="text-secondary/60 hover:text-accent-pink transition-colors text-sm font-medium block w-full"
+          >
+            Continuă fără autentificare →
           </button>
         </div>
       </div>

@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
+import { resolveColorValue } from '../../constants/colors'
 
 function Screen4Finalizare() {
   const { order, updateOrder, resetOrder } = useOrder()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [, setSearchParams] = useSearchParams()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [nextOrderNumber, setNextOrderNumber] = useState<number | null>(null)
 
@@ -24,8 +25,8 @@ function Screen4Finalizare() {
   }, [])
 
   const handleEdit = (step: number) => {
-    setSearchParams({ step: step.toString() })
-    window.location.reload() // Reload to update the wizard step
+    // Mark edit mode so the wizard knows to show the quick return button
+    setSearchParams({ step: step.toString(), edit: '1' })
   }
 
   const handleSubmit = async () => {
@@ -65,12 +66,17 @@ function Screen4Finalizare() {
         <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple mb-6 animate-float">
           <span className="text-5xl">✓</span>
         </div>
-        <h2 className="text-4xl font-bold text-gradient mb-4">
-          {order.orderNumber 
-            ? `Comanda #${order.orderNumber}` 
-            : nextOrderNumber 
-            ? `Comanda #${nextOrderNumber}`
-            : 'Rezumat comanda'}
+        <h2 className="text-4xl font-bold text-gradient mb-3 flex items-center justify-center gap-3 flex-wrap">
+          <span>Rezumat comanda</span>
+          {((order.orderNumber ?? nextOrderNumber) && (
+            <span className="px-4 py-1 rounded-full bg-primary/70 text-accent-purple shadow-neumorphic text-xl font-extrabold">
+              #{order.orderNumber ?? nextOrderNumber}
+            </span>
+          )) || (
+            <span className="px-4 py-1 rounded-full bg-primary/50 text-secondary/60 text-xl">
+              #încarcare...
+            </span>
+          )}
         </h2>
         <p className="text-secondary/70 text-lg">Verificați detaliile comenzii înainte de trimitere</p>
       </div>
@@ -210,13 +216,18 @@ function Screen4Finalizare() {
           {order.colors.length > 0 && (
             <div className="bg-primary/50 p-4 rounded-2xl">
               <p className="text-sm text-secondary/60 mb-1">Culori</p>
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-3 mt-2 flex-wrap">
                 {order.colors.map((color, idx) => (
-                  <div 
-                    key={idx} 
-                    className="w-12 h-12 rounded-xl shadow-neumorphic"
-                    style={{ backgroundColor: color }}
-                  />
+                  <div
+                    key={idx}
+                    className="px-3 py-2 rounded-xl shadow-neumorphic bg-white/70 flex items-center gap-2"
+                  >
+                    <span
+                      className="w-4 h-4 rounded-full border border-secondary/20 shadow-sm"
+                      style={{ backgroundColor: resolveColorValue(color) }}
+                    />
+                    <span className="text-sm font-semibold text-secondary">{color}</span>
+                  </div>
                 ))}
               </div>
             </div>

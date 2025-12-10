@@ -8,3 +8,5 @@ router.get('/installation/:installationId/config', getInstallationConfig)
 
 export default router
 
+
+

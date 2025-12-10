@@ -19,6 +19,8 @@ model Installation {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   orders      Order[]
+  users       User[]
+  configs     InstallationConfig[]
 }
 
 model Order {
@@ -74,5 +76,40 @@ model OrderCounter {
   id        String   @id @default(uuid())
   lastOrder Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+model User {
+  id             String       @id @default(uuid())
+  username       String       @unique
+  password       String       // Hashed password
+  installationId String
+  installation   Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GlobalConfig {
+  id            String               @id @default(uuid())
+  category      String               // 'sortiment' or 'decor'
+  key           String               // 'cakeTypes', 'weights', 'shapes', 'floors', 'coatings', 'colors', 'decorTypes'
+  value         Json                 // Array of options
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  installations InstallationConfig[]
+
+  @@unique([category, key])
+}
+
+model InstallationConfig {
+  id              String       @id @default(uuid())
+  installationId  String
+  installation    Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  globalConfigId  String
+  globalConfig    GlobalConfig @relation(fields: [globalConfigId], references: [id], onDelete: Cascade)
+  enabled         Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([installationId, globalConfigId])
 }
 

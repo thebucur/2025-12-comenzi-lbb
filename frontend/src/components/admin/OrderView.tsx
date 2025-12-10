@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
+import { resolveColorValue } from '../../constants/colors'
 
 interface OrderData {
   id: string
@@ -214,14 +215,19 @@ function AdminOrderView() {
               {order.colors.length > 0 && (
                 <div className="bg-primary/50 p-4 rounded-2xl">
                   <p className="text-sm text-secondary/60 mb-3">Culori selectate</p>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 flex-wrap">
                     {order.colors.map((color, idx) => (
-                      <div 
-                        key={idx} 
-                        className="w-16 h-16 rounded-2xl shadow-neumorphic"
-                        style={{ backgroundColor: color }}
+                      <div
+                        key={idx}
+                        className="px-3 py-2 rounded-xl shadow-neumorphic bg-white/70 flex items-center gap-2"
                         title={color}
-                      />
+                      >
+                        <span
+                          className="w-4 h-4 rounded-full border border-secondary/20 shadow-sm"
+                          style={{ backgroundColor: resolveColorValue(color) }}
+                        />
+                        <span className="text-sm font-semibold text-secondary">{color}</span>
+                      </div>
                     ))}
                   </div>
                 </div>

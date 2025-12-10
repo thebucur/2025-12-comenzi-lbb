@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useOrder } from '../../context/OrderContext'
-import { DeliveryMethod, Location } from '../../types/order.types'
+import { Location } from '../../types/order.types'
 
 const locations: Location[] = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
 const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
@@ -33,8 +33,8 @@ function Screen1Ridicare() {
     if (value.startsWith('07')) {
       value = value.substring(2)
     }
-    if (value.length > 9) {
-      value = value.substring(0, 9)
+    if (value.length > 8) {
+      value = value.substring(0, 8)
     }
     updateOrder({ phoneNumber: value })
   }
@@ -222,11 +222,11 @@ function Screen1Ridicare() {
               value={order.phoneNumber}
               onChange={handlePhoneChange}
               className="input-neumorphic flex-1 text-secondary placeholder:text-secondary/40"
-              placeholder="123456789"
-              maxLength={9}
+              placeholder="12345678"
+              maxLength={8}
             />
           </div>
-          {order.phoneNumber && order.phoneNumber.length < 9 && (
+          {order.phoneNumber && order.phoneNumber.length < 8 && (
             <p className="mt-2 text-sm text-red-500 font-semibold">⚠️ Număr de telefon incomplet</p>
           )}
         </div>
@@ -239,8 +239,19 @@ function Screen1Ridicare() {
             type="date"
             value={order.pickupDate}
             onChange={handleDateChange}
+            onKeyDown={(e) => {
+              // Block typing; allow navigation keys only
+              const allowedKeys = ['Tab', 'Shift', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
+              if (!allowedKeys.includes(e.key)) {
+                e.preventDefault()
+              }
+            }}
+            onPaste={(e) => e.preventDefault()}
+            onDrop={(e) => e.preventDefault()}
+            onFocus={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
+            inputMode="none"
             min={new Date().toISOString().split('T')[0]}
-            className="input-neumorphic w-full text-secondary"
+            className="input-neumorphic w-full text-secondary cursor-pointer"
           />
         </div>
 

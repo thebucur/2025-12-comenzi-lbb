@@ -23,7 +23,7 @@ function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         scanner.stop()
         onScanSuccess(decodedText)
       },
-      (errorMessage) => {
+      (_errorMessage) => {
         // Ignore scanning errors
       }
     ).catch((err) => {
@@ -62,4 +62,6 @@ function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
 }
 
 export default QRScanner
+
+
 

@@ -12,6 +12,7 @@ function Wizard() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialStep = parseInt(searchParams.get('step') || '1')
   const [currentStep, setCurrentStep] = useState(initialStep)
+  const isEditingFromReview = searchParams.get('edit') === '1'
   const { validateStep } = useOrder()
 
   useEffect(() => {
@@ -25,7 +26,11 @@ function Wizard() {
     if (validateStep(currentStep) && currentStep < 4) {
       const newStep = currentStep + 1
       setCurrentStep(newStep)
-      setSearchParams({ step: newStep.toString() })
+      setSearchParams(
+        isEditingFromReview
+          ? { step: newStep.toString(), edit: '1' }
+          : { step: newStep.toString() }
+      )
     }
   }
 
@@ -33,14 +38,29 @@ function Wizard() {
     if (currentStep > 1) {
       const newStep = currentStep - 1
       setCurrentStep(newStep)
-      setSearchParams({ step: newStep.toString() })
+      setSearchParams(
+        isEditingFromReview
+          ? { step: newStep.toString(), edit: '1' }
+          : { step: newStep.toString() }
+      )
     }
   }
 
   const handleStepClick = (step: number) => {
     if (step <= currentStep) {
       setCurrentStep(step)
-      setSearchParams({ step: step.toString() })
+      setSearchParams(
+        isEditingFromReview
+          ? { step: step.toString(), edit: '1' }
+          : { step: step.toString() }
+      )
+    }
+  }
+
+  const handleFinishEdit = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(4)
+      setSearchParams({ step: '4' })
     }
   }
 
@@ -67,6 +87,8 @@ function Wizard() {
           onNext={handleNext}
           onPrevious={handlePrevious}
           canProceed={validateStep(currentStep)}
+          isEditMode={isEditingFromReview && currentStep !== 4}
+          onFinishEdit={handleFinishEdit}
         />
       </div>
     </div>

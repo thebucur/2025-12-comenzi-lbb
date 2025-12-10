@@ -514,7 +514,18 @@ function AdminDashboard() {
                   type="date"
                   value={filterDate}
                   onChange={(e) => setFilterDate(e.target.value)}
-                  className="input-neumorphic flex-1 min-w-[200px] text-secondary"
+                  onKeyDown={(e) => {
+                    // Block typing; allow navigation keys only
+                    const allowedKeys = ['Tab', 'Shift', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
+                    if (!allowedKeys.includes(e.key)) {
+                      e.preventDefault()
+                    }
+                  }}
+                  onPaste={(e) => e.preventDefault()}
+                  onDrop={(e) => e.preventDefault()}
+                  onFocus={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
+                  inputMode="none"
+                  className="input-neumorphic flex-1 min-w-[200px] text-secondary cursor-pointer"
                 />
                 <select
                   value={filterInstallation}

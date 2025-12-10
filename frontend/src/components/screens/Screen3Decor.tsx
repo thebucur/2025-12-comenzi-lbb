@@ -3,16 +3,10 @@ import { useOrder } from '../../context/OrderContext'
 import { Coating } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
 import QRCode from 'qrcode'
+import { ColorOption, normalizeColorOptions, resolveColorValue } from '../../constants/colors'
 
 // Default values (fallback if config not available)
 const defaultCoatings: Coating[] = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
-
-const defaultColors = [
-  '#FF0000', '#FF69B4', '#FF1493', '#FF6347',
-  '#FFD700', '#FFA500', '#32CD32', '#00CED1',
-  '#0000FF', '#8A2BE2', '#FFFFFF', '#000000',
-]
-
 const defaultDecorTypes = ['SIMPLU', 'MEDIU', 'COMPLEX', 'PREMIUM']
 
 function Screen3Decor() {
@@ -26,45 +20,55 @@ function Screen3Decor() {
 
   // Use config values or fallback to defaults
   const coatings = (config?.decor?.coatings as Coating[]) || defaultCoatings
-  const colors = config?.decor?.colors || defaultColors
+  const colors = normalizeColorOptions(config?.decor?.colors as Array<string | ColorOption>)
   const decorTypes = config?.decor?.decorTypes || defaultDecorTypes
 
-  const handleColorClick = (color: string) => {
-    if (order.colors.includes(color)) {
-      updateOrder({ colors: order.colors.filter(c => c !== color) })
+  const isColorSelected = (color: ColorOption) => {
+    return order.colors.some(
+      (selected) =>
+        selected.toLowerCase() === color.name.toLowerCase() ||
+        selected.toLowerCase() === color.value.toLowerCase()
+    )
+  }
+
+  const handleColorClick = (color: ColorOption) => {
+    const colorKey = color.name || color.value
+
+    if (isColorSelected(color)) {
+      updateOrder({
+        colors: order.colors.filter(
+          (selected) =>
+            selected.toLowerCase() !== colorKey.toLowerCase() &&
+            selected.toLowerCase() !== color.value.toLowerCase()
+        ),
+      })
     } else if (order.colors.length < 2) {
-      updateOrder({ colors: [...order.colors, color] })
+      updateOrder({ colors: [...order.colors, colorKey] })
     }
   }
 
   const generateQRCode = async () => {
     try {
       // Generate a session ID for this upload session
-      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      const uploadUrl = `${window.location.origin}/upload/${sessionId}`
-      const dataUrl = await QRCode.toDataURL(uploadUrl)
-      setQrCodeDataUrl(dataUrl)
-      setShowQRCode(true)
+      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const uploadUrl = `${window.location.origin}/upload/${sessionId}`;
+      const dataUrl = await QRCode.toDataURL(uploadUrl);
+      setQrCodeDataUrl(dataUrl);
+      setShowQRCode(true);
       
       // Store session ID for later use when order is submitted
-      localStorage.setItem('currentUploadSession', sessionId)
+      localStorage.setItem('currentUploadSession', sessionId);
       
       // Poll for new photos (simple approach - in production use WebSockets)
-      const pollInterval = setInterval(async () => {
-        try {
-          // This would need an endpoint to get photos by session ID
-          // For now, photos will be linked when order is created
-        } catch (error) {
-          console.error('Error polling for photos:', error)
-        }
-      }, 2000)
-      
-      // Store interval to clear it later
-      (window as any).photoPollInterval = pollInterval
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).photoPollInterval = setInterval(() => {
+        // This would need an endpoint to get photos by session ID
+        // For now, photos will be linked when order is created
+      }, 2000);
     } catch (error) {
-      console.error('Error generating QR code:', error)
+      console.error('Error generating QR code:', error);
     }
-  }
+  };
 
   const startVoiceInput = (type: 'decorDetails' | 'observations') => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -150,31 +154,33 @@ function Screen3Decor() {
             </span>
           )}
         </div>
-        <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {colors.map((color) => {
-            const isSelected = order.colors.includes(color)
+            const isSelected = isColorSelected(color)
             const isDisabled = !isSelected && order.colors.length >= 2
             return (
               <button
-                key={color}
+                key={`${color.name}-${color.value}`}
                 onClick={() => handleColorClick(color)}
                 disabled={isDisabled}
-                className={`relative w-full h-20 rounded-2xl transition-all duration-300 ${
+                className={`w-full p-5 rounded-2xl transition-all duration-300 text-left ${
                   isSelected
-                    ? 'ring-4 ring-accent-purple scale-110 shadow-glow-purple'
+                    ? 'btn-active scale-105 shadow-glow-purple'
                     : isDisabled
-                    ? 'opacity-30 cursor-not-allowed shadow-neumorphic-inset'
-                    : 'shadow-neumorphic hover:scale-105'
+                    ? 'opacity-40 cursor-not-allowed shadow-neumorphic-inset'
+                    : 'btn-neumorphic hover:scale-105'
                 }`}
-                style={{ backgroundColor: color }}
-                title={color}
+                title={color.name}
               >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-bold text-secondary">{color.name}</span>
+                  <span
+                    className="w-5 h-5 rounded-full border border-secondary/20 shadow-sm"
+                    style={{ backgroundColor: resolveColorValue(color.value, colors) }}
+                  />
+                </div>
                 {isSelected && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="w-10 h-10 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
+                  <p className="mt-2 text-xs font-semibold text-secondary/70">Selectat ({order.colors.length}/2)</p>
                 )}
               </button>
             )

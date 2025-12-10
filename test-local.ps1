@@ -46,3 +46,5 @@ Write-Host "Stopping servers..." -ForegroundColor Yellow
 Stop-Job $backendJob
 Remove-Job $backendJob
 
+
+

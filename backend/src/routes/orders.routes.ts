@@ -3,6 +3,7 @@ import { createOrder, getOrder, listOrders, getNextOrderNumber } from '../contro
 import { generatePDF } from '../services/pdf.service'
 import { sendOrderEmail } from '../services/email.service'
 import prisma from '../lib/prisma'
+import fs from 'fs'
 
 const router = Router()
 
@@ -49,7 +50,6 @@ router.get('/:id/pdf', async (req, res) => {
       return res.status(404).json({ error: 'PDF not found' })
     }
 
-    const fs = require('fs')
     const fileStream = fs.createReadStream(order.pdfPath)
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename=comanda-${order.orderNumber}.pdf`)

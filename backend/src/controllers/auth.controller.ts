@@ -58,7 +58,7 @@ export const getInstallationConfig = async (req: Request, res: Response) => {
       decor: {},
     }
 
-    globalConfigs.forEach((gc) => {
+    globalConfigs.forEach((gc: any) => {
       const isEnabled = gc.installations.length > 0
       if (isEnabled) {
         if (!config[gc.category]) {

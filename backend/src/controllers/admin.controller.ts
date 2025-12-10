@@ -80,7 +80,6 @@ export const listUsers = async (req: Request, res: Response) => {
     }
     const users = await prisma.user.findMany({
       where,
-      include: { installation: true },
       select: {
         id: true,
         username: true,

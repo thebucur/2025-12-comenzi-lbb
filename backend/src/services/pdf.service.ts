@@ -76,7 +76,10 @@ export const generatePDF = async (orderId: string): Promise<string> => {
   doc.end()
 
   // Wait for stream to finish
-  await new Promise((resolve) => stream.on('finish', resolve))
+  await new Promise<void>((resolve, reject) => {
+    stream.on('finish', () => resolve())
+    stream.on('error', (err) => reject(err))
+  })
 
   // Update order with PDF path
   await prisma.order.update({

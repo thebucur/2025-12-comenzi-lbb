@@ -54,7 +54,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         if (order.deliveryMethod === 'livrare' && !order.address.trim()) return false
         if (!order.staffName) return false
         if (!order.clientName.trim()) return false
-        if (!order.phoneNumber.trim() || order.phoneNumber.length < 9) return false
+        if (!order.phoneNumber.trim() || order.phoneNumber.length < 8) return false
         if (!order.pickupDate) return false
         return true
       case 2:
