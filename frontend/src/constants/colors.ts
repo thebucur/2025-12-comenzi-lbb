@@ -45,3 +45,4 @@ export const resolveColorValue = (nameOrValue: string, palette: ColorOption[] = 
   return match?.value || nameOrValue
 }
 
+
