@@ -40,13 +40,12 @@ export const getInstallationConfig = async (req: Request, res: Response) => {
   try {
     const { installationId } = req.params
 
-    // Get all global configs
+    // Get all global configs with their installation-specific overrides
     const globalConfigs = await prisma.globalConfig.findMany({
       include: {
         installations: {
           where: {
             installationId,
-            enabled: true,
           },
         },
       },
@@ -59,7 +58,14 @@ export const getInstallationConfig = async (req: Request, res: Response) => {
     }
 
     globalConfigs.forEach((gc: any) => {
-      const isEnabled = gc.installations.length > 0
+      // Check if there's an InstallationConfig entry for this installation
+      const installationConfig = gc.installations.find((ic: any) => ic.installationId === installationId)
+      
+      // Include config if:
+      // 1. No InstallationConfig entry exists (enabled by default for all installations)
+      // 2. InstallationConfig exists and is enabled
+      const isEnabled = !installationConfig || installationConfig.enabled
+      
       if (isEnabled) {
         if (!config[gc.category]) {
           config[gc.category] = {}
