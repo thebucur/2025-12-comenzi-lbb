@@ -71,15 +71,9 @@ function Wizard({ onLogout }: WizardProps) {
   }
 
   const handleLogout = () => {
-    // Clear auth both locally and via parent handler so App state updates
+    // Call parent logout handler to update App state
     onLogout?.()
-    if (!onLogout) {
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('userId')
-      localStorage.removeItem('installationId')
-      localStorage.removeItem('installationName')
-      localStorage.removeItem('installationConfig')
-    }
+    // Navigate to login - the route guard will handle redirect if needed
     navigate('/login', { replace: true })
   }
 

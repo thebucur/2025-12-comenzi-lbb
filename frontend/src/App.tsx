@@ -16,8 +16,17 @@ function App() {
       setAuthToken(localStorage.getItem('authToken'))
     }
 
+    // Listen for both storage events (cross-tab) and custom authChange events (same-tab)
+    const handleAuthChange = () => {
+      setAuthToken(localStorage.getItem('authToken'))
+    }
+
     window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
+    window.addEventListener('authChange', handleAuthChange)
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('authChange', handleAuthChange)
+    }
   }, [])
 
   const handleLoginSuccess = () => {
@@ -32,11 +41,15 @@ function App() {
     localStorage.removeItem('installationName')
     localStorage.removeItem('installationConfig')
     setAuthToken(null)
+    // Dispatch custom event to trigger auth state update in same tab
+    window.dispatchEvent(new Event('authChange'))
   }
 
-  const isAuthenticated = !!authToken
-  const requireAuth = (element: JSX.Element) =>
-    isAuthenticated ? element : <Navigate to="/login" replace />
+  // Check localStorage directly as source of truth (state updates are async)
+  const checkAuth = () => !!localStorage.getItem('authToken')
+  const requireAuth = (element: JSX.Element) => {
+    return checkAuth() ? element : <Navigate to="/login" replace />
+  }
 
   return (
     <OrderProvider>
@@ -44,7 +57,7 @@ function App() {
         <Routes>
           <Route
             path="/login"
-            element={isAuthenticated ? <Navigate to="/" replace /> : <Login onLoginSuccess={handleLoginSuccess} />}
+            element={checkAuth() ? <Navigate to="/" replace /> : <Login onLoginSuccess={handleLoginSuccess} />}
           />
           <Route
             path="/"
