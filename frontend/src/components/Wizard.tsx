@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import ProgressStepper from './ProgressStepper'
 import NavigationButtons from './NavigationButtons'
 import Screen1Ridicare from './screens/Screen1Ridicare'
@@ -9,6 +9,7 @@ import Screen4Finalizare from './screens/Screen4Finalizare'
 import { useOrder } from '../context/OrderContext'
 
 function Wizard() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialStep = parseInt(searchParams.get('step') || '1')
   const [currentStep, setCurrentStep] = useState(initialStep)
@@ -65,6 +66,11 @@ function Wizard() {
     }
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('authToken')
+    navigate('/login')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary">
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
@@ -94,8 +100,14 @@ function Wizard() {
       </div>
 
       {username && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 text-secondary/60 text-xs">
-          Logged in as {username}
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-secondary/60 text-xs">
+          <span>Logged in as {username}</span>
+          <button
+            onClick={handleLogout}
+            className="underline hover:text-secondary transition-colors"
+          >
+            Logout
+          </button>
         </div>
       )}
     </div>
