@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 
-function Login() {
+type LoginProps = {
+  onLoginSuccess?: () => void
+}
+
+function Login({ onLoginSuccess }: LoginProps) {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -27,6 +31,8 @@ function Login() {
       // Fetch installation configuration
       const configResponse = await api.get(`/auth/installation/${installation.id}/config`)
       localStorage.setItem('installationConfig', JSON.stringify(configResponse.data))
+
+      onLoginSuccess?.()
 
       // Redirect to wizard
       navigate('/')

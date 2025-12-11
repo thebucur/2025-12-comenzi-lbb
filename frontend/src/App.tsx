@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { OrderProvider } from './context/OrderContext'
 import Wizard from './components/Wizard'
@@ -7,10 +8,26 @@ import AdminOrderView from './components/admin/OrderView'
 import PhotoUpload from './components/PhotoUpload'
 
 function App() {
-  // Check if user is authenticated
-  const isAuthenticated = () => {
-    return !!localStorage.getItem('authToken')
+  const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
+
+  // Keep auth state in sync with localStorage changes (even within the same tab)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setAuthToken(localStorage.getItem('authToken'))
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
+
+  const handleLoginSuccess = () => {
+    // Refresh auth state immediately after successful login
+    setAuthToken(localStorage.getItem('authToken'))
   }
+
+  const isAuthenticated = !!authToken
+  const requireAuth = (element: JSX.Element) =>
+    isAuthenticated ? element : <Navigate to="/login" replace />
 
   return (
     <OrderProvider>
@@ -18,15 +35,15 @@ function App() {
         <Routes>
           <Route
             path="/login"
-            element={isAuthenticated() ? <Navigate to="/" replace /> : <Login />}
+            element={isAuthenticated ? <Navigate to="/" replace /> : <Login onLoginSuccess={handleLoginSuccess} />}
           />
           <Route
             path="/"
-            element={isAuthenticated() ? <Wizard /> : <Navigate to="/login" replace />}
+            element={requireAuth(<Wizard />)}
           />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/orders/:id" element={<AdminOrderView />} />
-          <Route path="/upload/:sessionId" element={<PhotoUpload />} />
+          <Route path="/admin" element={requireAuth(<AdminDashboard />)} />
+          <Route path="/admin/orders/:id" element={requireAuth(<AdminOrderView />)} />
+          <Route path="/upload/:sessionId" element={requireAuth(<PhotoUpload />)} />
         </Routes>
       </Router>
     </OrderProvider>

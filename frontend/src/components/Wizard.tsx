@@ -14,6 +14,7 @@ function Wizard() {
   const [currentStep, setCurrentStep] = useState(initialStep)
   const isEditingFromReview = searchParams.get('edit') === '1'
   const { validateStep } = useOrder()
+  const username = localStorage.getItem('authToken')
 
   useEffect(() => {
     const stepParam = searchParams.get('step')
@@ -91,6 +92,12 @@ function Wizard() {
           onFinishEdit={handleFinishEdit}
         />
       </div>
+
+      {username && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 text-secondary/60 text-xs">
+          Logged in as {username}
+        </div>
+      )}
     </div>
   )
 }
