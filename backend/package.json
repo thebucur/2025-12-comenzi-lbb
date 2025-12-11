@@ -5,8 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "build": "prisma generate && tsc",
+    "start": "npx prisma db push && node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -22,7 +22,8 @@
     "nodemailer": "^6.9.7",
     "pdfkit": "^0.14.0",
     "sharp": "^0.33.1",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "prisma": "^5.7.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
@@ -32,7 +33,6 @@
     "@types/node": "^20.10.5",
     "@types/nodemailer": "^6.4.14",
     "@types/uuid": "^9.0.7",
-    "prisma": "^5.7.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
