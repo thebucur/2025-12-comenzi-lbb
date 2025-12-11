@@ -7,9 +7,9 @@ import AdminOrderView from './components/admin/OrderView'
 import PhotoUpload from './components/PhotoUpload'
 
 function App() {
-  // Check if user is authenticated or has skipped authentication
+  // Check if user is authenticated
   const isAuthenticated = () => {
-    return !!localStorage.getItem('authToken') || !!localStorage.getItem('skipAuth')
+    return !!localStorage.getItem('authToken')
   }
 
   return (

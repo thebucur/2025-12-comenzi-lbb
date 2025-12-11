@@ -1,0 +1,41 @@
+[33mcommit 4ec6d4b65b22d26951d4ca9551a26615252ccbef[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: bucur <abucur@gmail.com>
+Date:   Thu Dec 11 15:00:30 2025 +0200
+
+    Add railway.json to root directory for Railway deployment
+
+[33mcommit 4e022fc4edfc73dfcfa07aa152b9aa23f4483489[m
+Author: bucur <abucur@gmail.com>
+Date:   Thu Dec 11 09:38:46 2025 +0200
+
+    Remove Nixpacks config files - use Railpack auto-detection
+
+[33mcommit a3f67c548832932bbe78927bf6a611761c121410[m
+Author: bucur <abucur@gmail.com>
+Date:   Thu Dec 11 09:36:54 2025 +0200
+
+    Remove frontend railway.json - use Railpack build commands instead
+
+[33mcommit 6627d21ceb56e912feb337b3aff3e4c91a15dddb[m
+Author: bucur <abucur@gmail.com>
+Date:   Thu Dec 11 09:14:59 2025 +0200
+
+    Add Railway config for frontend service
+
+[33mcommit 1cbb5332b968daf1da6944e7e0db8df5b18a4406[m
+Author: bucur <abucur@gmail.com>
+Date:   Thu Dec 11 09:12:55 2025 +0200
+
+    Fix API base URL normalization and add build configs
+
+[33mcommit f59287f15ffc081d5d11894239a26a8f1d9292cf[m
+Author: bucur <abucur@gmail.com>
+Date:   Wed Dec 10 12:44:53 2025 +0200
+
+    Update project files: frontend components, backend services, and configuration
+
+[33mcommit b9e16ad35aa1a72de078c1d2fa26527ded4cb644[m
+Author: bucur <abucur@gmail.com>
+Date:   Wed Dec 10 00:47:47 2025 +0200
+
+    Initial deployment: Complete cake ordering system with backend and frontend
