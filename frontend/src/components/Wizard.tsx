@@ -8,7 +8,11 @@ import Screen3Decor from './screens/Screen3Decor'
 import Screen4Finalizare from './screens/Screen4Finalizare'
 import { useOrder } from '../context/OrderContext'
 
-function Wizard() {
+type WizardProps = {
+  onLogout?: () => void
+}
+
+function Wizard({ onLogout }: WizardProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialStep = parseInt(searchParams.get('step') || '1')
@@ -67,8 +71,16 @@ function Wizard() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('authToken')
-    navigate('/login')
+    // Clear auth both locally and via parent handler so App state updates
+    onLogout?.()
+    if (!onLogout) {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('installationId')
+      localStorage.removeItem('installationName')
+      localStorage.removeItem('installationConfig')
+    }
+    navigate('/login', { replace: true })
   }
 
   return (

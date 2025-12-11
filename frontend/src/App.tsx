@@ -25,6 +25,15 @@ function App() {
     setAuthToken(localStorage.getItem('authToken'))
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('installationId')
+    localStorage.removeItem('installationName')
+    localStorage.removeItem('installationConfig')
+    setAuthToken(null)
+  }
+
   const isAuthenticated = !!authToken
   const requireAuth = (element: JSX.Element) =>
     isAuthenticated ? element : <Navigate to="/login" replace />
@@ -39,7 +48,7 @@ function App() {
           />
           <Route
             path="/"
-            element={requireAuth(<Wizard />)}
+            element={requireAuth(<Wizard onLogout={handleLogout} />)}
           />
           <Route path="/admin" element={requireAuth(<AdminDashboard />)} />
           <Route path="/admin/orders/:id" element={requireAuth(<AdminOrderView />)} />
