@@ -70,7 +70,9 @@ function Wizard({ onLogout }: WizardProps) {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
     // Call parent logout handler to update App state
     onLogout?.()
     // Navigate to login - the route guard will handle redirect if needed
@@ -106,11 +108,12 @@ function Wizard({ onLogout }: WizardProps) {
       </div>
 
       {username && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-secondary/60 text-xs">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-secondary/60 text-xs z-50">
           <span>Logged in as {username}</span>
           <button
+            type="button"
             onClick={handleLogout}
-            className="underline hover:text-secondary transition-colors"
+            className="underline hover:text-secondary transition-colors cursor-pointer"
           >
             Logout
           </button>
