@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import api from '../services/api'
 
 type LoginProps = {
@@ -113,12 +113,12 @@ function Login({ onLoginSuccess }: LoginProps) {
         </form>
 
         <div className="mt-8 text-center">
-          <button
-            onClick={() => navigate('/admin')}
+          <Link
+            to="/admin"
             className="text-secondary/60 hover:text-accent-purple transition-colors text-sm font-medium block w-full"
           >
             Acces panou administrare →
-          </button>
+          </Link>
         </div>
       </div>
     </div>
