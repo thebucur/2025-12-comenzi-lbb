@@ -74,13 +74,58 @@ cd frontend
 npm run dev
 ```
 
-### 7. Test the Application
+### 7. Start the Application
 
-1. Open http://localhost:3000 in your browser
+**Terminal 1 - Backend:**
+```powershell
+cd backend
+npm run dev
+```
+
+**Terminal 2 - Frontend:**
+```powershell
+cd frontend
+npm run dev
+```
+
+The frontend will now be accessible on your local network (not just localhost).
+
+### 8. Enable Mobile QR Scanning
+
+To scan QR codes from mobile devices, you need to set your local network IP:
+
+**Option 1: Use the helper script**
+```powershell
+.\get-local-ip.ps1
+```
+This will show your IP address and instructions.
+
+**Option 2: Find IP manually**
+```powershell
+ipconfig | findstr IPv4
+```
+Look for an IP like `192.168.1.100` (not `127.0.0.1`)
+
+**Option 3: Set IP in the UI**
+1. Open the app and navigate to the Decor screen
+2. Click "SCANEAZĂ CODUL QR PENTRU POZE"
+3. Click "Setează IP local" in the warning message
+4. Enter your local IP address (e.g., `192.168.1.100`)
+5. Click "Salvează"
+
+**Option 4: Set IP via browser console**
+1. Open browser console (F12)
+2. Run: `localStorage.setItem('localNetworkIP', 'YOUR_IP_HERE')`
+3. Replace `YOUR_IP_HERE` with your actual IP (e.g., `192.168.1.100`)
+4. Refresh the page
+
+### 9. Test the Application
+
+1. Open http://localhost:3000 in your browser (or use your local IP: http://YOUR_IP:3000)
 2. You should see the Cake Ordering Wizard
 3. Test the complete flow:
    - Fill out all 4 steps
-   - Try photo upload (QR code)
+   - Try photo upload (QR code) - now works on mobile!
    - Submit an order
    - Check the database with Prisma Studio
 
@@ -112,6 +157,7 @@ This opens a GUI to view your database tables.
 - [ ] Order appears in database (check with Prisma Studio)
 - [ ] PDF is generated when order is submitted
 - [ ] Photo upload works (QR code flow)
+- [ ] Mobile QR scanning works (set local IP first)
 - [ ] Admin interface loads (if you have an order ID)
 
 ## 🐛 Common Issues
@@ -131,6 +177,12 @@ This opens a GUI to view your database tables.
 ### "Prisma client not generated"
 - Run `npm run prisma:generate` in `backend` directory
 
+### "Mobile QR code doesn't work"
+- Make sure Vite is running (frontend dev server)
+- Set your local network IP using one of the methods above
+- Ensure your mobile device is on the same Wi-Fi network
+- Try accessing `http://YOUR_IP:3000` directly on your mobile browser first
+
 ## 📚 Additional Resources
 
 - See `SETUP_LOCAL.md` for detailed setup instructions
@@ -144,6 +196,7 @@ Once local testing is successful:
 2. Database migrations are tested
 3. Environment variables are documented
 4. You're ready to deploy to Railway!
+
 
 
 

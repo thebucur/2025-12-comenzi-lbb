@@ -69,71 +69,6 @@ export const deleteGlobalConfig = async (req: Request, res: Response) => {
   }
 }
 
-// Get installation-specific enabled configs
-export const getInstallationConfigs = async (req: Request, res: Response) => {
-  try {
-    const { installationId } = req.params
-    const configs = await prisma.installationConfig.findMany({
-      where: { installationId },
-      include: {
-        globalConfig: true,
-      },
-    })
-    res.json(configs)
-  } catch (error) {
-    console.error('Error fetching installation configs:', error)
-    res.status(500).json({ error: 'Failed to fetch installation configurations' })
-  }
-}
-
-// Toggle installation config (enable/disable a global config for an installation)
-export const toggleInstallationConfig = async (req: Request, res: Response) => {
-  try {
-    const { installationId, globalConfigId } = req.body
-
-    if (!installationId || !globalConfigId) {
-      return res.status(400).json({ error: 'Installation ID and Global Config ID are required' })
-    }
-
-    const existing = await prisma.installationConfig.findUnique({
-      where: {
-        installationId_globalConfigId: {
-          installationId,
-          globalConfigId,
-        },
-      },
-    })
-
-    if (existing) {
-      // Toggle enabled status
-      const config = await prisma.installationConfig.update({
-        where: {
-          installationId_globalConfigId: {
-            installationId,
-            globalConfigId,
-          },
-        },
-        data: {
-          enabled: !existing.enabled,
-        },
-      })
-      res.json(config)
-    } else {
-      // Create new with enabled=true
-      const config = await prisma.installationConfig.create({
-        data: {
-          installationId,
-          globalConfigId,
-          enabled: true,
-        },
-      })
-      res.json(config)
-    }
-  } catch (error) {
-    console.error('Error toggling installation config:', error)
-    res.status(500).json({ error: 'Failed to toggle installation configuration' })
-  }
-}
 
 // Add item to a global config
 export const addItemToConfig = async (req: Request, res: Response) => {
@@ -204,38 +139,4 @@ export const deleteItemFromConfig = async (req: Request, res: Response) => {
   }
 }
 
-// Get config with installation status
-export const getConfigWithInstallationStatus = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params
-    const { installationId } = req.query
-
-    const config = await prisma.globalConfig.findUnique({
-      where: { id },
-      include: {
-        installations: installationId
-          ? {
-              where: { installationId: installationId as string },
-            }
-          : true,
-      },
-    })
-
-    if (!config) {
-      return res.status(404).json({ error: 'Configuration not found' })
-    }
-
-    const isEnabled = installationId
-      ? config.installations.some((ic) => ic.installationId === installationId && ic.enabled)
-      : false
-
-    res.json({
-      ...config,
-      isEnabled,
-    })
-  } catch (error) {
-    console.error('Error fetching config with installation status:', error)
-    res.status(500).json({ error: 'Failed to fetch configuration' })
-  }
-}
 

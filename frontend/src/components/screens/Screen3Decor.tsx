@@ -1,9 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { Coating } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
 import QRCode from 'qrcode'
 import { ColorOption, normalizeColorOptions, resolveColorValue } from '../../constants/colors'
+import { getLocalNetworkUrl, getLocalNetworkIP } from '../../utils/network'
+import api from '../../services/api'
 
 // Default values (fallback if config not available)
 const defaultCoatings: Coating[] = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
@@ -15,8 +17,84 @@ function Screen3Decor() {
   const [showQRCode, setShowQRCode] = useState(false)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('')
   const [isRecording, setIsRecording] = useState<string | null>(null)
+  const [localIP, setLocalIP] = useState<string>(getLocalNetworkIP() || '')
+  const [showIPInput, setShowIPInput] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const currentTextareaRef = useRef<'decorDetails' | 'observations' | null>(null)
+  const photoPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Helper function to convert relative URL to absolute
+  const getAbsoluteUrl = (relativeUrl: string): string => {
+    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+      return relativeUrl
+    }
+    
+    let backendURL: string
+    if (import.meta.env.DEV) {
+      const currentHostname = window.location.hostname
+      if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+        backendURL = `http://${currentHostname}:5000`
+      } else {
+        const localIP = getLocalNetworkIP()
+        if (localIP) {
+          backendURL = `http://${localIP}:5000`
+        } else {
+          const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+          backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+        }
+      }
+    } else {
+      const envURL = import.meta.env.VITE_API_URL || window.location.origin
+      backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+    }
+    
+    const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
+    return `${backendURL}${url}`
+  }
+
+  // Poll for photos by session ID
+  const startPhotoPolling = (sessionId: string) => {
+    // Clear any existing interval
+    if (photoPollIntervalRef.current) {
+      clearInterval(photoPollIntervalRef.current)
+    }
+
+    // Poll every 2 seconds for new photos
+    photoPollIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await api.get(`/upload/${sessionId}/photos`)
+        const photos = response.data.photos || []
+        
+        if (photos.length > 0) {
+          // Convert relative URLs to absolute URLs
+          const absolutePhotoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
+          
+          // Update order with new photos (merge with existing)
+          const existingPhotos = order.photos || []
+          const newPhotos = absolutePhotoUrls.filter((url: string) => !existingPhotos.includes(url))
+          
+          if (newPhotos.length > 0) {
+            console.log(`📸 Found ${newPhotos.length} new photos for session ${sessionId}`)
+            updateOrder({
+              photos: [...existingPhotos, ...newPhotos]
+            })
+          }
+        }
+      } catch (error) {
+        // Silently fail - session might not exist yet or no photos uploaded
+        console.debug('No photos found or error fetching:', error)
+      }
+    }, 2000)
+  }
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (photoPollIntervalRef.current) {
+        clearInterval(photoPollIntervalRef.current)
+      }
+    }
+  }, [])
 
   // Use config values or fallback to defaults
   const coatings = (config?.decor?.coatings as Coating[]) || defaultCoatings
@@ -51,7 +129,21 @@ function Screen3Decor() {
     try {
       // Generate a session ID for this upload session
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const uploadUrl = `${window.location.origin}/upload/${sessionId}`;
+      
+      // Use local network URL instead of localhost for mobile access
+      const baseUrl = getLocalNetworkUrl();
+      const uploadUrl = `${baseUrl}/upload/${sessionId}`;
+      
+      // Check if we need to warn about localhost
+      const localIP = getLocalNetworkIP();
+      if (!localIP && import.meta.env.DEV) {
+        console.warn('⚠️ Mobile QR scanning may not work!');
+        console.warn('To enable mobile access, set your local IP address:');
+        console.warn('In browser console, run: localStorage.setItem("localNetworkIP", "YOUR_IP_HERE")');
+        console.warn('Example: localStorage.setItem("localNetworkIP", "192.168.1.100")');
+        console.warn('Find your IP: Windows: ipconfig | findstr IPv4');
+      }
+      
       const dataUrl = await QRCode.toDataURL(uploadUrl);
       setQrCodeDataUrl(dataUrl);
       setShowQRCode(true);
@@ -59,12 +151,8 @@ function Screen3Decor() {
       // Store session ID for later use when order is submitted
       localStorage.setItem('currentUploadSession', sessionId);
       
-      // Poll for new photos (simple approach - in production use WebSockets)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).photoPollInterval = setInterval(() => {
-        // This would need an endpoint to get photos by session ID
-        // For now, photos will be linked when order is created
-      }, 2000);
+      // Start polling for new photos
+      startPhotoPolling(sessionId);
     } catch (error) {
       console.error('Error generating QR code:', error);
     }
@@ -276,6 +364,49 @@ function Screen3Decor() {
               <p className="text-center text-secondary/70 mb-6">
                 Folosiți camera telefonului pentru a scana codul și a încărca poze
               </p>
+              
+              {!getLocalNetworkIP() && import.meta.env.DEV && (
+                <div className="mb-4 p-4 bg-yellow-500/20 border border-yellow-500/50 rounded-lg">
+                  <p className="text-yellow-400 text-sm mb-2">
+                    ⚠️ Pentru acces de pe telefon, setați adresa IP locală:
+                  </p>
+                  {showIPInput ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={localIP}
+                        onChange={(e) => setLocalIP(e.target.value)}
+                        placeholder="ex: 192.168.1.100"
+                        className="flex-1 px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-600"
+                      />
+                      <button
+                        onClick={() => {
+                          if (localIP) {
+                            localStorage.setItem('localNetworkIP', localIP)
+                            setShowIPInput(false)
+                            // Regenerate QR code with new IP
+                            generateQRCode()
+                          }
+                        }}
+                        className="px-4 py-2 bg-neon-pink rounded-lg font-semibold hover:bg-neon-pink/90"
+                      >
+                        Salvează
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowIPInput(true)}
+                      className="text-yellow-400 text-sm underline"
+                    >
+                      Setează IP local
+                    </button>
+                  )}
+                  <p className="text-yellow-400/70 text-xs mt-2">
+                    Găsiți IP-ul: Windows PowerShell → ipconfig | findstr IPv4
+                  </p>
+                </div>
+              )}
+              
               <div className="flex justify-center mb-6 bg-white p-6 rounded-3xl shadow-neumorphic">
                 <img src={qrCodeDataUrl} alt="QR Code" className="w-72 h-72" />
               </div>

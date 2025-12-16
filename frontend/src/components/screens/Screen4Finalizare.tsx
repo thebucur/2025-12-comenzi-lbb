@@ -17,8 +17,12 @@ function Screen4Finalizare() {
       try {
         const response = await api.get('/orders/next-number')
         setNextOrderNumber(response.data.nextOrderNumber)
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching next order number:', error)
+        if (error.request && !error.response) {
+          // No response from server - backend might not be running
+          console.error('Backend server is not responding. Make sure it is running on port 5000.')
+        }
       }
     }
     fetchNextOrderNumber()
@@ -29,16 +33,124 @@ function Screen4Finalizare() {
     setSearchParams({ step: step.toString(), edit: '1' })
   }
 
+  // Helper function to convert relative URL to absolute (same as PhotoUpload)
+  const getAbsoluteUrl = (relativeUrl: string): string => {
+    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+      return relativeUrl
+    }
+    
+    let backendURL: string
+    if (import.meta.env.DEV) {
+      const currentHostname = window.location.hostname
+      if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+        backendURL = `http://${currentHostname}:5000`
+      } else {
+        const localIP = localStorage.getItem('localNetworkIP')
+        if (localIP) {
+          backendURL = `http://${localIP}:5000`
+        } else {
+          const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+          backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+        }
+      }
+    } else {
+      const envURL = import.meta.env.VITE_API_URL || window.location.origin
+      backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+    }
+    
+    const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
+    return `${backendURL}${url}`
+  }
+
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
+      // Validate required fields before submission
+      const missingFields: string[] = []
+      
+      if (!order.deliveryMethod) missingFields.push('Metodă de livrare')
+      if (!order.staffName) missingFields.push('Nume angajat')
+      if (!order.clientName?.trim()) missingFields.push('Nume client')
+      if (!order.phoneNumber?.trim()) missingFields.push('Număr telefon')
+      if (!order.pickupDate) missingFields.push('Data ridicării')
+      if (!order.cakeType) missingFields.push('Tip tort')
+      if (!order.weight) missingFields.push('Greutate')
+      if (!order.coating) missingFields.push('Îmbrăcăminte')
+      if (!order.decorType) missingFields.push('Tip decor')
+      
+      if (missingFields.length > 0) {
+        alert(`Lipsesc câmpuri obligatorii:\n${missingFields.join('\n')}\n\nVă rugăm să completați toate câmpurile obligatorii.`)
+        setIsSubmitting(false)
+        return
+      }
+
       // Get upload session ID if photos were uploaded
       const uploadSessionId = localStorage.getItem('currentUploadSession')
-      const orderData = { ...order, uploadSessionId }
+      
+      // Ensure pickupDate is in ISO format
+      let pickupDate = order.pickupDate
+      if (pickupDate) {
+        // If it's already a Date object, convert to ISO string
+        if (pickupDate instanceof Date) {
+          pickupDate = pickupDate.toISOString()
+        } else if (typeof pickupDate === 'string') {
+          // If it's a string, try to parse and convert to ISO
+          const dateObj = new Date(pickupDate)
+          if (!isNaN(dateObj.getTime())) {
+            pickupDate = dateObj.toISOString()
+          }
+        }
+      }
+      
+      // Get username from localStorage (user who is logged in)
+      const createdByUsername = localStorage.getItem('authToken') || null
+      
+      // Prepare order data with proper formatting
+      const orderData = {
+        deliveryMethod: order.deliveryMethod,
+        location: order.location || null,
+        address: order.address || null,
+        staffName: order.staffName,
+        clientName: order.clientName.trim(),
+        phoneNumber: order.phoneNumber.trim(),
+        pickupDate: pickupDate,
+        tomorrowVerification: order.tomorrowVerification || false,
+        advance: order.advance ? Number(order.advance) : null,
+        cakeType: order.cakeType,
+        weight: order.weight,
+        customWeight: order.customWeight || null,
+        shape: order.shape || null,
+        floors: order.floors || null,
+        otherProducts: order.otherProducts || null,
+        coating: order.coating,
+        colors: Array.isArray(order.colors) ? order.colors : [],
+        decorType: order.decorType,
+        decorDetails: order.decorDetails || null,
+        observations: order.observations || null,
+        uploadSessionId: uploadSessionId || null,
+        createdByUsername: createdByUsername,
+      }
+      
+      console.log('Submitting order data:', JSON.stringify(orderData, null, 2))
       
       const response = await api.post('/orders', orderData)
       const orderNumber = response.data.orderNumber
-      updateOrder({ orderNumber })
+      
+      // Extract photos from response and convert to absolute URLs
+      const photos = response.data.photos || []
+      const photoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
+      
+      console.log('Order created with photos:', {
+        orderNumber,
+        photoCount: photoUrls.length,
+        photoUrls,
+      })
+      
+      // Update order with photos before showing summary
+      updateOrder({ 
+        orderNumber,
+        photos: photoUrls,
+      })
       
       // Generate and send PDF
       await api.post(`/orders/${response.data.id}/generate-pdf`)
@@ -52,9 +164,48 @@ function Screen4Finalizare() {
       // Reset and go back to start
       resetOrder()
       navigate('/')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting order:', error)
-      alert('Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.')
+      console.error('Error response:', error.response)
+      console.error('Error response data:', error.response?.data)
+      console.error('Error request:', error.request)
+      
+      // Extract detailed error message
+      let errorMessage = 'Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.'
+      
+      if (error.response) {
+        // Server responded with error status
+        const responseData = error.response.data
+        const serverError = responseData?.error || responseData?.message
+        
+        if (responseData?.missingFields) {
+          errorMessage = `Lipsesc câmpuri obligatorii:\n${responseData.missingFields.join('\n')}`
+        } else if (serverError) {
+          errorMessage = `Eroare server: ${serverError}`
+        } else if (error.response.status === 400) {
+          errorMessage = 'Date invalide. Vă rugăm să verificați toate câmpurile.'
+        } else if (error.response.status === 500) {
+          const details = responseData?.details
+          errorMessage = `Eroare internă server: ${serverError || 'Eroare necunoscută'}`
+          if (details && process.env.NODE_ENV === 'development') {
+            console.error('Error details:', details)
+          }
+        } else {
+          errorMessage = `Eroare ${error.response.status}: ${error.response.statusText}`
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        const apiBaseURL = api.defaults.baseURL || 'http://localhost:5000/api'
+        errorMessage = `Nu s-a primit răspuns de la server.\n\nURL încercat: ${apiBaseURL}\n\nVerifică:\n1. Backend-ul rulează (port 5000)\n2. Rulează: cd backend && npm run dev\n3. Conexiunea la internet\n4. Firewall-ul permite conexiuni pe portul 5000`
+        console.error('No response received. Is backend running?')
+        console.error('API Base URL:', apiBaseURL)
+        console.error('Full error:', error)
+      } else {
+        // Something else happened
+        errorMessage = `Eroare: ${error.message}`
+      }
+      
+      alert(errorMessage)
     } finally {
       setIsSubmitting(false)
     }

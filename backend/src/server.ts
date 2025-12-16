@@ -12,12 +12,23 @@ import configRoutes from './routes/config.routes'
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = parseInt(process.env.PORT || '5000', 10)
+const HOST = process.env.HOST || '0.0.0.0' // Listen on all network interfaces for mobile access
 
 // Middleware
-app.use(cors())
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+// Enhanced CORS configuration for mobile devices
+app.use(cors({
+  origin: true, // Allow all origins (in production, specify your frontend URL)
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  maxAge: 86400, // 24 hours
+}))
+
+// Increase body size limit for file uploads
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
@@ -52,7 +63,52 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`)
+  if (HOST === '0.0.0.0') {
+    console.log(`Server is accessible from your local network`)
+    console.log(`To find your local IP, run: ipconfig | findstr IPv4 (Windows) or ifconfig (Mac/Linux)`)
+  }
+})
+
+// Graceful shutdown handler
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received. Shutting down gracefully...`)
+  
+  server.close(() => {
+    console.log('HTTP server closed')
+    
+    // Disconnect Prisma
+    import('./lib/prisma').then(({ default: prisma }) => {
+      prisma.$disconnect()
+        .then(() => {
+          console.log('Database connection closed')
+          process.exit(0)
+        })
+        .catch((error) => {
+          console.error('Error closing database connection:', error)
+          process.exit(1)
+        })
+    })
+  })
+  
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout')
+    process.exit(1)
+  }, 10000)
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+
+// Handle uncaught errors
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+})
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  gracefulShutdown('uncaughtException')
 })
 

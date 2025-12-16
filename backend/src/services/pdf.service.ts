@@ -9,7 +9,7 @@ const PDF_DIR = process.env.PDF_DIR || path.join(process.cwd(), 'pdfs')
 export const generatePDF = async (orderId: string): Promise<string> => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { photos: true, installation: true },
+    include: { photos: true },
   })
 
   if (!order) {

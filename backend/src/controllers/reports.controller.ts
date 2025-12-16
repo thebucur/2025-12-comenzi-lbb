@@ -3,7 +3,7 @@ import prisma from '../lib/prisma'
 
 export const getReports = async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, location, installationId } = req.query
+    const { startDate, endDate, location } = req.query
 
     const where: any = {}
     if (startDate || endDate) {
@@ -12,11 +12,9 @@ export const getReports = async (req: Request, res: Response) => {
       if (endDate) where.pickupDate.lte = new Date(endDate as string)
     }
     if (location) where.location = location
-    if (installationId) where.installationId = installationId as string
 
     const orders = await prisma.order.findMany({
       where,
-      include: { installation: true },
     })
 
     // Generate statistics

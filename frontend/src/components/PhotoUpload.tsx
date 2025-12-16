@@ -1,51 +1,135 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../services/api'
+
+// Helper function to convert relative URL to absolute
+const getAbsoluteUrl = (relativeUrl: string): string => {
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl
+  }
+  
+  // Get base URL for backend (not frontend origin)
+  let backendURL: string
+  
+  // In development, detect IP from current location or localStorage
+  if (import.meta.env.DEV) {
+    const currentHostname = window.location.hostname
+    
+    // If accessing from mobile device via IP (not localhost), use that IP with backend port
+    if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+      // Use current hostname with port 5000 for backend
+      backendURL = `http://${currentHostname}:5000`
+    } else {
+      // Check localStorage for manually set IP
+      const localIP = localStorage.getItem('localNetworkIP')
+      if (localIP) {
+        backendURL = `http://${localIP}:5000`
+      } else {
+        // Fallback to environment variable or default
+        const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+        backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+      }
+    }
+  } else {
+    // In production, use environment variable or construct from current origin
+    const envURL = import.meta.env.VITE_API_URL || window.location.origin
+    backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+  }
+  
+  // Ensure relative URL starts with /
+  const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
+  const fullURL = `${backendURL}${url}`
+  
+  console.log(`getAbsoluteUrl: ${relativeUrl} -> ${fullURL}`, {
+    currentHostname: window.location.hostname,
+    backendURL,
+    relativeUrl,
+  })
+  
+  return fullURL
+}
 
 function PhotoUpload() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const [photos, setPhotos] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Debug: Log when photos state changes
+  useEffect(() => {
+    console.log('📸 Photos state updated:', photos.length, 'photos:', photos)
+  }, [photos])
+
   const compressImage = (file: File): Promise<Blob> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader()
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      
       reader.onload = (e) => {
         const img = new Image()
+        img.onerror = () => reject(new Error('Failed to load image'))
+        
         img.onload = () => {
-          const canvas = document.createElement('canvas')
-          let width = img.width
-          let height = img.height
-          const maxDimension = 2000
+          try {
+            const canvas = document.createElement('canvas')
+            let width = img.width
+            let height = img.height
+            const maxDimension = 2000
 
-          if (width > height) {
-            if (width > maxDimension) {
-              height = (height * maxDimension) / width
-              width = maxDimension
+            if (width > height) {
+              if (width > maxDimension) {
+                height = (height * maxDimension) / width
+                width = maxDimension
+              }
+            } else {
+              if (height > maxDimension) {
+                width = (width * maxDimension) / height
+                height = maxDimension
+              }
             }
-          } else {
-            if (height > maxDimension) {
-              width = (width * maxDimension) / height
-              height = maxDimension
+
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')
+            
+            if (!ctx) {
+              reject(new Error('Failed to get canvas context'))
+              return
             }
+            
+            ctx.drawImage(img, 0, 0, width, height)
+
+            canvas.toBlob(
+              (blob) => {
+                if (blob) {
+                  resolve(blob)
+                } else {
+                  // Fallback: convert file to blob if toBlob fails
+                  file.arrayBuffer().then(buffer => {
+                    resolve(new Blob([buffer], { type: 'image/jpeg' }))
+                  }).catch(() => {
+                    reject(new Error('Failed to compress image'))
+                  })
+                }
+              },
+              'image/jpeg',
+              0.8
+            )
+          } catch (error) {
+            reject(error)
           }
-
-          canvas.width = width
-          canvas.height = height
-          const ctx = canvas.getContext('2d')
-          ctx?.drawImage(img, 0, 0, width, height)
-
-          canvas.toBlob(
-            (blob) => {
-              resolve(blob || file)
-            },
-            'image/jpeg',
-            0.8
-          )
         }
-        img.src = e.target?.result as string
+        
+        const result = e.target?.result
+        if (result) {
+          img.src = result as string
+        } else {
+          reject(new Error('Failed to read file data'))
+        }
       }
+      
       reader.readAsDataURL(file)
     })
   }
@@ -54,24 +138,188 @@ function PhotoUpload() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    if (!sessionId) {
+      alert('Eroare: ID sesiune lipsă')
+      return
+    }
+
+    // Log API configuration for debugging - use the same logic as api.ts
+    let envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    
+    // In development, detect IP from current location or localStorage (same as api.ts)
+    if (import.meta.env.DEV) {
+      const currentHostname = window.location.hostname
+      
+      // If accessing from mobile device via IP (not localhost), use that IP for API
+      if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+        const port = envURL.match(/:(\d+)/)?.[1] || '5000'
+        envURL = `http://${currentHostname}:${port}`
+      } else {
+        // Check localStorage for manually set IP
+        const localIP = localStorage.getItem('localNetworkIP')
+        if (localIP) {
+          envURL = envURL.replace('localhost', localIP).replace('127.0.0.1', localIP)
+        }
+      }
+    }
+    
+    const cleanURL = envURL.replace(/\/$/, '').replace(/\/api$/, '')
+    const apiBaseURL = cleanURL.endsWith('/api') ? cleanURL : `${cleanURL}/api`
+    
+    console.log('Upload configuration:', {
+      sessionId,
+      currentHostname: window.location.hostname,
+      envURL,
+      apiBaseURL,
+      uploadURL: `${apiBaseURL}/upload/${sessionId}`,
+      fileCount: files.length,
+      localStorageIP: localStorage.getItem('localNetworkIP'),
+    })
+
     setUploading(true)
+    const uploadErrors: string[] = []
+    const successfullyUploadedUrls: string[] = []
+
     try {
       for (const file of Array.from(files)) {
-        const compressed = await compressImage(file)
-        const formData = new FormData()
-        formData.append('photo', compressed, file.name)
+        try {
+          // Validate file type
+          if (!file.type.startsWith('image/')) {
+            uploadErrors.push(`${file.name}: Nu este o imagine validă`)
+            continue
+          }
 
-        const response = await api.post(`/upload/${sessionId}`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        })
+          // Validate file size (max 10MB before compression)
+          if (file.size > 10 * 1024 * 1024) {
+            uploadErrors.push(`${file.name}: Fișierul este prea mare (max 10MB)`)
+            continue
+          }
 
-        setPhotos((prev) => [...prev, response.data.url])
+          console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`)
+          const compressed = await compressImage(file)
+          console.log(`Compressed to ${(compressed.size / 1024 / 1024).toFixed(2)}MB`)
+          
+          // Ensure we have a valid blob
+          if (!compressed || compressed.size === 0) {
+            uploadErrors.push(`${file.name}: Eroare la compresia imaginii`)
+            continue
+          }
+
+          const formData = new FormData()
+          // Use the original filename but ensure .jpg extension for compressed images
+          const filename = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
+          formData.append('photo', compressed, filename)
+
+          console.log(`Uploading ${file.name} to ${apiBaseURL}/upload/${sessionId}...`)
+          
+          // Don't set Content-Type header manually - let axios set it with proper boundary
+          const response = await api.post(`/upload/${sessionId}`, formData, {
+            timeout: 120000, // 2 minutes timeout for large files
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+                console.log(`Upload progress: ${percentCompleted}%`)
+              }
+            },
+          })
+          
+          console.log(`Upload successful for ${file.name}:`, response.data)
+          console.log('Response structure:', {
+            hasUrl: !!response.data?.url,
+            url: response.data?.url,
+            filename: response.data?.filename,
+            fullResponse: response.data,
+          })
+
+          if (response.data?.url) {
+            // Convert relative URL to absolute URL for proper display on mobile
+            const absoluteUrl = getAbsoluteUrl(response.data.url)
+            console.log(`Converted URL: ${response.data.url} -> ${absoluteUrl}`)
+            
+            // Test if image URL is accessible
+            const testImage = new Image()
+            testImage.onload = () => {
+              console.log(`✅ Image URL is accessible: ${absoluteUrl}`)
+            }
+            testImage.onerror = () => {
+              console.error(`❌ Image URL is NOT accessible: ${absoluteUrl}`)
+              console.error('This might be a CORS issue or incorrect URL')
+            }
+            testImage.src = absoluteUrl
+            
+            successfullyUploadedUrls.push(absoluteUrl)
+            setPhotos((prev) => {
+              const updated = [...prev, absoluteUrl]
+              console.log('Updated photos array:', updated)
+              console.log('Previous photos count:', prev.length, 'New count:', updated.length)
+              return updated
+            })
+          } else {
+            console.error('No URL in response:', response.data)
+            uploadErrors.push(`${file.name}: Răspuns invalid de la server - lipsă URL`)
+          }
+        } catch (fileError: any) {
+          console.error(`Error uploading ${file.name}:`, fileError)
+          
+          let errorMessage = 'Eroare necunoscută'
+          const fullURL = fileError.config ? `${fileError.config.baseURL}${fileError.config.url}` : 'unknown'
+          
+          if (fileError.response) {
+            // Server responded with error
+            errorMessage = fileError.response.data?.error || `Server error: ${fileError.response.status}`
+          } else if (fileError.request) {
+            // Request was made but no response received (network error)
+            errorMessage = `Eroare de rețea: Nu s-a primit răspuns de la server.\nURL încercat: ${fullURL}\n\nVerifică:\n- Backend-ul rulează pe portul 5000\n- Telefonul este pe aceeași rețea Wi-Fi\n- Firewall-ul permite conexiuni pe portul 5000`
+            console.error('Network error details:', {
+              fullURL,
+              url: fileError.config?.url,
+              method: fileError.config?.method,
+              baseURL: fileError.config?.baseURL,
+              currentHostname: window.location.hostname,
+              localStorageIP: localStorage.getItem('localNetworkIP'),
+            })
+          } else {
+            errorMessage = fileError.message || 'Eroare necunoscută'
+          }
+          
+          uploadErrors.push(`${file.name}: ${errorMessage}`)
+        }
       }
-    } catch (error) {
+
+      // Check final state
+      const successfulUploads = successfullyUploadedUrls.length
+      const totalFiles = Array.from(files).length
+      
+      console.log('Upload summary:', {
+        totalFiles,
+        successfulUploads,
+        errors: uploadErrors.length,
+        uploadedUrls: successfullyUploadedUrls,
+        currentPhotosState: photos,
+      })
+
+      if (uploadErrors.length > 0) {
+        const errorMsg = uploadErrors.length === totalFiles
+          ? 'Toate pozele au eșuat:\n' + uploadErrors.join('\n')
+          : `Unele poze au eșuat (${successfulUploads}/${totalFiles} reușite):\n` + uploadErrors.join('\n')
+        alert(errorMsg)
+      }
+      
+      if (successfulUploads > 0) {
+        console.log(`✅ Successfully uploaded ${successfulUploads} photo(s)`)
+        // Verify URLs were added to state
+        if (successfullyUploadedUrls.length > 0) {
+          console.log('Uploaded photo URLs:', successfullyUploadedUrls)
+        }
+      } else if (totalFiles > 0 && uploadErrors.length === 0) {
+        // This case: files processed but no URLs added
+        console.error('⚠️ Files were processed but no URLs were added to state')
+        alert('Pozele au fost procesate, dar nu s-au încărcat URL-uri. Verifică consola pentru detalii.')
+      }
+    } catch (error: any) {
       console.error('Error uploading photos:', error)
-      alert('Eroare la încărcarea pozelor')
+      const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
+      alert(`Eroare la încărcarea pozelor: ${errorMessage}`)
     } finally {
       setUploading(false)
       if (fileInputRef.current) {
@@ -110,25 +358,124 @@ function PhotoUpload() {
 
         {photos.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold mb-4">Poze încărcate</h2>
+            <h2 className="text-xl font-semibold mb-4">Poze încărcate ({photos.length})</h2>
             <div className="grid grid-cols-2 gap-4">
-              {photos.map((photo, index) => (
-                <div key={index} className="relative">
-                  <img
-                    src={photo}
-                    alt={`Poza ${index + 1}`}
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                </div>
-              ))}
+              {photos.map((photo, index) => {
+                console.log(`Rendering photo ${index + 1}:`, photo)
+                // Use photo URL as key to ensure proper re-rendering
+                const photoKey = photo.substring(photo.lastIndexOf('/') + 1) || `photo-${index}`
+                return (
+                  <div key={photoKey} className="relative">
+                    <img
+                      src={photo}
+                      alt={`Poza ${index + 1}`}
+                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-700"
+                      onLoad={() => {
+                        console.log(`✅ Image ${index + 1} loaded successfully:`, photo)
+                      }}
+                      onError={(e) => {
+                        console.error(`❌ Image ${index + 1} failed to load:`, photo, e)
+                        // Show error indicator
+                        const target = e.target as HTMLImageElement
+                        target.style.border = '2px solid red'
+                        target.alt = `Eroare la încărcarea pozei ${index + 1}`
+                      }}
+                    />
+                    {/* Debug info in development */}
+                    {import.meta.env.DEV && (
+                      <div className="text-xs text-gray-500 mt-1 break-all">
+                        {photo.substring(0, 50)}...
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
+        
+        {/* Debug info */}
+        {import.meta.env.DEV && photos.length === 0 && (
+          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+            <p className="text-sm text-gray-400">Debug: Nu există poze în state</p>
+            <p className="text-xs text-gray-500 mt-2">
+              State photos length: {photos.length}
+            </p>
+          </div>
+        )}
 
-        {photos.length > 0 && (
+        {photos.length > 0 && !sent && (
+          <div className="mt-6">
+            <button
+              onClick={async () => {
+                if (!sessionId) {
+                  alert('Eroare: ID sesiune lipsă')
+                  return
+                }
+                
+                setSending(true)
+                try {
+                  // Mark photos as sent
+                  await api.post(`/upload/${sessionId}/send`)
+                  setSent(true)
+                  alert('Pozele au fost trimise cu succes! Acestea vor apărea în aplicația principală.')
+                } catch (error: any) {
+                  console.error('Error sending photos:', error)
+                  const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
+                  alert(`Eroare la trimiterea pozelor: ${errorMessage}`)
+                } finally {
+                  setSending(false)
+                }
+              }}
+              disabled={sending || photos.length === 0}
+              className={`w-full py-4 px-6 rounded-lg font-bold text-lg transition-all ${
+                sending || photos.length === 0
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+            >
+              {sending ? 'Se trimit...' : '📤 Trimite poze'}
+            </button>
+          </div>
+        )}
+        
+        {sent && (
           <div className="mt-6 text-center">
-            <p className="text-green-400 mb-4">Pozele au fost încărcate cu succes!</p>
+            <p className="text-green-400 mb-2 text-lg font-semibold">✅ Pozele au fost trimise!</p>
             <p className="text-gray-400 text-sm">Pozele vor apărea în aplicația principală</p>
+          </div>
+        )}
+        
+        {/* Debug panel */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 p-4 bg-gray-800 rounded-lg">
+            <h3 className="text-sm font-semibold mb-2">Debug Info</h3>
+            <div className="text-xs text-gray-400 space-y-1">
+              <p>Photos in state: {photos.length}</p>
+              <p>Session ID: {sessionId || 'N/A'}</p>
+              <p>Current hostname: {window.location.hostname}</p>
+              <p>Local IP in storage: {localStorage.getItem('localNetworkIP') || 'Not set'}</p>
+              {photos.length > 0 && (
+                <div className="mt-2">
+                  <p className="font-semibold">Photo URLs:</p>
+                  {photos.map((url, idx) => (
+                    <div key={idx} className="mt-1 break-all text-xs">
+                      {idx + 1}. {url}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  console.log('Current photos state:', photos)
+                  console.log('Photos array length:', photos.length)
+                  alert(`Poze în state: ${photos.length}\n\nVerifică consola pentru detalii.`)
+                }}
+                className="mt-2 px-3 py-1 bg-blue-600 text-white rounded text-xs"
+              >
+                Log State to Console
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -137,6 +484,7 @@ function PhotoUpload() {
 }
 
 export default PhotoUpload
+
 
 
 

@@ -12,7 +12,6 @@ export const login = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { username },
-      include: { installation: true },
     })
 
     if (!user) {
@@ -24,11 +23,10 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    // Return user info (without password) and installation info
+    // Return user info (without password)
     const { password: _, ...userWithoutPassword } = user
     res.json({
       user: userWithoutPassword,
-      installation: user.installation,
     })
   } catch (error) {
     console.error('Error during login:', error)
@@ -36,20 +34,10 @@ export const login = async (req: Request, res: Response) => {
   }
 }
 
-export const getInstallationConfig = async (req: Request, res: Response) => {
+export const getGlobalConfig = async (req: Request, res: Response) => {
   try {
-    const { installationId } = req.params
-
-    // Get all global configs with their installation-specific overrides
-    const globalConfigs = await prisma.globalConfig.findMany({
-      include: {
-        installations: {
-          where: {
-            installationId,
-          },
-        },
-      },
-    })
+    // Get all global configs
+    const globalConfigs = await prisma.globalConfig.findMany()
 
     // Build configuration object
     const config: any = {
@@ -57,26 +45,16 @@ export const getInstallationConfig = async (req: Request, res: Response) => {
       decor: {},
     }
 
-    globalConfigs.forEach((gc: any) => {
-      // Check if there's an InstallationConfig entry for this installation
-      const installationConfig = gc.installations.find((ic: any) => ic.installationId === installationId)
-      
-      // Include config if:
-      // 1. No InstallationConfig entry exists (enabled by default for all installations)
-      // 2. InstallationConfig exists and is enabled
-      const isEnabled = !installationConfig || installationConfig.enabled
-      
-      if (isEnabled) {
-        if (!config[gc.category]) {
-          config[gc.category] = {}
-        }
-        config[gc.category][gc.key] = gc.value
+    globalConfigs.forEach((gc) => {
+      if (!config[gc.category]) {
+        config[gc.category] = {}
       }
+      config[gc.category][gc.key] = gc.value
     })
 
     res.json(config)
   } catch (error) {
-    console.error('Error fetching installation config:', error)
+    console.error('Error fetching global config:', error)
     res.status(500).json({ error: 'Failed to fetch configuration' })
   }
 }

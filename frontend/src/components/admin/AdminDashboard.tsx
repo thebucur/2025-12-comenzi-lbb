@@ -12,26 +12,16 @@ interface Order {
   pickupDate: string
   staffName: string
   createdAt: string
-  installation?: {
+  createdByUsername: string | null
+  pickedUpBy?: {
     id: string
-    name: string
-  }
-}
-
-interface Installation {
-  id: string
-  name: string
-  location: string | null
-  email: string | null
-  settings: any
-  createdAt: string
+    username: string
+  } | null
 }
 
 interface User {
   id: string
   username: string
-  installationId: string
-  installation: Installation
   createdAt: string
 }
 
@@ -247,62 +237,32 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
 
 function AdminDashboard() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'orders' | 'installations' | 'users' | 'globalConfig'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig'>('orders')
   const [orders, setOrders] = useState<Order[]>([])
-  const [installations, setInstallations] = useState<Installation[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterDate, setFilterDate] = useState('')
-  const [filterInstallation, setFilterInstallation] = useState('')
   const [showUserModal, setShowUserModal] = useState(false)
-  const [showInstallationModal, setShowInstallationModal] = useState(false)
-  const [editingInstallation, setEditingInstallation] = useState<Installation | null>(null)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    email: '',
-  })
   const [userFormData, setUserFormData] = useState({
     username: '',
     password: '',
-    location: '',
-    email: '',
   })
 
   useEffect(() => {
     fetchOrders()
-    fetchInstallations()
     if (activeTab === 'users') fetchUsers()
     if (activeTab === 'globalConfig') fetchGlobalConfigs()
   }, [activeTab])
 
   const fetchOrders = async () => {
     try {
-      const params: any = {}
-      if (filterDate) {
-        params.startDate = filterDate
-        params.endDate = filterDate
-      }
-      if (filterInstallation) {
-        params.installationId = filterInstallation
-      }
-      const response = await api.get('/orders', { params })
+      const response = await api.get('/orders')
       setOrders(response.data)
     } catch (error) {
       console.error('Error fetching orders:', error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchInstallations = async () => {
-    try {
-      const response = await api.get('/admin/installations')
-      setInstallations(response.data)
-    } catch (error) {
-      console.error('Error fetching installations:', error)
     }
   }
 
@@ -324,45 +284,10 @@ function AdminDashboard() {
     }
   }
 
-  useEffect(() => {
-    fetchOrders()
-  }, [filterDate, filterInstallation])
-
-  const handleEditInstallation = (installation: Installation) => {
-    setEditingInstallation(installation)
-    setFormData({
-      name: installation.name,
-      location: installation.location || '',
-      email: installation.email || '',
-    })
-  }
-
-  const handleSaveInstallation = async () => {
-    if (!editingInstallation) return
-    try {
-      await api.put(`/admin/installations/${editingInstallation.id}`, formData)
-      setEditingInstallation(null)
-      fetchInstallations()
-    } catch (error) {
-      console.error('Error saving installation:', error)
-      alert('Eroare la salvarea instalației')
-    }
-  }
-
-  const handleDeleteInstallation = async (id: string) => {
-    if (!confirm('Sigur doriți să ștergeți această instalație?')) return
-    try {
-      await api.delete(`/admin/installations/${id}`)
-      fetchInstallations()
-    } catch (error) {
-      console.error('Error deleting installation:', error)
-      alert('Eroare la ștergerea instalației')
-    }
-  }
 
   const handleCreateUser = () => {
     setEditingUser(null)
-    setUserFormData({ username: '', password: '', location: '', email: '' })
+    setUserFormData({ username: '', password: '' })
     setShowUserModal(true)
   }
 
@@ -371,8 +296,6 @@ function AdminDashboard() {
     setUserFormData({ 
       username: user.username, 
       password: '', 
-      location: user.installation.location || '',
-      email: user.installation.email || ''
     })
     setShowUserModal(true)
   }
@@ -387,11 +310,6 @@ function AdminDashboard() {
           userUpdateData.password = userFormData.password
         }
         await api.put(`/admin/users/${editingUser.id}`, userUpdateData)
-        await api.put(`/admin/installations/${editingUser.installationId}`, {
-          name: userFormData.username,
-          location: userFormData.location || null,
-          email: userFormData.email || null,
-        })
       } else {
         if (!userFormData.username || !userFormData.password) {
           alert('Utilizatorul și parola sunt obligatorii')
@@ -400,10 +318,7 @@ function AdminDashboard() {
         await api.post('/admin/users', {
           username: userFormData.username,
           password: userFormData.password,
-          location: userFormData.location || null,
-          email: userFormData.email || null,
         })
-        fetchInstallations()
       }
       setShowUserModal(false)
       fetchUsers()
@@ -472,16 +387,6 @@ function AdminDashboard() {
               📦 Comenzi
             </button>
             <button
-              onClick={() => setActiveTab('installations')}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
-                activeTab === 'installations'
-                  ? 'btn-active scale-105'
-                  : 'bg-primary/50 text-secondary hover:scale-102'
-              }`}
-            >
-              🏪 Instalații
-            </button>
-            <button
               onClick={() => setActiveTab('users')}
               className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
                 activeTab === 'users'
@@ -507,50 +412,6 @@ function AdminDashboard() {
         {/* Orders Tab */}
         {activeTab === 'orders' && (
           <div className="space-y-6">
-            {/* Filters */}
-            <div className="card-neumorphic">
-              <div className="flex flex-wrap gap-4">
-                <input
-                  type="date"
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Block typing; allow navigation keys only
-                    const allowedKeys = ['Tab', 'Shift', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
-                    if (!allowedKeys.includes(e.key)) {
-                      e.preventDefault()
-                    }
-                  }}
-                  onPaste={(e) => e.preventDefault()}
-                  onDrop={(e) => e.preventDefault()}
-                  onFocus={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
-                  inputMode="none"
-                  className="input-neumorphic flex-1 min-w-[200px] text-secondary cursor-pointer"
-                />
-                <select
-                  value={filterInstallation}
-                  onChange={(e) => setFilterInstallation(e.target.value)}
-                  className="input-neumorphic flex-1 min-w-[200px] text-secondary"
-                >
-                  <option value="">Toate instalațiile</option>
-                  {installations.map((inst) => (
-                    <option key={inst.id} value={inst.id}>
-                      {inst.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => {
-                    setFilterDate('')
-                    setFilterInstallation('')
-                  }}
-                  className="btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
-                >
-                  🔄 Resetează
-                </button>
-              </div>
-            </div>
-
             {/* Orders List */}
             <div className="card-neumorphic overflow-hidden">
               {orders.length === 0 ? (
@@ -560,108 +421,65 @@ function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b-2 border-primary">
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Nr.</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Client</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Telefon</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Metodă</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Locație</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Data</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Instalație</th>
-                        <th className="px-6 py-4 text-left font-bold text-secondary">Acțiuni</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Nt.</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Client</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Telefon</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare pe</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Preluat pe</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Locatie</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Detalii</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map((order) => (
-                        <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
-                          <td className="px-6 py-4 font-bold text-accent-purple">#{order.orderNumber}</td>
-                          <td className="px-6 py-4 text-secondary">{order.clientName}</td>
-                          <td className="px-6 py-4 text-secondary">07{order.phoneNumber}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                              order.deliveryMethod === 'ridicare' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              {order.deliveryMethod === 'ridicare' ? '🏪 Ridicare' : '🚚 Livrare'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-secondary">{order.location || '-'}</td>
-                          <td className="px-6 py-4 text-secondary">
-                            {new Date(order.pickupDate).toLocaleDateString('ro-RO')}
-                          </td>
-                          <td className="px-6 py-4 text-secondary">{order.installation?.name || '-'}</td>
-                          <td className="px-6 py-4">
-                            <button
-                              onClick={() => navigate(`/admin/orders/${order.id}`)}
-                              className="btn-active px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
-                            >
-                              Vezi →
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {orders.map((order) => {
+                        const deliveryText = order.deliveryMethod === 'ridicare' 
+                          ? `Ridicare din ${order.location || 'N/A'}`
+                          : 'Livrare la adresa'
+                        
+                        const deliveryDate = order.pickupDate 
+                          ? new Date(order.pickupDate).toLocaleDateString('ro-RO')
+                          : '-'
+                        
+                        const createdDate = order.createdAt 
+                          ? new Date(order.createdAt).toLocaleDateString('ro-RO')
+                          : '-'
+                        
+                        return (
+                          <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
+                            <td className="px-2 py-2 font-bold text-accent-purple text-xs">#{order.orderNumber}</td>
+                            <td className="px-2 py-2 text-secondary text-xs">{order.clientName}</td>
+                            <td className="px-2 py-2 text-secondary text-xs">07{order.phoneNumber}</td>
+                            <td className="px-2 py-2 text-secondary text-xs">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold inline-block ${
+                                order.deliveryMethod === 'ridicare' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {deliveryText}
+                              </span>
+                            </td>
+                            <td className="px-2 py-2 text-secondary text-xs">{deliveryDate}</td>
+                            <td className="px-2 py-2 text-secondary text-xs">{createdDate}</td>
+                            <td className="px-2 py-2 text-secondary text-xs">{order.createdByUsername || order.staffName || '-'}</td>
+                            <td className="px-2 py-2">
+                              <button
+                                onClick={() => navigate(`/admin/orders/${order.id}`)}
+                                className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all"
+                              >
+                                Vezi
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Installations Tab */}
-        {activeTab === 'installations' && (
-          <div className="space-y-6">
-            <div className="card-neumorphic">
-              <h2 className="text-2xl font-bold text-secondary mb-2">Gestionare instalații</h2>
-              <p className="text-secondary/60">Instalațiile sunt create automat când se adaugă utilizatori noi.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {installations.map((installation) => (
-                <div key={installation.id} className="card-neumorphic hover:scale-105 transition-all duration-300">
-                  <h3 className="text-2xl font-bold text-gradient mb-4">{installation.name}</h3>
-                  <div className="space-y-3 mb-6">
-                    {installation.location && (
-                      <div className="bg-primary/50 p-3 rounded-xl">
-                        <p className="text-sm text-secondary/60">Locație</p>
-                        <p className="font-bold text-secondary">{installation.location}</p>
-                      </div>
-                    )}
-                    {installation.email && (
-                      <div className="bg-primary/50 p-3 rounded-xl">
-                        <p className="text-sm text-secondary/60">Email</p>
-                        <p className="font-bold text-secondary">{installation.email}</p>
-                      </div>
-                    )}
-                    <div className="bg-primary/50 p-3 rounded-xl">
-                      <p className="text-sm text-secondary/60">Creat</p>
-                      <p className="font-bold text-secondary">
-                        {new Date(installation.createdAt).toLocaleDateString('ro-RO')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        handleEditInstallation(installation)
-                        setShowInstallationModal(true)
-                      }}
-                      className="flex-1 btn-neumorphic px-4 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
-                    >
-                      ✏️ Editează
-                    </button>
-                    <button
-                      onClick={() => handleDeleteInstallation(installation.id)}
-                      className="px-4 py-3 bg-red-100 text-red-600 rounded-2xl font-bold hover:scale-105 transition-all shadow-neumorphic"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -691,7 +509,6 @@ function AdminDashboard() {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-secondary">{user.username}</h3>
-                      <p className="text-sm text-secondary/60">{user.installation.name}</p>
                     </div>
                   </div>
                   <div className="bg-primary/50 p-3 rounded-xl mb-4">
@@ -786,67 +603,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Installation Modal */}
-        {showInstallationModal && editingInstallation && (
-          <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="glass-card max-w-md w-full p-8 animate-float">
-              <h3 className="text-3xl font-bold text-gradient mb-6">Editează instalație</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block mb-3 font-bold text-secondary">Nume instalație *</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                    placeholder="Ex: Cofetărie Centru"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-3 font-bold text-secondary">Locație</label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                    placeholder="Ex: București, Centru"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-3 font-bold text-secondary">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                    placeholder="exemplu@email.com"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-4 mt-8">
-                <button
-                  onClick={() => {
-                    handleSaveInstallation()
-                    setShowInstallationModal(false)
-                  }}
-                  className="flex-1 btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all"
-                >
-                  ✓ Salvează
-                </button>
-                <button
-                  onClick={() => {
-                    setShowInstallationModal(false)
-                    setEditingInstallation(null)
-                  }}
-                  className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
-                >
-                  ✕ Anulează
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* User Modal */}
         {showUserModal && (
           <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -877,54 +633,6 @@ function AdminDashboard() {
                     placeholder="••••••••"
                   />
                 </div>
-                {!editingUser && (
-                  <>
-                    <div>
-                      <label className="block mb-3 font-bold text-secondary">Locație (opțional)</label>
-                      <input
-                        type="text"
-                        value={userFormData.location}
-                        onChange={(e) => setUserFormData({ ...userFormData, location: e.target.value })}
-                        className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                        placeholder="Ex: București, Centru"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-3 font-bold text-secondary">Email (opțional)</label>
-                      <input
-                        type="email"
-                        value={userFormData.email}
-                        onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                        className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                        placeholder="exemplu@email.com"
-                      />
-                    </div>
-                  </>
-                )}
-                {editingUser && (
-                  <>
-                    <div>
-                      <label className="block mb-3 font-bold text-secondary">Locație</label>
-                      <input
-                        type="text"
-                        value={userFormData.location}
-                        onChange={(e) => setUserFormData({ ...userFormData, location: e.target.value })}
-                        className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                        placeholder="Ex: București, Centru"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-3 font-bold text-secondary">Email</label>
-                      <input
-                        type="email"
-                        value={userFormData.email}
-                        onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                        className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-                        placeholder="exemplu@email.com"
-                      />
-                    </div>
-                  </>
-                )}
               </div>
               <div className="flex gap-4 mt-8">
                 <button

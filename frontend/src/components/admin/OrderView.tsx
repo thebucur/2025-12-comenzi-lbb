@@ -3,6 +3,52 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 
+// Helper function to convert relative URL to absolute
+const getAbsoluteUrl = (relativeUrl: string): string => {
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl
+  }
+  
+  // Get base URL for backend (not frontend origin)
+  let backendURL: string
+  
+  // In development, detect IP from current location or localStorage
+  if (import.meta.env.DEV) {
+    const currentHostname = window.location.hostname
+    
+    // If accessing from mobile device via IP (not localhost), use that IP with backend port
+    if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+      // Use current hostname with port 5000 for backend
+      backendURL = `http://${currentHostname}:5000`
+    } else {
+      // Check localStorage for manually set IP
+      const localIP = localStorage.getItem('localNetworkIP')
+      if (localIP) {
+        backendURL = `http://${localIP}:5000`
+      } else {
+        // Fallback to environment variable or default
+        const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+        backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+      }
+    }
+  } else {
+    // In production, use environment variable or construct from current origin
+    const envURL = import.meta.env.VITE_API_URL || window.location.origin
+    backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+  }
+  
+  // Ensure relative URL starts with /
+  const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
+  return `${backendURL}${url}`
+}
+
+interface Photo {
+  id: string
+  url: string
+  path: string | null
+  createdAt: string
+}
+
 interface OrderData {
   id: string
   orderNumber: string
@@ -23,7 +69,7 @@ interface OrderData {
   decorType: string
   decorDetails: string
   observations: string
-  photos: string[]
+  photos: Photo[]
   createdAt: string
 }
 
@@ -141,18 +187,14 @@ function AdminOrderView() {
                 <p className="font-bold text-secondary text-lg">07{order.phoneNumber}</p>
               </div>
               <div className="bg-primary/50 p-4 rounded-2xl">
-                <p className="text-sm text-secondary/60 mb-1">Metodă</p>
+                <p className="text-sm text-secondary/60 mb-1">Livrare</p>
                 <p className="font-bold text-secondary text-lg">
-                  {order.deliveryMethod === 'ridicare' ? '🏪 Ridicare' : '🚚 Livrare'}
+                  {order.deliveryMethod === 'ridicare' 
+                    ? `🏪 Ridicare din ${order.location || 'N/A'}`
+                    : '🚚 Livrare la adresa'}
                 </p>
               </div>
-              {order.location && (
-                <div className="bg-primary/50 p-4 rounded-2xl">
-                  <p className="text-sm text-secondary/60 mb-1">Locație</p>
-                  <p className="font-bold text-secondary text-lg">{order.location}</p>
-                </div>
-              )}
-              {order.address && (
+              {order.address && order.deliveryMethod === 'livrare' && (
                 <div className="bg-primary/50 p-4 rounded-2xl">
                   <p className="text-sm text-secondary/60 mb-1">Adresă livrare</p>
                   <p className="font-bold text-secondary text-lg">{order.address}</p>
@@ -257,11 +299,16 @@ function AdminOrderView() {
               <h2 className="text-3xl font-bold text-gradient mb-6">📸 Poze încărcate ({order.photos.length})</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {order.photos.map((photo, index) => (
-                  <div key={index} className="shadow-neumorphic rounded-2xl overflow-hidden group">
+                  <div key={photo.id || index} className="shadow-neumorphic rounded-2xl overflow-hidden group">
                     <img
-                      src={photo}
+                      src={getAbsoluteUrl(photo.url)}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo.url, 'Full URL:', getAbsoluteUrl(photo.url))
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                      }}
                     />
                   </div>
                 ))}

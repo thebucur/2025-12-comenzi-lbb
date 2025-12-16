@@ -20,17 +20,15 @@ function Login({ onLoginSuccess }: LoginProps) {
 
     try {
       const response = await api.post('/auth/login', { username, password })
-      const { user, installation } = response.data
+      const { user } = response.data
 
       // Store authentication info
       localStorage.setItem('authToken', user.username) // Simple token (username)
       localStorage.setItem('userId', user.id)
-      localStorage.setItem('installationId', installation.id)
-      localStorage.setItem('installationName', installation.name)
 
-      // Fetch installation configuration
-      const configResponse = await api.get(`/auth/installation/${installation.id}/config`)
-      localStorage.setItem('installationConfig', JSON.stringify(configResponse.data))
+      // Fetch global configuration
+      const configResponse = await api.get('/auth/config')
+      localStorage.setItem('globalConfig', JSON.stringify(configResponse.data))
 
       onLoginSuccess?.()
 

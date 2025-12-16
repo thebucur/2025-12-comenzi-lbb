@@ -10,24 +10,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Installation {
-  id          String   @id @default(uuid())
-  name        String
-  location    String?
-  email       String?
-  settings    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  orders      Order[]
-  users       User[]
-  configs     InstallationConfig[]
-}
-
 model Order {
   id                    String   @id @default(uuid())
   orderNumber           Int      @unique
-  installationId        String
-  installation         Installation @relation(fields: [installationId], references: [id])
   
   // Screen 1 - Ridicare
   deliveryMethod        String
@@ -58,6 +43,13 @@ model Order {
   // PDF
   pdfPath               String?
   
+  // User who created the order
+  createdByUsername     String?
+  
+  // User who picked up the order
+  pickedUpByUserId      String?
+  pickedUpBy            User?    @relation("PickedUpOrders", fields: [pickedUpByUserId], references: [id])
+  
   photos                Photo[]
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -82,34 +74,18 @@ model User {
   id             String       @id @default(uuid())
   username       String       @unique
   password       String       // Hashed password
-  installationId String
-  installation   Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  pickedUpOrders Order[]      @relation("PickedUpOrders")
 }
 
 model GlobalConfig {
-  id            String               @id @default(uuid())
-  category      String               // 'sortiment' or 'decor'
-  key           String               // 'cakeTypes', 'weights', 'shapes', 'floors', 'coatings', 'colors', 'decorTypes'
-  value         Json                 // Array of options
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  installations InstallationConfig[]
-
+  id          String   @id @default(uuid())
+  category    String   // 'sortiment' or 'decor'
+  key         String   // 'cakeTypes', 'weights', 'shapes', 'floors', 'coatings', 'colors', 'decorTypes'
+  value       Json     // Array of options
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
   @@unique([category, key])
 }
-
-model InstallationConfig {
-  id              String       @id @default(uuid())
-  installationId  String
-  installation    Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
-  globalConfigId  String
-  globalConfig    GlobalConfig @relation(fields: [globalConfigId], references: [id], onDelete: Cascade)
-  enabled         Boolean      @default(true)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-
-  @@unique([installationId, globalConfigId])
-}
-

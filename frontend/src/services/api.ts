@@ -2,7 +2,29 @@ import axios from 'axios'
 
 // Normalize baseURL to always end with /api
 const getBaseURL = () => {
-  const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  let envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  
+  // In development, detect IP from current location or localStorage
+  if (import.meta.env.DEV) {
+    const currentHostname = typeof window !== 'undefined' ? window.location.hostname : null
+    
+    // If accessing from mobile device via IP (not localhost), use that IP for API
+    if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+      // Extract IP from current URL
+      const port = envURL.match(/:(\d+)/)?.[1] || '5000'
+      envURL = `http://${currentHostname}:${port}`
+      console.log(`Detected IP from current URL: ${envURL}`)
+    } else {
+      // Check localStorage for manually set IP
+      const localIP = localStorage.getItem('localNetworkIP')
+      if (localIP) {
+        // Replace localhost with the local IP for mobile device access
+        envURL = envURL.replace('localhost', localIP).replace('127.0.0.1', localIP)
+        console.log(`Using local network IP from localStorage: ${envURL}`)
+      }
+    }
+  }
+  
   // Remove trailing slash if present
   const cleanURL = envURL.replace(/\/$/, '')
   // Ensure /api is appended
@@ -21,7 +43,22 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 60000, // 60 seconds timeout for uploads
 })
+
+// Add request interceptor to handle FormData correctly
+api.interceptors.request.use(
+  (config) => {
+    // If data is FormData, remove Content-Type header to let axios set it with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
 
 // Add response interceptor for better error handling
 api.interceptors.response.use(

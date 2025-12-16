@@ -17,20 +17,8 @@ router.post('/:id/generate-pdf', async (req, res) => {
     const { id } = req.params
     const pdfPath = await generatePDF(id)
     
-    // Get order to send email
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: { installation: true },
-    })
-
-    if (order && order.installation?.email) {
-      try {
-        await sendOrderEmail(order.orderNumber, order.installation.email, pdfPath)
-      } catch (emailError) {
-        console.error('Error sending email:', emailError)
-        // Don't fail the request if email fails
-      }
-    }
+    // Note: Email sending would need to be configured separately
+    // For now, PDF generation is successful without email
 
     res.json({ success: true, pdfPath })
   } catch (error) {

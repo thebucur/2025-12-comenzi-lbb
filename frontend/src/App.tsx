@@ -37,9 +37,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('authToken')
     localStorage.removeItem('userId')
-    localStorage.removeItem('installationId')
-    localStorage.removeItem('installationName')
-    localStorage.removeItem('installationConfig')
+    localStorage.removeItem('globalConfig')
     setAuthToken(null)
     // Dispatch custom event to trigger auth state update in same tab
     window.dispatchEvent(new Event('authChange'))
@@ -65,7 +63,7 @@ function App() {
           />
           <Route path="/admin" element={requireAuth(<AdminDashboard />)} />
           <Route path="/admin/orders/:id" element={requireAuth(<AdminOrderView />)} />
-          <Route path="/upload/:sessionId" element={requireAuth(<PhotoUpload />)} />
+          <Route path="/upload/:sessionId" element={<PhotoUpload />} />
         </Routes>
       </Router>
     </OrderProvider>

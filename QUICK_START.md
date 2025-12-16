@@ -103,6 +103,36 @@ npm run dev
 
 ## Troubleshooting
 
+### "Nu s-a primit răspuns de la server" Error
+
+This means the frontend cannot connect to the backend. Follow these steps:
+
+1. **Check if backend is running:**
+   ```powershell
+   .\check-backend.ps1
+   ```
+
+2. **If backend is not running, start it:**
+   ```powershell
+   cd backend
+   npm run dev
+   ```
+   You should see: `Server running on http://0.0.0.0:5000`
+
+3. **Verify backend is accessible:**
+   - Open browser: http://localhost:5000/health
+   - Should return: `{"status":"ok"}`
+
+4. **Check API endpoint:**
+   - Open: http://localhost:5000/api/orders/next-number
+   - Should return order number
+
+5. **Common issues:**
+   - Backend not started → Start it with `npm run dev` in backend folder
+   - Wrong port → Check `backend/.env` for `PORT=5000`
+   - Firewall blocking → Allow port 5000 in Windows Firewall
+   - Different network → If using mobile device, ensure same Wi-Fi network
+
 ### Database Connection Error
 
 1. Make sure PostgreSQL is running
@@ -133,6 +163,8 @@ Once local testing works:
 2. Verify email sending (if configured)
 3. Test admin interface
 4. Prepare for Railway deployment
+
+
 
 
 

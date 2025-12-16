@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express'
 import prisma from '../lib/prisma'
 
 export interface AuthRequest extends Request {
-  installationId?: string
   userId?: string
 }
 
@@ -19,14 +18,12 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     
     const user = await prisma.user.findUnique({
       where: { username: token },
-      include: { installation: true },
     })
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    req.installationId = user.installationId
     req.userId = user.id
     next()
   } catch (error) {
