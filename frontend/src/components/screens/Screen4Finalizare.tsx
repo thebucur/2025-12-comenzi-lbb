@@ -90,15 +90,10 @@ function Screen4Finalizare() {
       // Ensure pickupDate is in ISO format
       let pickupDate = order.pickupDate
       if (pickupDate) {
-        // If it's already a Date object, convert to ISO string
-        if (pickupDate instanceof Date) {
-          pickupDate = pickupDate.toISOString()
-        } else if (typeof pickupDate === 'string') {
-          // If it's a string, try to parse and convert to ISO
-          const dateObj = new Date(pickupDate)
-          if (!isNaN(dateObj.getTime())) {
-            pickupDate = dateObj.toISOString()
-          }
+        // Parse string date and convert to ISO format
+        const dateObj = new Date(pickupDate)
+        if (!isNaN(dateObj.getTime())) {
+          pickupDate = dateObj.toISOString()
         }
       }
       
