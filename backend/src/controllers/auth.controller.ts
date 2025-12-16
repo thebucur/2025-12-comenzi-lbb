@@ -59,3 +59,56 @@ export const getGlobalConfig = async (req: Request, res: Response) => {
   }
 }
 
+export const seedAdmin = async (req: Request, res: Response) => {
+  try {
+    const bcrypt = require('bcrypt')
+    
+    // Check if admin user already exists
+    const existingAdmin = await prisma.user.findUnique({
+      where: { username: 'admin' },
+    })
+
+    if (existingAdmin) {
+      // Verify password works
+      const passwordValid = await bcrypt.compare('0000', existingAdmin.password)
+      if (passwordValid) {
+        return res.json({ 
+          message: 'Admin user already exists and password is correct',
+          username: 'admin',
+          password: '0000'
+        })
+      } else {
+        // Update password if it doesn't match
+        const adminPassword = await bcrypt.hash('0000', 10)
+        await prisma.user.update({
+          where: { username: 'admin' },
+          data: { password: adminPassword },
+        })
+        return res.json({ 
+          message: 'Admin user password reset',
+          username: 'admin',
+          password: '0000'
+        })
+      }
+    }
+
+    // Create admin user
+    const adminPassword = await bcrypt.hash('0000', 10)
+    const adminUser = await prisma.user.create({
+      data: {
+        username: 'admin',
+        password: adminPassword,
+      },
+    })
+
+    res.json({ 
+      message: 'Admin user created successfully',
+      username: 'admin',
+      password: '0000'
+    })
+  } catch (error) {
+    console.error('Error seeding admin user:', error)
+    res.status(500).json({ error: 'Failed to seed admin user', details: error instanceof Error ? error.message : 'Unknown error' })
+  }
+}
+
