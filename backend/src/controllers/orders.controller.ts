@@ -100,7 +100,7 @@ export const createOrder = async (req: Request, res: Response) => {
       floors: orderData.floors ? String(orderData.floors) : null,
       otherProducts: orderData.otherProducts ? String(orderData.otherProducts) : null,
       coating: String(orderData.coating),
-      colors: Array.isArray(orderData.colors) ? orderData.colors.map(c => String(c)) : [],
+      colors: Array.isArray(orderData.colors) ? orderData.colors.map((c: unknown) => String(c)) : [],
       decorType: String(orderData.decorType),
       decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
       observations: orderData.observations ? String(orderData.observations) : null,

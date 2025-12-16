@@ -4,12 +4,12 @@ import bcrypt from 'bcrypt'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('Starting database seed...')
+  console.log('🌱 Starting database seed...')
   
   try {
     // Test database connection
     await prisma.$connect()
-    console.log('Database connection established')
+    console.log('✅ Database connection established')
     
     // Initialize order counter
     await prisma.orderCounter.upsert({
@@ -20,7 +20,7 @@ async function main() {
         lastOrder: 0,
       },
     })
-    console.log('Order counter initialized')
+    console.log('✅ Order counter initialized')
 
     // Create default admin user if it doesn't exist
     const adminPassword = await bcrypt.hash('0000', 10)
@@ -63,24 +63,8 @@ main()
   .catch((e) => {
     console.error('❌ Fatal error seeding database:', e)
     console.error('Stack trace:', e instanceof Error ? e.stack : 'No stack trace')
-    // Don't exit with error code - allow server to start even if seeding fails
-    // This is important for production where the admin user might already exist
-    process.exit(0) // Exit with success to allow server to start
+    process.exit(1)
   })
   .finally(async () => {
     await prisma.$disconnect()
-    console.log('Database connection closed')
   })
-
-
-
-
-
-
-
-
-
-
-
-
-
