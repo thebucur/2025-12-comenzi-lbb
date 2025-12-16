@@ -46,9 +46,15 @@ const api = axios.create({
   timeout: 60000, // 60 seconds timeout for uploads
 })
 
-// Add request interceptor to handle FormData correctly
+// Add request interceptor to include auth token and handle FormData correctly
 api.interceptors.request.use(
   (config) => {
+    // Get auth token from localStorage and add to Authorization header
+    const authToken = localStorage.getItem('authToken')
+    if (authToken) {
+      config.headers.Authorization = `Bearer ${authToken}`
+    }
+    
     // If data is FormData, remove Content-Type header to let axios set it with boundary
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type']

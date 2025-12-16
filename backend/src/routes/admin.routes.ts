@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { authenticate } from '../middleware/auth.middleware'
 import { 
   getOrderDetails, 
   listUsers,
@@ -8,6 +9,9 @@ import {
 } from '../controllers/admin.controller'
 
 const router = Router()
+
+// Protect all admin routes with authentication
+router.use(authenticate)
 
 router.get('/orders/:id', getOrderDetails)
 router.get('/users', listUsers)
