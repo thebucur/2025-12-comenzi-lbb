@@ -61,8 +61,6 @@ export const getGlobalConfig = async (req: Request, res: Response) => {
 
 export const seedAdmin = async (req: Request, res: Response) => {
   try {
-    const bcrypt = require('bcrypt')
-    
     // Check if admin user already exists
     const existingAdmin = await prisma.user.findUnique({
       where: { username: 'admin' },
