@@ -114,6 +114,22 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
+// 404 handler - must be after all routes
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.path} not found`,
+    availableRoutes: {
+      auth: {
+        login: 'POST /api/auth/login',
+        config: 'GET /api/auth/config',
+        seedAdmin: 'POST /api/auth/seed-admin',
+        test: 'GET /api/auth/test'
+      }
+    }
+  })
+})
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`)
   if (HOST === '0.0.0.0') {
