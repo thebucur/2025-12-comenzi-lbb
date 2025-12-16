@@ -79,6 +79,13 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/config', configRoutes)
 
+// Log registered routes on startup
+console.log('Registered routes:')
+console.log('  GET  /api/auth/test')
+console.log('  POST /api/auth/login')
+console.log('  GET  /api/auth/config')
+console.log('  POST /api/auth/seed-admin')
+
 // Root route
 app.get('/', (req, res) => {
   res.json({ 
@@ -90,7 +97,13 @@ app.get('/', (req, res) => {
       upload: '/api/upload',
       reports: '/api/reports',
       admin: '/api/admin',
-      auth: '/api/auth',
+      auth: {
+        base: '/api/auth',
+        login: 'POST /api/auth/login',
+        config: 'GET /api/auth/config',
+        seedAdmin: 'POST /api/auth/seed-admin',
+        test: 'GET /api/auth/test'
+      },
       config: '/api/config'
     }
   })
