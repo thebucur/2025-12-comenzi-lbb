@@ -16,9 +16,47 @@ const PORT = parseInt(process.env.PORT || '5000', 10)
 const HOST = process.env.HOST || '0.0.0.0' // Listen on all network interfaces for mobile access
 
 // Middleware
-// Enhanced CORS configuration for mobile devices
+// Enhanced CORS configuration for mobile devices and Railway deployment
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  // Allow all Railway frontend domains
+  /^https:\/\/.*\.up\.railway\.app$/,
+  /^https:\/\/.*\.railway\.app$/,
+  // Allow railway.com for admin panel
+  'https://railway.com',
+]
+
 app.use(cors({
-  origin: true, // Allow all origins (in production, specify your frontend URL)
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, or curl)
+    if (!origin) {
+      return callback(null, true)
+    }
+    
+    // Check if origin matches allowed patterns
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return origin === allowed
+      } else if (allowed instanceof RegExp) {
+        return allowed.test(origin)
+      }
+      return false
+    })
+    
+    if (isAllowed) {
+      callback(null, true)
+    } else {
+      // In development, allow all origins
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true)
+      } else {
+        console.warn(`CORS blocked origin: ${origin}`)
+        callback(new Error('Not allowed by CORS'))
+      }
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
