@@ -139,7 +139,7 @@ function AdminOrderView() {
           <div className="text-6xl mb-4">⚠️</div>
           <p className="text-2xl font-bold text-red-500">{error || 'Comanda nu a fost găsită'}</p>
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate('/admin/dashboard')}
             className="mt-6 btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
           >
             ← Înapoi la panou
@@ -156,7 +156,7 @@ function AdminOrderView() {
       
       <div className="container mx-auto px-4 py-8 relative z-10">
         <button
-          onClick={() => navigate('/admin')}
+          onClick={() => navigate('/admin/dashboard')}
           className="mb-8 btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all inline-flex items-center gap-2"
         >
           ← Înapoi la panou

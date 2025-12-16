@@ -249,6 +249,12 @@ function AdminDashboard() {
     password: '',
   })
 
+  const handleAdminLogout = () => {
+    localStorage.removeItem('adminAuthToken')
+    window.dispatchEvent(new Event('adminAuthChange'))
+    navigate('/admin')
+  }
+
   useEffect(() => {
     fetchOrders()
     if (activeTab === 'users') fetchUsers()
@@ -366,10 +372,10 @@ function AdminDashboard() {
         <div className="flex items-center justify-between mb-12">
           <h1 className="text-5xl font-bold text-gradient">Panou de administrare</h1>
           <button
-            onClick={() => navigate('/login')}
+            onClick={handleAdminLogout}
             className="btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all duration-300"
           >
-            ← Înapoi
+            ← Deconectare
           </button>
         </div>
 

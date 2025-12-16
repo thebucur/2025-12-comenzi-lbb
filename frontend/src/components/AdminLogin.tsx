@@ -2,11 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 
-type LoginProps = {
-  onLoginSuccess?: () => void
-}
-
-function Login({ onLoginSuccess }: LoginProps) {
+function AdminLogin() {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -19,28 +15,25 @@ function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true)
 
     try {
+      // Authenticate with backend using admin credentials
+      // Default credentials: admin / 0000
       const response = await api.post('/auth/login', { username, password })
       const { user } = response.data
 
-      // Store authentication info
-      localStorage.setItem('authToken', user.username) // Simple token (username)
-      localStorage.setItem('userId', user.id)
-
-      // Fetch global configuration
-      const configResponse = await api.get('/auth/config')
-      localStorage.setItem('globalConfig', JSON.stringify(configResponse.data))
-
-      onLoginSuccess?.()
-
-      // Redirect to wizard
-      navigate('/')
+      // Store admin authentication (using username as token, same as regular login)
+      localStorage.setItem('adminAuthToken', user.username)
+      
+      // Dispatch custom event to trigger auth state update
+      window.dispatchEvent(new Event('adminAuthChange'))
+      
+      // Redirect to admin dashboard
+      navigate('/admin/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Eroare la autentificare')
+      setError(err.response?.data?.error || 'Credențiale incorecte')
     } finally {
       setLoading(false)
     }
   }
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary flex items-center justify-center p-4">
@@ -51,16 +44,16 @@ function Login({ onLoginSuccess }: LoginProps) {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple mb-4">
             <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <h1 className="text-4xl font-bold text-gradient mb-2">Bun venit</h1>
-          <p className="text-secondary/70">Autentificați-vă pentru a continua</p>
+          <h1 className="text-4xl font-bold text-gradient mb-2">Panou Administrare</h1>
+          <p className="text-secondary/70">Autentificați-vă pentru a accesa panoul de administrare</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block mb-3 font-semibold text-secondary">Utilizator</label>
+            <label className="block mb-3 font-semibold text-secondary">Utilizator Admin</label>
             <input
               type="text"
               value={username}
@@ -108,7 +101,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                 Se autentifică...
               </span>
             ) : (
-              'Autentificare'
+              'Autentificare Admin'
             )}
           </button>
         </form>
@@ -117,5 +110,4 @@ function Login({ onLoginSuccess }: LoginProps) {
   )
 }
 
-export default Login
-
+export default AdminLogin

@@ -3,17 +3,20 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { OrderProvider } from './context/OrderContext'
 import Wizard from './components/Wizard'
 import Login from './components/Login'
+import AdminLogin from './components/AdminLogin'
 import AdminDashboard from './components/admin/AdminDashboard'
 import AdminOrderView from './components/admin/OrderView'
 import PhotoUpload from './components/PhotoUpload'
 
 function App() {
   const [_authToken, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
+  const [_adminAuthToken, setAdminAuthToken] = useState<string | null>(localStorage.getItem('adminAuthToken'))
 
   // Keep auth state in sync with localStorage changes (even within the same tab)
   useEffect(() => {
     const handleStorageChange = () => {
       setAuthToken(localStorage.getItem('authToken'))
+      setAdminAuthToken(localStorage.getItem('adminAuthToken'))
     }
 
     // Listen for both storage events (cross-tab) and custom authChange events (same-tab)
@@ -21,11 +24,17 @@ function App() {
       setAuthToken(localStorage.getItem('authToken'))
     }
 
+    const handleAdminAuthChange = () => {
+      setAdminAuthToken(localStorage.getItem('adminAuthToken'))
+    }
+
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('authChange', handleAuthChange)
+    window.addEventListener('adminAuthChange', handleAdminAuthChange)
     return () => {
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('authChange', handleAuthChange)
+      window.removeEventListener('adminAuthChange', handleAdminAuthChange)
     }
   }, [])
 
@@ -45,8 +54,12 @@ function App() {
 
   // Check localStorage directly as source of truth (state updates are async)
   const checkAuth = () => !!localStorage.getItem('authToken')
+  const checkAdminAuth = () => !!localStorage.getItem('adminAuthToken')
   const requireAuth = (element: JSX.Element) => {
     return checkAuth() ? element : <Navigate to="/login" replace />
+  }
+  const requireAdminAuth = (element: JSX.Element) => {
+    return checkAdminAuth() ? element : <Navigate to="/admin" replace />
   }
 
   return (
@@ -61,8 +74,12 @@ function App() {
             path="/"
             element={requireAuth(<Wizard onLogout={handleLogout} />)}
           />
-          <Route path="/admin" element={requireAuth(<AdminDashboard />)} />
-          <Route path="/admin/orders/:id" element={requireAuth(<AdminOrderView />)} />
+          <Route
+            path="/admin"
+            element={checkAdminAuth() ? <Navigate to="/admin/dashboard" replace /> : <AdminLogin />}
+          />
+          <Route path="/admin/dashboard" element={requireAdminAuth(<AdminDashboard />)} />
+          <Route path="/admin/orders/:id" element={requireAdminAuth(<AdminOrderView />)} />
           <Route path="/upload/:sessionId" element={<PhotoUpload />} />
         </Routes>
       </Router>

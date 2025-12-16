@@ -49,8 +49,15 @@ const api = axios.create({
 // Add request interceptor to include auth token and handle FormData correctly
 api.interceptors.request.use(
   (config) => {
-    // Get auth token from localStorage and add to Authorization header
-    const authToken = localStorage.getItem('authToken')
+    // Check if this is an admin endpoint
+    const isAdminEndpoint = config.url?.startsWith('/admin')
+    
+    // Get appropriate auth token from localStorage
+    // For admin endpoints, use adminAuthToken; otherwise use regular authToken
+    const authToken = isAdminEndpoint 
+      ? localStorage.getItem('adminAuthToken')
+      : localStorage.getItem('authToken')
+    
     if (authToken) {
       config.headers.Authorization = `Bearer ${authToken}`
     }
