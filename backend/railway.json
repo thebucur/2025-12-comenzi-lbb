@@ -1,7 +1,10 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "buildCommand": "npm install && npm run build"
+    "buildCommand": "npm install && npm run build",
+    "watchPaths": [
+      "backend/**"
+    ]
   },
   "deploy": {
     "startCommand": "node dist/server.js",
