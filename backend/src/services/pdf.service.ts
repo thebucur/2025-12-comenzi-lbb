@@ -265,7 +265,42 @@ export const generatePDF = async (orderId: string): Promise<string> => {
   addField('Greutate', order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight)
   addField('Formă', order.shape || undefined)
   addField('Etaje', order.floors || undefined)
-  addField('Alte produse', order.otherProducts || undefined)
+  
+  // Special handling for "Alte produse" with yellow background
+  if (order.otherProducts) {
+    const cleanLabel = removeDiacritics('Alte produse')
+    const cleanValue = removeDiacritics(order.otherProducts)
+    
+    const x = margins.left
+    const y = doc.y
+    
+    // Calculate the height needed for the text
+    const labelWidth = doc.font(fontBold).fontSize(12).widthOfString(`${cleanLabel}: `)
+    const fullText = `${cleanLabel}: ${cleanValue}`
+    const textHeight = doc.font(fontRegular).fontSize(12).heightOfString(fullText, {
+      width: leftColumnWidth,
+    })
+    
+    // Add padding for the background
+    const padding = 4
+    
+    // Draw yellow background rectangle
+    doc.rect(x - padding, y - padding, leftColumnWidth + padding * 2, textHeight + padding * 2)
+       .fill('#FFFF00')
+    
+    // Now draw the text on top
+    doc.fillColor(labelColor)
+    doc.font(fontBold).fontSize(12).text(`${cleanLabel}: `, x, y, {
+      continued: true,
+      width: leftColumnWidth,
+    })
+    doc.fillColor(textColor)
+    doc.font(fontRegular).fontSize(12).text(cleanValue, {
+      width: leftColumnWidth,
+    })
+    doc.moveDown(0.2)
+  }
+  
   doc.moveDown(0.4)
 
   // Decor Details
