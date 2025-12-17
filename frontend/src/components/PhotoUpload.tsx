@@ -3,50 +3,27 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../services/api'
 
-// Helper function to convert relative URL to absolute
+// Helper function to convert relative URL to absolute using the same baseURL as axios
 const getAbsoluteUrl = (relativeUrl: string): string => {
   if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
     return relativeUrl
   }
-  
-  // Get base URL for backend (not frontend origin)
-  let backendURL: string
-  
-  // In development, detect IP from current location or localStorage
-  if (import.meta.env.DEV) {
-    const currentHostname = window.location.hostname
-    
-    // If accessing from mobile device via IP (not localhost), use that IP with backend port
-    if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
-      // Use current hostname with port 5000 for backend
-      backendURL = `http://${currentHostname}:5000`
-    } else {
-      // Check localStorage for manually set IP
-      const localIP = localStorage.getItem('localNetworkIP')
-      if (localIP) {
-        backendURL = `http://${localIP}:5000`
-      } else {
-        // Fallback to environment variable or default
-        const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-        backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-      }
-    }
-  } else {
-    // In production, use environment variable or construct from current origin
-    const envURL = import.meta.env.VITE_API_URL || window.location.origin
-    backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-  }
-  
-  // Ensure relative URL starts with /
+
+  // Prefer the axios baseURL so production always matches the backend host
+  const baseFromApi = api.defaults.baseURL
+  const backendURL = baseFromApi
+    ? baseFromApi.replace(/\/api$/, '').replace(/\/$/, '')
+    : window.location.origin.replace(/\/$/, '')
+
   const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
   const fullURL = `${backendURL}${url}`
-  
+
   console.log(`getAbsoluteUrl: ${relativeUrl} -> ${fullURL}`, {
-    currentHostname: window.location.hostname,
+    baseFromApi,
     backendURL,
     relativeUrl,
   })
-  
+
   return fullURL
 }
 
