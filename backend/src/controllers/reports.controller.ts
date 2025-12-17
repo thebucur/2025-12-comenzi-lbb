@@ -32,11 +32,12 @@ export const getReports = async (req: Request, res: Response) => {
       stats.byLocation[loc] = (stats.byLocation[loc] || 0) + 1
 
       // By cake type
-      stats.byCakeType[order.cakeType] = (stats.byCakeType[order.cakeType] || 0) + 1
+      const cake = order.cakeType || 'N/A'
+      stats.byCakeType[cake] = (stats.byCakeType[cake] || 0) + 1
 
       // By delivery method
-      stats.byDeliveryMethod[order.deliveryMethod] =
-        (stats.byDeliveryMethod[order.deliveryMethod] || 0) + 1
+      const delivery = order.deliveryMethod || 'N/A'
+      stats.byDeliveryMethod[delivery] = (stats.byDeliveryMethod[delivery] || 0) + 1
     })
 
     res.json({ orders, statistics: stats })
