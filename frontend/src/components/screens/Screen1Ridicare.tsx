@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { Location } from '../../types/order.types'
 
@@ -7,23 +7,39 @@ const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
 
 function Screen1Ridicare() {
   const { order, updateOrder } = useOrder()
-  const [staffNames, setStaffNames] = useState<string[]>(defaultStaffNames)
+  const userId = localStorage.getItem('userId') || 'default'
+  const staffNamesKey = `staffNames_${userId}`
+  
+  // Load staff names from localStorage for this user, or use defaults
+  const [staffNames, setStaffNames] = useState<string[]>(() => {
+    const savedStaffNames = localStorage.getItem(staffNamesKey)
+    return savedStaffNames ? JSON.parse(savedStaffNames) : defaultStaffNames
+  })
+  
   const [showStaffSettings, setShowStaffSettings] = useState(false)
   const [newStaffName, setNewStaffName] = useState('')
   const [showTomorrowAlert, setShowTomorrowAlert] = useState(false)
+  
+  // Save staff names to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(staffNamesKey, JSON.stringify(staffNames))
+  }, [staffNames, staffNamesKey])
 
-  const isTomorrow = (date: string) => {
+  const isTodayOrTomorrow = (date: string) => {
     const selectedDate = new Date(date)
+    const today = new Date()
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
-    return selectedDate.toDateString() === tomorrow.toDateString()
+    
+    return selectedDate.toDateString() === today.toDateString() || 
+           selectedDate.toDateString() === tomorrow.toDateString()
   }
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const date = e.target.value
     updateOrder({ pickupDate: date })
     
-    if (isTomorrow(date) && !order.tomorrowVerification) {
+    if (isTodayOrTomorrow(date) && !order.tomorrowVerification) {
       setShowTomorrowAlert(true)
     }
   }
@@ -275,10 +291,10 @@ function Screen1Ridicare() {
           <div className="glass-card max-w-md w-full p-8 animate-float">
             <div className="text-6xl text-center mb-6">⚠️</div>
             <h3 className="text-2xl font-bold text-center text-amber-600 mb-4">
-              Verificați în laborator disponibilitatea!
+              VERIFICAȚI DISPONIBILITATEA LIVRĂRII ÎN LABORATOR!
             </h3>
             <p className="text-center text-secondary/70 mb-6">
-              Comanda este pentru mâine. Asigurați-vă că este fezabilă.
+              Comanda este pentru astăzi sau mâine. Asigurați-vă că este fezabilă.
             </p>
             <button
               onClick={() => {
