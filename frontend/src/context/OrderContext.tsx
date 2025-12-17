@@ -11,6 +11,7 @@ const initialOrder: Order = {
   pickupDate: '',
   tomorrowVerification: false,
   advance: null,
+  noCake: false,
   cakeType: null,
   weight: null,
   customWeight: '',
@@ -58,12 +59,20 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         if (!order.pickupDate) return false
         return true
       case 2:
+        // If no cake is selected, only validate that otherProducts is filled
+        if (order.noCake) {
+          if (!order.otherProducts.trim()) return false
+          return true
+        }
+        // Normal cake validation
         if (!order.cakeType) return false
         if (!order.weight) return false
         if ((order.weight === '2 KG' || order.weight === '2.5 KG' || order.weight === '3 KG' || order.weight === 'ALTĂ GREUTATE') && !order.shape) return false
         if ((order.weight === '3 KG' || order.weight === 'ALTĂ GREUTATE') && !order.floors) return false
         return true
       case 3:
+        // Skip decoration validation if no cake
+        if (order.noCake) return true
         if (!order.coating) return false
         if (!order.decorType) return false
         return true

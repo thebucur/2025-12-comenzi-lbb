@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { CakeType, Weight, Shape, Floors } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
@@ -34,6 +34,13 @@ function Screen2Sortiment() {
   const config = useInstallationConfig()
   const [showOtherProducts, setShowOtherProducts] = useState(false)
 
+  // Auto-open other products if noCake is selected
+  useEffect(() => {
+    if (order.noCake) {
+      setShowOtherProducts(true)
+    }
+  }, [order.noCake])
+
   // Use config values or fallback to defaults
   const cakeTypes = (config?.sortiment?.cakeTypes as CakeType[]) || defaultCakeTypes
   const weights = (config?.sortiment?.weights as Weight[]) || defaultWeights
@@ -54,13 +61,15 @@ function Screen2Sortiment() {
           {cakeTypes.map((type) => (
             <button
               key={type}
-              onClick={() => updateOrder({ cakeType: type })}
+              onClick={() => {
+                updateOrder({ cakeType: type, noCake: false })
+              }}
               className={`p-4 rounded-2xl font-semibold transition-all duration-300 text-sm ${
                 type === 'MOUSSE DE CIOCOLATĂ NEAGRĂ'
                   ? 'md:col-span-2'
                   : ''
               } ${
-                order.cakeType === type
+                order.cakeType === type && !order.noCake
                   ? 'btn-active scale-105'
                   : 'btn-neumorphic hover:scale-102'
               }`}
@@ -69,47 +78,83 @@ function Screen2Sortiment() {
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Weight Section */}
-      <div className="card-neumorphic">
-        <h3 className="text-xl font-bold text-secondary mb-6">⚖️ Greutate</h3>
-        <div className="flex flex-wrap gap-4">
-          {weights.map((weight) => (
-            <button
-              key={weight}
-              onClick={() => {
-                updateOrder({ weight })
-                if (weight !== '2 KG' && weight !== '2.5 KG' && weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
-                  updateOrder({ shape: null, floors: null })
-                }
-                if (weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
-                  updateOrder({ floors: null })
-                }
-              }}
-              className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
-                order.weight === weight
-                  ? 'btn-active scale-105'
-                  : 'btn-neumorphic hover:scale-102'
-              }`}
-            >
-              {weight}
-            </button>
-          ))}
+        {/* NO CAKE Button */}
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={() => {
+              updateOrder({ 
+                noCake: true, 
+                cakeType: null, 
+                weight: null, 
+                customWeight: '',
+                shape: null, 
+                floors: null,
+                coating: null,
+                colors: [],
+                decorType: null,
+                decorDetails: '',
+                observations: '',
+                photos: []
+              })
+              setShowOtherProducts(true)
+            }}
+            className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 text-white ${
+              order.noCake
+                ? 'scale-105 shadow-lg'
+                : 'hover:scale-105'
+            }`}
+            style={{
+              backgroundColor: order.noCake ? '#FF8C42' : '#FFB366',
+              boxShadow: order.noCake ? '0 8px 20px rgba(255, 140, 66, 0.4)' : '0 4px 10px rgba(255, 179, 102, 0.3)'
+            }}
+          >
+            🚫 NU ARE TORT
+          </button>
         </div>
-        {order.weight === 'ALTĂ GREUTATE' && (
-          <input
-            type="text"
-            value={order.customWeight}
-            onChange={(e) => updateOrder({ customWeight: e.target.value })}
-            placeholder="Specificați greutatea (ex: 4.5 KG)"
-            className="input-neumorphic mt-6 w-full text-secondary placeholder:text-secondary/40"
-          />
-        )}
       </div>
 
-      {/* Shape Section (only if 2kg or more) */}
-      {showShapeSection && (
+      {/* Weight Section - Hidden when noCake */}
+      {!order.noCake && (
+        <div className="card-neumorphic">
+          <h3 className="text-xl font-bold text-secondary mb-6">⚖️ Greutate</h3>
+          <div className="flex flex-wrap gap-4">
+            {weights.map((weight) => (
+              <button
+                key={weight}
+                onClick={() => {
+                  updateOrder({ weight })
+                  if (weight !== '2 KG' && weight !== '2.5 KG' && weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
+                    updateOrder({ shape: null, floors: null })
+                  }
+                  if (weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
+                    updateOrder({ floors: null })
+                  }
+                }}
+                className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
+                  order.weight === weight
+                    ? 'btn-active scale-105'
+                    : 'btn-neumorphic hover:scale-102'
+                }`}
+              >
+                {weight}
+              </button>
+            ))}
+          </div>
+          {order.weight === 'ALTĂ GREUTATE' && (
+            <input
+              type="text"
+              value={order.customWeight}
+              onChange={(e) => updateOrder({ customWeight: e.target.value })}
+              placeholder="Specificați greutatea (ex: 4.5 KG)"
+              className="input-neumorphic mt-6 w-full text-secondary placeholder:text-secondary/40"
+            />
+          )}
+        </div>
+      )}
+
+      {/* Shape Section (only if 2kg or more) - Hidden when noCake */}
+      {!order.noCake && showShapeSection && (
         <div className="card-neumorphic animate-float">
           <h3 className="text-xl font-bold text-secondary mb-6">📐 Formă</h3>
           <div className="flex flex-wrap gap-4">
@@ -133,8 +178,8 @@ function Screen2Sortiment() {
         </div>
       )}
 
-      {/* Floors Section (only if 3kg or alta greutate) */}
-      {showFloorsSection && (
+      {/* Floors Section (only if 3kg or alta greutate) - Hidden when noCake */}
+      {!order.noCake && showFloorsSection && (
         <div className="card-neumorphic animate-float" style={{ animationDelay: '0.1s' }}>
           <h3 className="text-xl font-bold text-secondary mb-6">🏢 Număr Etaje</h3>
           <div className="flex flex-wrap gap-4">
@@ -155,10 +200,13 @@ function Screen2Sortiment() {
         </div>
       )}
 
-      {/* Other Products Section */}
+      {/* Other Products Section - Mandatory when noCake */}
       <div className="card-neumorphic">
-        <h3 className="text-xl font-bold text-secondary mb-6">🍰 Alte produse</h3>
-        {!showOtherProducts ? (
+        <h3 className="text-xl font-bold text-secondary mb-6">
+          🍰 Alte produse
+          {order.noCake && <span className="text-red-500 ml-2">*</span>}
+        </h3>
+        {!showOtherProducts && !order.noCake ? (
           <button
             onClick={() => setShowOtherProducts(true)}
             className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all duration-300"
@@ -170,21 +218,23 @@ function Screen2Sortiment() {
             <textarea
               value={order.otherProducts}
               onChange={(e) => updateOrder({ otherProducts: e.target.value })}
-              placeholder="Introduceți alte produse comandate (prăjituri, tarte, etc.)..."
+              placeholder={order.noCake ? "Introduceți produsele comandate (prăjituri, tarte, etc.)... *OBLIGATORIU*" : "Introduceți alte produse comandate (prăjituri, tarte, etc.)..."}
               className="input-neumorphic w-full text-secondary placeholder:text-secondary/40 min-h-[120px]"
               rows={5}
             />
-            <button
-              onClick={() => {
-                setShowOtherProducts(false)
-                if (!order.otherProducts.trim()) {
-                  updateOrder({ otherProducts: '' })
-                }
-              }}
-              className="text-secondary/60 hover:text-red-500 transition-colors font-semibold"
-            >
-              ✕ Șterge secțiunea
-            </button>
+            {!order.noCake && (
+              <button
+                onClick={() => {
+                  setShowOtherProducts(false)
+                  if (!order.otherProducts.trim()) {
+                    updateOrder({ otherProducts: '' })
+                  }
+                }}
+                className="text-secondary/60 hover:text-red-500 transition-colors font-semibold"
+              >
+                ✕ Șterge secțiunea
+              </button>
+            )}
           </div>
         )}
       </div>

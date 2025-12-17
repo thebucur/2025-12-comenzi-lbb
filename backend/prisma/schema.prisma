@@ -26,17 +26,18 @@ model Order {
   advance               Float?
   
   // Screen 2 - Sortiment
-  cakeType              String
-  weight                String
+  noCake                Boolean  @default(false)
+  cakeType              String?
+  weight                String?
   customWeight          String?
   shape                 String?
   floors                String?
   otherProducts         String?
   
   // Screen 3 - Decor
-  coating               String
+  coating               String?
   colors                String[]
-  decorType             String
+  decorType             String?
   decorDetails          String?
   observations          String?
   

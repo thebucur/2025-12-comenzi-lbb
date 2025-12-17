@@ -45,6 +45,7 @@ export interface Order {
   advance: number | null
   
   // Screen 2 - Sortiment
+  noCake: boolean
   cakeType: CakeType | null
   weight: Weight | null
   customWeight: string

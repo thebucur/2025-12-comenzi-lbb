@@ -10,17 +10,24 @@ export const createOrder = async (req: Request, res: Response) => {
     console.log('Received order data:', JSON.stringify(orderData, null, 2))
 
     // Validate required fields
-    const requiredFields = [
+    const baseRequiredFields = [
       'deliveryMethod',
       'staffName',
       'clientName',
       'phoneNumber',
       'pickupDate',
-      'cakeType',
-      'weight',
-      'coating',
-      'decorType',
     ]
+
+    // Check if noCake is true
+    const isNoCake = orderData.noCake === true
+    console.log('Order noCake status:', isNoCake, 'Raw value:', orderData.noCake)
+
+    // Add cake-specific required fields only if noCake is false
+    const requiredFields = isNoCake
+      ? [...baseRequiredFields, 'otherProducts'] // If no cake, otherProducts is required
+      : [...baseRequiredFields, 'cakeType', 'weight', 'coating', 'decorType'] // If has cake, validate cake fields
+
+    console.log('Required fields for this order:', requiredFields)
 
     const missingFields = requiredFields.filter((field) => {
       const value = orderData[field]
@@ -29,6 +36,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
     if (missingFields.length > 0) {
       console.error('Missing required fields:', missingFields)
+      console.error('Order data received:', JSON.stringify(orderData, null, 2))
       return res.status(400).json({
         error: 'Missing required fields',
         missingFields,
@@ -111,15 +119,16 @@ export const createOrder = async (req: Request, res: Response) => {
         pickupDate: pickupDateObj,
         tomorrowVerification: Boolean(orderData.tomorrowVerification),
         advance: orderData.advance ? parseFloat(orderData.advance.toString()) : null,
-        cakeType: String(orderData.cakeType),
-        weight: String(orderData.weight),
+        noCake: Boolean(orderData.noCake),
+        cakeType: orderData.cakeType ? String(orderData.cakeType) : null,
+        weight: orderData.weight ? String(orderData.weight) : null,
         customWeight: orderData.customWeight ? String(orderData.customWeight) : null,
         shape: orderData.shape ? String(orderData.shape) : null,
         floors: orderData.floors ? String(orderData.floors) : null,
         otherProducts: orderData.otherProducts ? String(orderData.otherProducts) : null,
-        coating: String(orderData.coating),
+        coating: orderData.coating ? String(orderData.coating) : null,
         colors: Array.isArray(orderData.colors) ? orderData.colors.map((c: unknown) => String(c)) : [],
-        decorType: String(orderData.decorType),
+        decorType: orderData.decorType ? String(orderData.decorType) : null,
         decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
         observations: orderData.observations ? String(orderData.observations) : null,
         createdByUsername: orderData.createdByUsername ? String(orderData.createdByUsername) : null,

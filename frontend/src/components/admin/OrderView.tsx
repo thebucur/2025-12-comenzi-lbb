@@ -64,6 +64,7 @@ interface OrderData {
   weight: string
   shape: string | null
   floors: string | null
+  otherProducts: string | null
   coating: string
   colors: string[]
   decorType: string
@@ -241,6 +242,12 @@ function AdminOrderView() {
                 <div className="bg-primary/50 p-4 rounded-2xl">
                   <p className="text-sm text-secondary/60 mb-1">Număr etaje</p>
                   <p className="font-bold text-secondary text-lg">{order.floors} {parseInt(order.floors) === 1 ? 'etaj' : 'etaje'}</p>
+                </div>
+              )}
+              {order.otherProducts && (
+                <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
+                  <p className="text-sm text-secondary/60 mb-1">Alte produse</p>
+                  <p className="font-bold text-secondary text-lg">{order.otherProducts}</p>
                 </div>
               )}
             </div>

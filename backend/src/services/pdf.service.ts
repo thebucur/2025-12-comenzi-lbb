@@ -261,10 +261,14 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     width: leftColumnWidth,
   })
   doc.moveDown(0.3)
-  addField('Tip', order.cakeType)
-  addField('Greutate', order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight)
-  addField('Formă', order.shape || undefined)
-  addField('Etaje', order.floors || undefined)
+  if (order.noCake) {
+    addField('Tort', 'NU ARE TORT')
+  } else {
+    addField('Tip', order.cakeType)
+    addField('Greutate', order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight)
+    addField('Formă', order.shape || undefined)
+    addField('Etaje', order.floors || undefined)
+  }
   
   // Special handling for "Alte produse" with yellow background
   if (order.otherProducts) {
@@ -309,20 +313,22 @@ export const generatePDF = async (orderId: string): Promise<string> => {
   
   doc.moveDown(0.4)
 
-  // Decor Details
-  doc.font(fontBold).fontSize(14).text(removeDiacritics('Detalii decor:'), margins.left, doc.y, {
-    underline: true,
-    width: leftColumnWidth,
-  })
-  doc.moveDown(0.3)
-  addField('Îmbrăcat în', order.coating)
-  if (order.colors.length > 0) {
-    addField('Culori', order.colors.join(', '))
+  // Decor Details - Only show if not noCake
+  if (!order.noCake) {
+    doc.font(fontBold).fontSize(14).text(removeDiacritics('Detalii decor:'), margins.left, doc.y, {
+      underline: true,
+      width: leftColumnWidth,
+    })
+    doc.moveDown(0.3)
+    addField('Îmbrăcat în', order.coating)
+    if (order.colors.length > 0) {
+      addField('Culori', order.colors.join(', '))
+    }
+    addField('Tip decor', order.decorType)
+    addField('Detalii', order.decorDetails || undefined)
+    addField('Observații', order.observations || undefined)
+    doc.moveDown(0.4)
   }
-  addField('Tip decor', order.decorType)
-  addField('Detalii', order.decorDetails || undefined)
-  addField('Observații', order.observations || undefined)
-  doc.moveDown(0.4)
 
   // Photos
   const photosToRender = order.photos.slice(0, 3)

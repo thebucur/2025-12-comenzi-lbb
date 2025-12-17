@@ -18,7 +18,7 @@ function Wizard({ onLogout }: WizardProps) {
   const initialStep = parseInt(searchParams.get('step') || '1')
   const [currentStep, setCurrentStep] = useState(initialStep)
   const isEditingFromReview = searchParams.get('edit') === '1'
-  const { validateStep } = useOrder()
+  const { validateStep, order } = useOrder()
   const username = localStorage.getItem('authToken')
 
   useEffect(() => {
@@ -30,7 +30,11 @@ function Wizard({ onLogout }: WizardProps) {
 
   const handleNext = () => {
     if (validateStep(currentStep) && currentStep < 4) {
-      const newStep = currentStep + 1
+      // Skip step 3 (decoration) if noCake is true
+      let newStep = currentStep + 1
+      if (currentStep === 2 && order.noCake) {
+        newStep = 4 // Skip to finalization
+      }
       setCurrentStep(newStep)
       setSearchParams(
         isEditingFromReview
@@ -42,7 +46,11 @@ function Wizard({ onLogout }: WizardProps) {
 
   const handlePrevious = () => {
     if (currentStep > 1) {
-      const newStep = currentStep - 1
+      // Skip step 3 (decoration) when going back if noCake is true
+      let newStep = currentStep - 1
+      if (currentStep === 4 && order.noCake) {
+        newStep = 2 // Skip back to sortiment
+      }
       setCurrentStep(newStep)
       setSearchParams(
         isEditingFromReview

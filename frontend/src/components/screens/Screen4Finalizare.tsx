@@ -73,10 +73,17 @@ function Screen4Finalizare() {
       if (!order.clientName?.trim()) missingFields.push('Nume client')
       if (!order.phoneNumber?.trim()) missingFields.push('Număr telefon')
       if (!order.pickupDate) missingFields.push('Data ridicării')
-      if (!order.cakeType) missingFields.push('Tip tort')
-      if (!order.weight) missingFields.push('Greutate')
-      if (!order.coating) missingFields.push('Îmbrăcăminte')
-      if (!order.decorType) missingFields.push('Tip decor')
+      
+      // Only validate cake fields if noCake is false
+      if (!order.noCake) {
+        if (!order.cakeType) missingFields.push('Tip tort')
+        if (!order.weight) missingFields.push('Greutate')
+        if (!order.coating) missingFields.push('Îmbrăcăminte')
+        if (!order.decorType) missingFields.push('Tip decor')
+      } else {
+        // If noCake is true, validate otherProducts
+        if (!order.otherProducts?.trim()) missingFields.push('Alte produse')
+      }
       
       if (missingFields.length > 0) {
         alert(`Lipsesc câmpuri obligatorii:\n${missingFields.join('\n')}\n\nVă rugăm să completați toate câmpurile obligatorii.`)
@@ -111,6 +118,7 @@ function Screen4Finalizare() {
         pickupDate: pickupDate,
         tomorrowVerification: order.tomorrowVerification || false,
         advance: order.advance ? Number(order.advance) : null,
+        noCake: order.noCake || false,
         cakeType: order.cakeType,
         weight: order.weight,
         customWeight: order.customWeight || null,
@@ -326,32 +334,41 @@ function Screen4Finalizare() {
         </button>
         <h3 className="text-2xl font-bold text-gradient mb-6">🎂 Sortiment</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {order.cakeType && (
+          {order.noCake ? (
             <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
-              <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
-              <p className="font-bold text-secondary">{order.cakeType}</p>
+              <p className="text-sm text-secondary/60 mb-1">Tort</p>
+              <p className="font-bold text-secondary">🚫 NU ARE TORT</p>
             </div>
-          )}
-          
-          {order.weight && (
-            <div className="bg-primary/50 p-4 rounded-2xl">
-              <p className="text-sm text-secondary/60 mb-1">Greutate</p>
-              <p className="font-bold text-secondary">{order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight}</p>
-            </div>
-          )}
-          
-          {order.shape && (
-            <div className="bg-primary/50 p-4 rounded-2xl">
-              <p className="text-sm text-secondary/60 mb-1">Formă</p>
-              <p className="font-bold text-secondary">{order.shape}</p>
-            </div>
-          )}
-          
-          {order.floors && (
-            <div className="bg-primary/50 p-4 rounded-2xl">
-              <p className="text-sm text-secondary/60 mb-1">Etaje</p>
-              <p className="font-bold text-secondary">{order.floors} {parseInt(order.floors) === 1 ? 'etaj' : 'etaje'}</p>
-            </div>
+          ) : (
+            <>
+              {order.cakeType && (
+                <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
+                  <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
+                  <p className="font-bold text-secondary">{order.cakeType}</p>
+                </div>
+              )}
+              
+              {order.weight && (
+                <div className="bg-primary/50 p-4 rounded-2xl">
+                  <p className="text-sm text-secondary/60 mb-1">Greutate</p>
+                  <p className="font-bold text-secondary">{order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight}</p>
+                </div>
+              )}
+              
+              {order.shape && (
+                <div className="bg-primary/50 p-4 rounded-2xl">
+                  <p className="text-sm text-secondary/60 mb-1">Formă</p>
+                  <p className="font-bold text-secondary">{order.shape}</p>
+                </div>
+              )}
+              
+              {order.floors && (
+                <div className="bg-primary/50 p-4 rounded-2xl">
+                  <p className="text-sm text-secondary/60 mb-1">Etaje</p>
+                  <p className="font-bold text-secondary">{order.floors} {parseInt(order.floors) === 1 ? 'etaj' : 'etaje'}</p>
+                </div>
+              )}
+            </>
           )}
           
           {order.otherProducts && (
@@ -363,16 +380,17 @@ function Screen4Finalizare() {
         </div>
       </div>
 
-      {/* Summary Card 3: Decor */}
-      <div className="card-neumorphic relative">
-        <button
-          onClick={() => handleEdit(3)}
-          className="absolute top-6 right-6 btn-neumorphic px-4 py-2 rounded-xl font-bold text-accent-purple hover:scale-105 transition-all duration-300"
-        >
-          ✏️ EDITEAZĂ
-        </button>
-        <h3 className="text-2xl font-bold text-gradient mb-6">🎨 Decor</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Summary Card 3: Decor - Hidden when noCake */}
+      {!order.noCake && (
+        <div className="card-neumorphic relative">
+          <button
+            onClick={() => handleEdit(3)}
+            className="absolute top-6 right-6 btn-neumorphic px-4 py-2 rounded-xl font-bold text-accent-purple hover:scale-105 transition-all duration-300"
+          >
+            ✏️ EDITEAZĂ
+          </button>
+          <h3 className="text-2xl font-bold text-gradient mb-6">🎨 Decor</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {order.coating && (
             <div className="bg-primary/50 p-4 rounded-2xl">
               <p className="text-sm text-secondary/60 mb-1">Îmbrăcat în</p>
@@ -438,7 +456,8 @@ function Screen4Finalizare() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Submit Button */}
       <div className="flex justify-center mt-12">
