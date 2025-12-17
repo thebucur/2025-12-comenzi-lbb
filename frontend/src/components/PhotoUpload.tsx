@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../services/api'
@@ -274,28 +275,31 @@ function PhotoUpload() {
             console.error('No URL in response:', response.data)
             uploadErrors.push(`${file.name}: Răspuns invalid de la server - lipsă URL`)
           }
-        } catch (fileError: any) {
+        } catch (fileError: unknown) {
           console.error(`Error uploading ${file.name}:`, fileError)
           
           let errorMessage = 'Eroare necunoscută'
-          const fullURL = fileError.config ? `${fileError.config.baseURL}${fileError.config.url}` : 'unknown'
-          
-          if (fileError.response) {
-            // Server responded with error
-            errorMessage = fileError.response.data?.error || `Server error: ${fileError.response.status}`
-          } else if (fileError.request) {
-            // Request was made but no response received (network error)
-            errorMessage = `Eroare de rețea: Nu s-a primit răspuns de la server.\nURL încercat: ${fullURL}\n\nVerifică:\n- Backend-ul rulează pe portul 5000\n- Telefonul este pe aceeași rețea Wi-Fi\n- Firewall-ul permite conexiuni pe portul 5000`
-            console.error('Network error details:', {
-              fullURL,
-              url: fileError.config?.url,
-              method: fileError.config?.method,
-              baseURL: fileError.config?.baseURL,
-              currentHostname: window.location.hostname,
-              localStorageIP: localStorage.getItem('localNetworkIP'),
-            })
-          } else {
-            errorMessage = fileError.message || 'Eroare necunoscută'
+          if (axios.isAxiosError(fileError)) {
+            const fullURL = fileError.config ? `${fileError.config.baseURL ?? ''}${fileError.config.url ?? ''}` : 'unknown'
+            
+            if (fileError.response) {
+              // Server responded with error
+              const dataError = (fileError.response.data as { error?: string } | undefined)?.error
+              errorMessage = dataError || `Server error: ${fileError.response.status}`
+            } else if (fileError.request) {
+              // Request was made but no response received (network error)
+              errorMessage = `Eroare de rețea: Nu s-a primit răspuns de la server.\nURL încercat: ${fullURL}\n\nVerifică:\n- Backend-ul rulează pe portul 5000\n- Telefonul este pe aceeași rețea Wi-Fi\n- Firewall-ul permite conexiuni pe portul 5000`
+              console.error('Network error details:', {
+                fullURL,
+                url: fileError.config?.url,
+                method: fileError.config?.method,
+                baseURL: fileError.config?.baseURL,
+                currentHostname: window.location.hostname,
+                localStorageIP: localStorage.getItem('localNetworkIP'),
+              })
+            } else {
+              errorMessage = fileError.message || 'Eroare necunoscută'
+            }
           }
           
           uploadErrors.push(`${file.name}: ${errorMessage}`)
@@ -332,10 +336,15 @@ function PhotoUpload() {
         console.error('⚠️ Files were processed but no URLs were added to state')
         alert('Pozele au fost procesate, dar nu s-au încărcat URL-uri. Verifică consola pentru detalii.')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading photos:', error)
-      const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
-      alert(`Eroare la încărcarea pozelor: ${errorMessage}`)
+      if (axios.isAxiosError(error)) {
+        const apiMessage = (error.response?.data as { error?: string } | undefined)?.error
+        const errorMessage = apiMessage || error.message || 'Eroare necunoscută'
+        alert(`Eroare la încărcarea pozelor: ${errorMessage}`)
+      } else {
+        alert('Eroare la încărcarea pozelor: Eroare necunoscută')
+      }
     } finally {
       setUploading(false)
       if (fileInputRef.current) {
@@ -438,10 +447,15 @@ function PhotoUpload() {
                   await api.post(`/upload/${sessionId}/send`)
                   setSent(true)
                   alert('Pozele au fost trimise cu succes! Acestea vor apărea în aplicația principală.')
-                } catch (error: any) {
+                } catch (error: unknown) {
                   console.error('Error sending photos:', error)
-                  const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
-                  alert(`Eroare la trimiterea pozelor: ${errorMessage}`)
+                  if (axios.isAxiosError(error)) {
+                    const apiMessage = (error.response?.data as { error?: string } | undefined)?.error
+                    const errorMessage = apiMessage || error.message || 'Eroare necunoscută'
+                    alert(`Eroare la trimiterea pozelor: ${errorMessage}`)
+                  } else {
+                    alert('Eroare la trimiterea pozelor: Eroare necunoscută')
+                  }
                 } finally {
                   setSending(false)
                 }

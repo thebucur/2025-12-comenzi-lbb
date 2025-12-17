@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
@@ -34,8 +35,12 @@ function Login({ onLoginSuccess }: LoginProps) {
 
       // Redirect to wizard
       navigate('/')
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Eroare la autentificare')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Eroare la autentificare')
+      } else {
+        setError('A apărut o eroare neașteptată')
+      }
     } finally {
       setLoading(false)
     }

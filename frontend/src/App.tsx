@@ -9,8 +9,8 @@ import AdminOrderView from './components/admin/OrderView'
 import PhotoUpload from './components/PhotoUpload'
 
 function App() {
-  const [_authToken, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
-  const [_adminAuthToken, setAdminAuthToken] = useState<string | null>(localStorage.getItem('adminAuthToken'))
+  const [, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
+  const [, setAdminAuthToken] = useState<string | null>(localStorage.getItem('adminAuthToken'))
 
   // Keep auth state in sync with localStorage changes (even within the same tab)
   useEffect(() => {

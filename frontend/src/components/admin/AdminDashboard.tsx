@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
@@ -29,7 +30,7 @@ interface GlobalConfig {
   id: string
   category: string
   key: string
-  value: any
+  value: unknown
   createdAt: string
 }
 
@@ -395,7 +396,7 @@ function AdminDashboard() {
   const handleSaveUser = async () => {
     try {
       if (editingUser) {
-        const userUpdateData: any = {
+        const userUpdateData: { username: string; password?: string } = {
           username: userFormData.username,
         }
         if (userFormData.password && userFormData.password.trim()) {
@@ -414,10 +415,15 @@ function AdminDashboard() {
       }
       setShowUserModal(false)
       fetchUsers()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving user:', error)
-      const errorMessage = error.response?.data?.error || 'Eroare la salvarea utilizatorului'
-      alert(errorMessage)
+      if (axios.isAxiosError(error)) {
+        const apiMessage = (error.response?.data as { error?: string } | undefined)?.error
+        const errorMessage = apiMessage || 'Eroare la salvarea utilizatorului'
+        alert(errorMessage)
+      } else {
+        alert('Eroare neașteptată la salvarea utilizatorului')
+      }
     }
   }
 

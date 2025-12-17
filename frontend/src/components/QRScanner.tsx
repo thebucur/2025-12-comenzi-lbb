@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 
 interface QRScannerProps {
@@ -8,7 +8,9 @@ interface QRScannerProps {
 
 function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isProcessingFile, setIsProcessingFile] = useState(false)
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader')
@@ -23,7 +25,7 @@ function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         scanner.stop()
         onScanSuccess(decodedText)
       },
-      (_errorMessage) => {
+      () => {
         // Ignore scanning errors
       }
     ).catch((err) => {
@@ -40,6 +42,29 @@ function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
     }
   }, [onScanSuccess])
 
+  const handleSelectFile = () => {
+    setError(null)
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !scannerRef.current) return
+
+    setIsProcessingFile(true)
+    try {
+      const decodedText = await scannerRef.current.scanFile(file, true)
+      onScanSuccess(decodedText)
+    } catch (err) {
+      console.error(err)
+      setError('Eroare la citirea imaginii. Încearcă altă poză.')
+    } finally {
+      setIsProcessingFile(false)
+      // reset input to allow re-selecting the same file
+      event.target.value = ''
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       <div className="flex justify-between items-center p-4 bg-gray-900">
@@ -52,6 +77,22 @@ function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         </button>
       </div>
       <div id="qr-reader" className="flex-1" />
+      <div className="p-4 bg-gray-900 flex items-center justify-center gap-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <button
+          onClick={handleSelectFile}
+          disabled={isProcessingFile}
+          className="px-4 py-2 rounded bg-white text-gray-900 font-medium hover:bg-gray-200 disabled:opacity-60"
+        >
+          {isProcessingFile ? 'Se procesează...' : 'Încarcă poză din device'}
+        </button>
+      </div>
       {error && (
         <div className="p-4 bg-red-500 text-white text-center">
           {error}

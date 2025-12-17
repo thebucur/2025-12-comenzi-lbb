@@ -22,7 +22,9 @@ const pendingPhotosBySession = new Map<string, PendingPhoto[]>()
 
 export const uploadPhoto = async (req: Request, res: Response) => {
   try {
-    if (!req.file) {
+    const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : [])
+
+    if (!files || files.length === 0) {
       return res.status(400).json({ error: 'No file provided' })
     }
 
@@ -31,47 +33,55 @@ export const uploadPhoto = async (req: Request, res: Response) => {
     // Ensure upload directory exists
     await fs.mkdir(UPLOAD_DIR, { recursive: true })
 
-    // Compress and resize image
-    const compressed = await sharp(req.file.buffer)
-      .resize(2000, 2000, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: 80 })
-      .toBuffer()
+    const results: PendingPhoto[] = []
 
-    // Generate unique filename
-    const filename = `${uuidv4()}.jpg`
-    const filepath = path.join(UPLOAD_DIR, filename)
+    for (const file of files) {
+      // Compress and resize image
+      const compressed = await sharp(file.buffer)
+        .resize(1000, 1000, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 80 })
+        .toBuffer()
 
-    // Save file
-    await fs.writeFile(filepath, compressed)
+      // Generate unique filename
+      const filename = `${uuidv4()}.jpg`
+      const filepath = path.join(UPLOAD_DIR, filename)
 
-    // Return URL (in production, this would be a cloud storage URL)
-    const url = `/uploads/${filename}`
+      // Save file
+      await fs.writeFile(filepath, compressed)
 
-    // Check if we have an order ID for this session
-    const orderId = sessionToOrderMap.get(sessionId)
-    if (orderId) {
-      // Order already exists, save photo immediately
-      await prisma.photo.create({
-        data: {
-          orderId,
-          url,
-          path: filepath,
-        },
-      })
-      console.log(`Photo saved immediately for order ${orderId}`)
-    } else {
-      // Order doesn't exist yet, store photo as pending
-      if (!pendingPhotosBySession.has(sessionId)) {
-        pendingPhotosBySession.set(sessionId, [])
+      // Return URL (in production, this would be a cloud storage URL)
+      const url = `/uploads/${filename}`
+
+      // Check if we have an order ID for this session
+      const orderId = sessionToOrderMap.get(sessionId)
+      if (orderId) {
+        // Order already exists, save photo immediately
+        await prisma.photo.create({
+          data: {
+            orderId,
+            url,
+            path: filepath,
+          },
+        })
+        console.log(`Photo saved immediately for order ${orderId}`)
+      } else {
+        // Order doesn't exist yet, store photo as pending
+        if (!pendingPhotosBySession.has(sessionId)) {
+          pendingPhotosBySession.set(sessionId, [])
+        }
+        pendingPhotosBySession.get(sessionId)!.push({ url, path: filepath, filename })
+        console.log(`Photo stored as pending for session ${sessionId}`)
       }
-      pendingPhotosBySession.get(sessionId)!.push({ url, path: filepath, filename })
-      console.log(`Photo stored as pending for session ${sessionId}`)
+
+      results.push({ url, path: filepath, filename })
     }
 
-    res.json({ url, filename })
+    // Keep backwards compatibility: return first url plus full list
+    const first = results[0]
+    res.json({ url: first?.url, filename: first?.filename, photos: results.map((r) => ({ url: r.url, filename: r.filename })) })
   } catch (error) {
     console.error('Error uploading photo:', error)
     res.status(500).json({ error: 'Failed to upload photo' })

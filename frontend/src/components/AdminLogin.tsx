@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
@@ -29,8 +30,12 @@ function AdminLogin() {
       
       // Redirect to admin dashboard
       navigate('/admin/dashboard')
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Credențiale incorecte')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Credențiale incorecte')
+      } else {
+        setError('A apărut o eroare neașteptată')
+      }
     } finally {
       setLoading(false)
     }

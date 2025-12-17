@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useState, useEffect } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -17,10 +18,9 @@ function Screen4Finalizare() {
       try {
         const response = await api.get('/orders/next-number')
         setNextOrderNumber(response.data.nextOrderNumber)
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching next order number:', error)
-        if (error.request && !error.response) {
-          // No response from server - backend might not be running
+        if (axios.isAxiosError(error) && error.request && !error.response) {
           console.error('Backend server is not responding. Make sure it is running on port 5000.')
         }
       }
@@ -188,48 +188,52 @@ function Screen4Finalizare() {
       // Reset and go back to start
       resetOrder()
       navigate('/')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error submitting order:', error)
-      console.error('Error response:', error.response)
-      console.error('Error response data:', error.response?.data)
-      console.error('Error request:', error.request)
+      if (axios.isAxiosError(error)) {
+        console.error('Error response:', error.response)
+        console.error('Error response data:', error.response?.data)
+        console.error('Error request:', error.request)
       
-      // Extract detailed error message
-      let errorMessage = 'Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.'
+        // Extract detailed error message
+        let errorMessage = 'Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.'
       
-      if (error.response) {
-        // Server responded with error status
-        const responseData = error.response.data
-        const serverError = responseData?.error || responseData?.message
-        
-        if (responseData?.missingFields) {
-          errorMessage = `Lipsesc câmpuri obligatorii:\n${responseData.missingFields.join('\n')}`
-        } else if (serverError) {
-          errorMessage = `Eroare server: ${serverError}`
-        } else if (error.response.status === 400) {
-          errorMessage = 'Date invalide. Vă rugăm să verificați toate câmpurile.'
-        } else if (error.response.status === 500) {
-          const details = responseData?.details
-          errorMessage = `Eroare internă server: ${serverError || 'Eroare necunoscută'}`
-          if (details && process.env.NODE_ENV === 'development') {
-            console.error('Error details:', details)
+        if (error.response) {
+          // Server responded with error status
+          const responseData = error.response.data as { error?: string; message?: string; missingFields?: string[]; details?: unknown }
+          const serverError = responseData?.error || responseData?.message
+          
+          if (responseData?.missingFields) {
+            errorMessage = `Lipsesc câmpuri obligatorii:\n${responseData.missingFields.join('\n')}`
+          } else if (serverError) {
+            errorMessage = `Eroare server: ${serverError}`
+          } else if (error.response.status === 400) {
+            errorMessage = 'Date invalide. Vă rugăm să verificați toate câmpurile.'
+          } else if (error.response.status === 500) {
+            const details = responseData?.details
+            errorMessage = `Eroare internă server: ${serverError || 'Eroare necunoscută'}`
+            if (details && process.env.NODE_ENV === 'development') {
+              console.error('Error details:', details)
+            }
+          } else {
+            errorMessage = `Eroare ${error.response.status}: ${error.response.statusText}`
           }
+        } else if (error.request) {
+          // Request was made but no response received
+          const apiBaseURL = api.defaults.baseURL || 'http://localhost:5000/api'
+          errorMessage = `Nu s-a primit răspuns de la server.\n\nURL încercat: ${apiBaseURL}\n\nVerifică:\n1. Backend-ul rulează (port 5000)\n2. Rulează: cd backend && npm run dev\n3. Conexiunea la internet\n4. Firewall-ul permite conexiuni pe portul 5000`
+          console.error('No response received. Is backend running?')
+          console.error('API Base URL:', apiBaseURL)
+          console.error('Full error:', error)
         } else {
-          errorMessage = `Eroare ${error.response.status}: ${error.response.statusText}`
+          // Something else happened
+          errorMessage = `Eroare: ${error.message}`
         }
-      } else if (error.request) {
-        // Request was made but no response received
-        const apiBaseURL = api.defaults.baseURL || 'http://localhost:5000/api'
-        errorMessage = `Nu s-a primit răspuns de la server.\n\nURL încercat: ${apiBaseURL}\n\nVerifică:\n1. Backend-ul rulează (port 5000)\n2. Rulează: cd backend && npm run dev\n3. Conexiunea la internet\n4. Firewall-ul permite conexiuni pe portul 5000`
-        console.error('No response received. Is backend running?')
-        console.error('API Base URL:', apiBaseURL)
-        console.error('Full error:', error)
-      } else {
-        // Something else happened
-        errorMessage = `Eroare: ${error.message}`
-      }
       
-      alert(errorMessage)
+        alert(errorMessage)
+      } else {
+        alert('Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.')
+      }
     } finally {
       setIsSubmitting(false)
     }

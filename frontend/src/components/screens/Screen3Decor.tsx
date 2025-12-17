@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ChangeEvent } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { Coating } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
@@ -19,9 +19,11 @@ function Screen3Decor() {
   const [isRecording, setIsRecording] = useState<string | null>(null)
   const [localIP, setLocalIP] = useState<string>(getLocalNetworkIP() || '')
   const [showIPInput, setShowIPInput] = useState(false)
+  const [isLocalUploading, setIsLocalUploading] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const currentTextareaRef = useRef<'decorDetails' | 'observations' | null>(null)
   const photoPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Helper function to convert relative URL to absolute
   const getAbsoluteUrl = (relativeUrl: string): string => {
@@ -158,14 +160,72 @@ function Screen3Decor() {
     }
   };
 
+  const ensureUploadSession = () => {
+    let sessionId = localStorage.getItem('currentUploadSession')
+    if (!sessionId) {
+      sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      localStorage.setItem('currentUploadSession', sessionId)
+      startPhotoPolling(sessionId)
+    }
+    return sessionId
+  }
+
+  const handleLocalUploadClick = () => {
+    ensureUploadSession()
+    fileInputRef.current?.click()
+  }
+
+  const handleLocalFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    const sessionId = ensureUploadSession()
+    setIsLocalUploading(true)
+
+    try {
+      const formData = new FormData()
+      for (const file of Array.from(files)) {
+        formData.append('photos', file, file.name)
+      }
+
+      const response = await api.post(`/upload/${sessionId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      const responsePhotos: Array<{ url: string }> = response.data?.photos || []
+      const urlsFromResponse = responsePhotos.length > 0
+        ? responsePhotos.map((p) => getAbsoluteUrl(p.url))
+        : response.data?.url
+          ? [getAbsoluteUrl(response.data.url)]
+          : []
+
+      const unique = urlsFromResponse.filter((url) => !order.photos.includes(url))
+      if (unique.length > 0) {
+        updateOrder({ photos: [...order.photos, ...unique] })
+      }
+    } finally {
+      setIsLocalUploading(false)
+      event.target.value = ''
+    }
+  }
+
   const startVoiceInput = (type: 'decorDetails' | 'observations') => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert('Recunoașterea vocală nu este disponibilă în acest browser')
       return
     }
 
-    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
-    const recognition = new SpeechRecognition()
+    const speechWindow = window as Window & {
+      webkitSpeechRecognition?: typeof SpeechRecognition
+      SpeechRecognition?: typeof SpeechRecognition
+    }
+    const SpeechRecognitionCtor = speechWindow.webkitSpeechRecognition || speechWindow.SpeechRecognition
+    if (!SpeechRecognitionCtor) {
+      alert('Recunoașterea vocală nu este disponibilă în acest browser')
+      return
+    }
+
+    const recognition = new SpeechRecognitionCtor()
     recognition.lang = 'ro-RO'
     recognition.continuous = false
     recognition.interimResults = false
@@ -350,12 +410,32 @@ function Screen3Decor() {
       {/* Photo Upload Section */}
       <div className="card-neumorphic">
         <h3 className="text-xl font-bold text-secondary mb-6">📸 Poze model</h3>
-        <button
-          onClick={generateQRCode}
-          className="btn-active px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300"
-        >
-          📱 SCANEAZĂ CODUL QR PENTRU POZE
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            onClick={generateQRCode}
+            className="btn-active px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300"
+          >
+            📱 SCANEAZĂ CODUL QR PENTRU POZE
+          </button>
+          <div className="sm:w-px sm:h-10 sm:bg-gradient-to-b sm:from-transparent sm:via-gray-300 sm:to-transparent sm:mx-2" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleLocalFilesSelected}
+            />
+            <button
+              onClick={handleLocalUploadClick}
+              disabled={isLocalUploading}
+              className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 disabled:opacity-60"
+            >
+              {isLocalUploading ? 'Se încarcă...' : '📂 Încarcă din device'}
+            </button>
+          </div>
+        </div>
 
         {showQRCode && (
           <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">

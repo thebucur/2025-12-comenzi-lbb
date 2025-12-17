@@ -4,7 +4,8 @@ import uploadMiddleware from '../middleware/upload.middleware'
 
 const router = Router()
 
-router.post('/:sessionId', uploadMiddleware.single('photo'), uploadPhoto)
+// Accept both single and multiple files (field name photo/photos)
+router.post('/:sessionId', uploadMiddleware.any(), uploadPhoto)
 
 // Endpoint to get photos by session ID
 router.get('/:sessionId/photos', getPhotosBySessionId)
