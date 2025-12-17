@@ -18,10 +18,11 @@ function AdminLogin() {
       // Authenticate with backend using admin credentials
       // Default credentials: admin / 0000
       const response = await api.post('/auth/login', { username, password })
-      const { user } = response.data
+      const { user, token } = response.data
 
-      // Store admin authentication (using username as token, same as regular login)
-      localStorage.setItem('adminAuthToken', user.username)
+      // Store admin authentication token
+      // Use token from response if available, otherwise fallback to username
+      localStorage.setItem('adminAuthToken', token || user.username)
       
       // Dispatch custom event to trigger auth state update
       window.dispatchEvent(new Event('adminAuthChange'))

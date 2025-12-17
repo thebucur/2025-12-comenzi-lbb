@@ -23,10 +23,13 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    // Return user info (without password)
+    // Return user info (without password) and token
+    // For now, we use username as token (as per auth.middleware.ts)
+    // In production, use JWT tokens
     const { password: _, ...userWithoutPassword } = user
     res.json({
       user: userWithoutPassword,
+      token: user.username, // Token is username (matches auth.middleware.ts logic)
     })
   } catch (error) {
     console.error('Error during login:', error)
