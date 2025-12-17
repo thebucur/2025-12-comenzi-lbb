@@ -284,9 +284,15 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     // Add padding for the background
     const padding = 4
     
+    // Save graphics state
+    doc.save()
+    
     // Draw yellow background rectangle
     doc.rect(x - padding, y - padding, leftColumnWidth + padding * 2, textHeight + padding * 2)
-       .fill('#FFFF00')
+    doc.fillAndStroke('#FFFF00', '#FFFF00')
+    
+    // Restore graphics state
+    doc.restore()
     
     // Now draw the text on top
     doc.fillColor(labelColor)
