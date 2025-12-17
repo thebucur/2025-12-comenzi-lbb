@@ -137,6 +137,39 @@ function Screen3Decor() {
     }, 2000)
   }
 
+  // Start polling automatically if sessionId exists in localStorage
+  useEffect(() => {
+    const checkAndStartPolling = () => {
+      const existingSessionId = localStorage.getItem('currentUploadSession')
+      if (existingSessionId) {
+        console.log(`Starting/restarting polling for session: ${existingSessionId}`)
+        startPhotoPolling(existingSessionId)
+      }
+    }
+    
+    // Start polling on mount if session exists
+    checkAndStartPolling()
+    
+    // Listen for storage changes (when PhotoUpload syncs sessionId in another tab)
+    const handleStorageChange = () => {
+      checkAndStartPolling()
+    }
+    
+    // Listen for custom event (when PhotoUpload syncs sessionId in same tab)
+    const handleUploadSessionChanged = (event: CustomEvent) => {
+      console.log(`Upload session changed event received: ${event.detail.sessionId}`)
+      checkAndStartPolling()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('uploadSessionChanged', handleUploadSessionChanged as EventListener)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('uploadSessionChanged', handleUploadSessionChanged as EventListener)
+    }
+  }, []) // Run once on mount
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {

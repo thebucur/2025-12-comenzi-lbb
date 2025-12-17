@@ -40,6 +40,19 @@ function PhotoUpload() {
   const [sent, setSent] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Sync sessionId from URL to localStorage so polling in main app can find it
+  useEffect(() => {
+    if (sessionId) {
+      const currentSession = localStorage.getItem('currentUploadSession')
+      if (currentSession !== sessionId) {
+        console.log(`Syncing sessionId from URL to localStorage: ${sessionId}`)
+        localStorage.setItem('currentUploadSession', sessionId)
+        // Dispatch custom event to notify other components in same tab
+        window.dispatchEvent(new CustomEvent('uploadSessionChanged', { detail: { sessionId } }))
+      }
+    }
+  }, [sessionId])
+
   // Debug: Log when photos state changes
   useEffect(() => {
     console.log('📸 Photos state updated:', photos.length, 'photos:', photos)
