@@ -20,6 +20,16 @@ const upload = multer({
   },
 })
 
+// Accept common field names we use in clients
+export const uploadPhotos = upload.fields([
+  { name: 'photo', maxCount: 10 },
+  { name: 'photos', maxCount: 10 },
+  { name: 'file', maxCount: 10 },
+])
+
+// Fallback to accept anything (kept for compatibility)
+export const uploadAny = upload.any()
+
 export default upload
 
 
