@@ -34,6 +34,7 @@ function PhotoUpload() {
   const isFoaieDeZahar = uploadType === 'foaie-de-zahar'
   
   const [photos, setPhotos] = useState<string[]>([])
+  const [foaieDeZaharUrl, setFoaieDeZaharUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -280,13 +281,22 @@ function PhotoUpload() {
             }
             testImage.src = absoluteUrl
             
-            successfullyUploadedUrls.push(absoluteUrl)
-            setPhotos((prev) => {
-              const updated = [...prev, absoluteUrl]
-              console.log('Updated photos array:', updated)
-              console.log('Previous photos count:', prev.length, 'New count:', updated.length)
-              return updated
-            })
+            if (isFoaieDeZahar) {
+              // For foaie de zahar, store in separate state
+              // It will also be picked up by polling in Screen3Decor
+              console.log('✅ Foaie de zahar uploaded successfully, will be detected by polling')
+              setFoaieDeZaharUrl(absoluteUrl)
+              successfullyUploadedUrls.push(absoluteUrl) // Track for success message
+            } else {
+              // For regular photos, add to photos array
+              successfullyUploadedUrls.push(absoluteUrl)
+              setPhotos((prev) => {
+                const updated = [...prev, absoluteUrl]
+                console.log('Updated photos array:', updated)
+                console.log('Previous photos count:', prev.length, 'New count:', updated.length)
+                return updated
+              })
+            }
           } else {
             console.error('No URL in response:', response.data)
             uploadErrors.push(`${file.name}: Răspuns invalid de la server - lipsă URL`)
@@ -342,15 +352,24 @@ function PhotoUpload() {
       }
       
       if (successfulUploads > 0) {
-        console.log(`✅ Successfully uploaded ${successfulUploads} photo(s)`)
-        // Verify URLs were added to state
-        if (successfullyUploadedUrls.length > 0) {
-          console.log('Uploaded photo URLs:', successfullyUploadedUrls)
+        if (isFoaieDeZahar) {
+          console.log(`✅ Successfully uploaded foaie de zahar`)
+          alert('Foaia de zahar a fost încărcată cu succes! Va apărea în aplicația principală.')
+        } else {
+          console.log(`✅ Successfully uploaded ${successfulUploads} photo(s)`)
+          // Verify URLs were added to state
+          if (successfullyUploadedUrls.length > 0) {
+            console.log('Uploaded photo URLs:', successfullyUploadedUrls)
+          }
         }
       } else if (totalFiles > 0 && uploadErrors.length === 0) {
         // This case: files processed but no URLs added
         console.error('⚠️ Files were processed but no URLs were added to state')
-        alert('Pozele au fost procesate, dar nu s-au încărcat URL-uri. Verifică consola pentru detalii.')
+        if (isFoaieDeZahar) {
+          alert('Foaia de zahar a fost procesată, dar nu s-a încărcat URL-ul. Verifică consola pentru detalii.')
+        } else {
+          alert('Pozele au fost procesate, dar nu s-au încărcat URL-uri. Verifică consola pentru detalii.')
+        }
       }
     } catch (error: unknown) {
       console.error('Error uploading photos:', error)
@@ -383,14 +402,14 @@ function PhotoUpload() {
             accept="image/*"
             multiple={!isFoaieDeZahar}
             onChange={handleFileSelect}
-            disabled={uploading || (isFoaieDeZahar && photos.length >= 1)}
+            disabled={uploading || (isFoaieDeZahar && foaieDeZaharUrl !== null)}
             className="hidden"
             id="file-input"
           />
           <label
             htmlFor="file-input"
             className={`block w-full py-4 px-6 text-center rounded-lg cursor-pointer transition-all ${
-              uploading || (isFoaieDeZahar && photos.length >= 1)
+              uploading || (isFoaieDeZahar && foaieDeZaharUrl !== null)
                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 : 'bg-neon-pink hover:bg-neon-pink/90'
             }`}
@@ -399,7 +418,7 @@ function PhotoUpload() {
           </label>
           <p className="text-sm text-gray-400 mt-3 text-center">
             {isFoaieDeZahar 
-              ? photos.length >= 1 
+              ? foaieDeZaharUrl !== null 
                 ? 'Foaie de zahar încărcată (1/1)' 
                 : 'O singură imagine, necomprimată (0/1)'
               : `Maxim 3 poze (mai poți adăuga ${Math.max(3 - photos.length, 0)})`
@@ -407,13 +426,13 @@ function PhotoUpload() {
           </p>
         </div>
 
-        {photos.length > 0 && (
+        {(photos.length > 0 || (isFoaieDeZahar && foaieDeZaharUrl)) && (
           <div>
             <h2 className="text-xl font-semibold mb-4">
               {isFoaieDeZahar ? 'Foaie de zahar încărcată' : `Poze încărcate (${photos.length})`}
             </h2>
             <div className={`grid gap-4 ${isFoaieDeZahar ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {photos.map((photo, index) => {
+              {(isFoaieDeZahar && foaieDeZaharUrl ? [foaieDeZaharUrl] : photos).map((photo, index) => {
                 console.log(`Rendering photo ${index + 1}:`, photo)
                 // Use photo URL as key to ensure proper re-rendering
                 const photoKey = photo.substring(photo.lastIndexOf('/') + 1) || `photo-${index}`
@@ -504,7 +523,7 @@ function PhotoUpload() {
           </div>
         )}
 
-        {isFoaieDeZahar && photos.length > 0 && (
+        {isFoaieDeZahar && foaieDeZaharUrl && (
           <div className="mt-6 text-center">
             <p className="text-green-400 mb-2 text-lg font-semibold">✅ Foaia de zahar a fost încărcată!</p>
             <p className="text-gray-400 text-sm">Foaia de zahar va fi disponibilă în panoul de administrare</p>

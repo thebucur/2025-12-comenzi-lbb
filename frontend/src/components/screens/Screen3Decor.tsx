@@ -31,6 +31,8 @@ function Screen3Decor() {
   const photoPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const foaieDeZaharInputRef = useRef<HTMLInputElement | null>(null)
+  // Track deleted photos to prevent polling from re-adding them
+  const deletedPhotosRef = useRef<Set<string>>(new Set())
 
   // Helper function to convert relative URL to absolute
   const getAbsoluteUrl = (relativeUrl: string): string => {
@@ -80,15 +82,26 @@ function Screen3Decor() {
           // Convert relative URLs to absolute URLs
           const absolutePhotoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
           
-          // Update order with new photos (merge with existing)
+          // Filter out deleted photos
+          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => !deletedPhotosRef.current.has(url))
+          
+          // Update order with new photos (merge with existing, but respect deleted photos)
           const existingPhotos = order.photos || []
-          const newPhotos = absolutePhotoUrls.filter((url: string) => !existingPhotos.includes(url))
+          const newPhotos = filteredPhotoUrls.filter((url: string) => !existingPhotos.includes(url))
           
           if (newPhotos.length > 0) {
             console.log(`📸 Found ${newPhotos.length} new photos for session ${sessionId}`)
             updateOrder({
               photos: [...existingPhotos, ...newPhotos]
             })
+          } else {
+            // Sync with backend - remove photos that were deleted locally but still exist in backend
+            const photosToKeep = existingPhotos.filter((url: string) => 
+              filteredPhotoUrls.includes(url) || deletedPhotosRef.current.has(url)
+            )
+            if (photosToKeep.length !== existingPhotos.length) {
+              updateOrder({ photos: photosToKeep })
+            }
           }
         }
         
@@ -670,6 +683,11 @@ function Screen3Decor() {
                   </div>
                   <button
                     onClick={() => {
+                      const photoToDelete = order.photos[index]
+                      // Mark photo as deleted to prevent polling from re-adding it
+                      if (photoToDelete) {
+                        deletedPhotosRef.current.add(photoToDelete)
+                      }
                       const newPhotos = order.photos.filter((_, i) => i !== index)
                       updateOrder({ photos: newPhotos })
                     }}
