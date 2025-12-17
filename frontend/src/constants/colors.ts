@@ -39,10 +39,13 @@ const hexToNameMap: Record<string, string> = {
   '#00ced1': 'TURCOAZ',
 }
 
-const hexToName = new Map([
-  ...defaultColorOptions.map((color) => [color.value.toLowerCase(), color.name]),
-  ...Object.entries(hexToNameMap).map(([hex, name]) => [hex.toLowerCase(), name]),
-])
+// Build a strongly typed tuple list so TS infers correct entry shape
+const hexToNameEntries: Array<[string, string]> = [
+  ...defaultColorOptions.map<[string, string]>((color) => [color.value.toLowerCase(), color.name]),
+  ...Object.entries(hexToNameMap).map<[string, string]>(([hex, name]) => [hex.toLowerCase(), name]),
+]
+
+const hexToName = new Map<string, string>(hexToNameEntries)
 
 export const normalizeColorOptions = (
   colors?: Array<string | ColorOption>
