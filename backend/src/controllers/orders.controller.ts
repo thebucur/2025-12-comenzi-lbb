@@ -30,10 +30,20 @@ export const createOrder = async (req: Request, res: Response) => {
 
     console.log('Required fields for this order:', requiredFields)
 
-    const missingFields = requiredFields.filter((field) => {
+    let missingFields = requiredFields.filter((field) => {
       const value = orderData[field]
       return value === null || value === undefined || value === ''
     })
+
+    // Safety guard: if noCake is true/truthy, drop cake fields from missing list
+    if (isNoCake) {
+      const cakeFields = ['cakeType', 'weight', 'coating', 'decorType']
+      missingFields = missingFields.filter((f) => !cakeFields.includes(f))
+      // Ensure otherProducts is present
+      if (!orderData.otherProducts || String(orderData.otherProducts).trim() === '') {
+        missingFields = [...missingFields, 'otherProducts']
+      }
+    }
 
     if (missingFields.length > 0) {
       console.error('Missing required fields:', missingFields)
