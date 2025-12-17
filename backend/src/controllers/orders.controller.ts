@@ -6,8 +6,9 @@ export const createOrder = async (req: Request, res: Response) => {
   try {
     const orderData = req.body
     
-    // Log incoming data for debugging - v1.1 (noCake support)
+    // Log incoming data for debugging - v1.2 (noCake support + type)
     console.log('Received order data:', JSON.stringify(orderData, null, 2))
+    console.log('noCake value/type:', orderData.noCake, typeof orderData.noCake)
 
     // Validate required fields
     const baseRequiredFields = [
@@ -19,7 +20,7 @@ export const createOrder = async (req: Request, res: Response) => {
     ]
 
     // Check if noCake is true
-    const isNoCake = orderData.noCake === true
+    const isNoCake = orderData.noCake === true || orderData.noCake === 'true' || orderData.noCake === 1 || orderData.noCake === '1'
     console.log('Order noCake status:', isNoCake, 'Raw value:', orderData.noCake)
 
     // Add cake-specific required fields only if noCake is false
