@@ -17,8 +17,10 @@ interface PendingPhoto {
   url: string
   path: string
   filename: string
+  isFoaieDeZahar?: boolean
 }
 const pendingPhotosBySession = new Map<string, PendingPhoto[]>()
+const pendingFoaieDeZaharBySession = new Map<string, PendingPhoto>()
 
 export const uploadPhoto = async (req: Request, res: Response) => {
   try {
@@ -124,7 +126,7 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
     console.log(`Linking ${pendingPhotos.length} pending photos to order ${orderId}`)
     
     try {
-      // Save all pending photos to database
+      // Save all pending photos to database (without isFoaieDeZahar for regular photos)
       await prisma.photo.createMany({
         data: pendingPhotos.map(photo => ({
           orderId,
@@ -139,6 +141,50 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
       pendingPhotosBySession.delete(sessionId)
     } catch (error) {
       console.error('Error linking pending photos to order:', error)
+      // Don't throw - order is already created
+    }
+  }
+
+  // Link pending foaie de zahar photo if exists
+  const pendingFoaieDeZahar = pendingFoaieDeZaharBySession.get(sessionId)
+  if (pendingFoaieDeZahar) {
+    console.log(`Linking pending foaie de zahar photo to order ${orderId}`)
+    
+    try {
+      // Try to save the foaie de zahar photo with the flag
+      // This may fail if migration hasn't been applied
+      await prisma.photo.create({
+        data: {
+          orderId,
+          url: pendingFoaieDeZahar.url,
+          path: pendingFoaieDeZahar.path,
+          isFoaieDeZahar: true,
+        },
+      })
+      
+      console.log(`Successfully linked foaie de zahar photo to order ${orderId}`)
+      
+      // Clear pending foaie de zahar photo for this session
+      pendingFoaieDeZaharBySession.delete(sessionId)
+    } catch (error: any) {
+      console.error('Error linking pending foaie de zahar photo to order:', error)
+      
+      // If it's a column not found error (P2022), try saving without the flag
+      if (error?.code === 'P2022') {
+        console.log('isFoaieDeZahar column not found, saving as regular photo')
+        try {
+          await prisma.photo.create({
+            data: {
+              orderId,
+              url: pendingFoaieDeZahar.url,
+              path: pendingFoaieDeZahar.path,
+            },
+          })
+          pendingFoaieDeZaharBySession.delete(sessionId)
+        } catch (fallbackError) {
+          console.error('Error saving foaie de zahar as regular photo:', fallbackError)
+        }
+      }
       // Don't throw - order is already created
     }
   }
@@ -182,5 +228,100 @@ export const markPhotosAsSent = async (req: Request, res: Response) => {
   }
 }
 
-export { sessionToOrderMap }
+export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
+  try {
+    const file = req.file || (req.files && Array.isArray(req.files) ? req.files[0] : null)
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' })
+    }
+
+    const { sessionId } = req.params
+
+    // Ensure upload directory exists
+    await fs.mkdir(UPLOAD_DIR, { recursive: true })
+
+    try {
+      // Save file WITHOUT compression - original size
+      const originalExtension = path.extname(file.originalname) || '.jpg'
+      const filename = `foaie-de-zahar-${uuidv4()}${originalExtension}`
+      const filepath = path.join(UPLOAD_DIR, filename)
+
+      // Save original file buffer directly (no compression)
+      await fs.writeFile(filepath, file.buffer)
+
+      // Return URL (in production, this would be a cloud storage URL)
+      const url = `/uploads/${filename}`
+
+      const photoData: PendingPhoto = { url, path: filepath, filename, isFoaieDeZahar: true }
+
+      // Check if we have an order ID for this session
+      const orderId = sessionToOrderMap.get(sessionId)
+      if (orderId) {
+        // Order already exists, try to save photo immediately with flag
+        try {
+          await prisma.photo.create({
+            data: {
+              orderId,
+              url,
+              path: filepath,
+              isFoaieDeZahar: true,
+            },
+          })
+          console.log(`Foaie de zahar photo saved immediately for order ${orderId}`)
+        } catch (dbError: any) {
+          // If column doesn't exist, save without the flag
+          if (dbError?.code === 'P2022') {
+            console.log('isFoaieDeZahar column not found, saving as regular photo')
+            await prisma.photo.create({
+              data: {
+                orderId,
+                url,
+                path: filepath,
+              },
+            })
+          } else {
+            throw dbError
+          }
+        }
+      } else {
+        // Order doesn't exist yet, store photo as pending (replace any existing one)
+        pendingFoaieDeZaharBySession.set(sessionId, photoData)
+        console.log(`Foaie de zahar photo stored as pending for session ${sessionId}`)
+      }
+
+      res.json({ url, filename })
+    } catch (fileErr) {
+      console.error('File processing failed', {
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        error: fileErr,
+      })
+      return res.status(500).json({
+        error: 'Failed to process image',
+        message: fileErr instanceof Error ? fileErr.message : 'Unknown error',
+      })
+    }
+  } catch (error) {
+    console.error('Error uploading foaie de zahar photo:', {
+      error,
+      fileMeta: req.file
+        ? {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+          }
+        : undefined,
+      uploadDir: UPLOAD_DIR,
+      sessionId: req.params.sessionId,
+    })
+    res.status(500).json({
+      error: 'Failed to upload foaie de zahar photo',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+}
+
+export { sessionToOrderMap, pendingFoaieDeZaharBySession }
 

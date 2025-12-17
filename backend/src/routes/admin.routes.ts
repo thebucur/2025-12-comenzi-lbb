@@ -5,7 +5,8 @@ import {
   listUsers,
   createUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  downloadFoaieDeZahar
 } from '../controllers/admin.controller'
 
 const router = Router()
@@ -14,6 +15,7 @@ const router = Router()
 router.use(authenticate)
 
 router.get('/orders/:id', getOrderDetails)
+router.get('/orders/:id/foaie-de-zahar', downloadFoaieDeZahar)
 router.get('/users', listUsers)
 router.post('/users', createUser)
 router.put('/users/:id', updateUser)

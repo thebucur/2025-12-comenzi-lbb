@@ -6,6 +6,7 @@ import QRCode from 'qrcode'
 import { ColorOption, normalizeColorOptions, resolveColorValue } from '../../constants/colors'
 import { getLocalNetworkUrl, getLocalNetworkIP } from '../../utils/network'
 import api from '../../services/api'
+import axios from 'axios'
 
 // Default values (fallback if config not available)
 const defaultCoatings: Coating[] = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
@@ -20,10 +21,12 @@ function Screen3Decor() {
   const [localIP, setLocalIP] = useState<string>(getLocalNetworkIP() || '')
   const [showIPInput, setShowIPInput] = useState(false)
   const [isLocalUploading, setIsLocalUploading] = useState(false)
+  const [isFoaieDeZaharUploading, setIsFoaieDeZaharUploading] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const currentTextareaRef = useRef<'decorDetails' | 'observations' | null>(null)
   const photoPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const foaieDeZaharInputRef = useRef<HTMLInputElement | null>(null)
 
   // Helper function to convert relative URL to absolute
   const getAbsoluteUrl = (relativeUrl: string): string => {
@@ -205,6 +208,56 @@ function Screen3Decor() {
       }
     } finally {
       setIsLocalUploading(false)
+      event.target.value = ''
+    }
+  }
+
+  const handleFoaieDeZaharClick = () => {
+    ensureUploadSession()
+    foaieDeZaharInputRef.current?.click()
+  }
+
+  const handleFoaieDeZaharSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    // Only allow single file
+    const file = files[0]
+    const sessionId = ensureUploadSession()
+    setIsFoaieDeZaharUploading(true)
+
+    try {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name}: Nu este o imagine validă`)
+        return
+      }
+
+      const formData = new FormData()
+      formData.append('photo', file, file.name)
+
+      const response = await api.post(`/upload/${sessionId}/foaie-de-zahar`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      if (response.data?.url) {
+        const absoluteUrl = getAbsoluteUrl(response.data.url)
+        updateOrder({ foaieDeZaharPhoto: absoluteUrl })
+        alert('Foaia de zahar a fost încărcată cu succes!')
+      } else {
+        alert('Eroare: Nu s-a primit URL pentru fotografie')
+      }
+    } catch (error: unknown) {
+      console.error('Error uploading foaie de zahar:', error)
+      if (axios.isAxiosError(error)) {
+        const apiMessage = (error.response?.data as { error?: string } | undefined)?.error
+        const errorMessage = apiMessage || error.message || 'Eroare necunoscută'
+        alert(`Eroare la încărcarea foii de zahar: ${errorMessage}`)
+      } else {
+        alert('Eroare la încărcarea foii de zahar: Eroare necunoscută')
+      }
+    } finally {
+      setIsFoaieDeZaharUploading(false)
       event.target.value = ''
     }
   }
@@ -434,8 +487,41 @@ function Screen3Decor() {
             >
               {isLocalUploading ? 'Se încarcă...' : '📂 Încarcă din device'}
             </button>
+            <input
+              ref={foaieDeZaharInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFoaieDeZaharSelected}
+            />
+            <button
+              onClick={handleFoaieDeZaharClick}
+              disabled={isFoaieDeZaharUploading}
+              className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 disabled:opacity-60 bg-yellow-500/20 border-2 border-yellow-500/50"
+            >
+              {isFoaieDeZaharUploading ? 'Se încarcă...' : '📄 Încarcă foaie de zahar'}
+            </button>
           </div>
         </div>
+
+        {order.foaieDeZaharPhoto && (
+          <div className="mt-4 p-4 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-2xl">
+            <p className="text-sm font-bold text-secondary mb-2">✅ Foaie de zahar încărcată</p>
+            <div className="relative inline-block">
+              <img
+                src={order.foaieDeZaharPhoto}
+                alt="Foaie de zahar"
+                className="w-32 h-32 object-cover rounded-lg border-2 border-yellow-500/50"
+              />
+              <button
+                onClick={() => updateOrder({ foaieDeZaharPhoto: null })}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg hover:scale-110 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {showQRCode && (
           <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">

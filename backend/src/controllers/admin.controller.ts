@@ -173,3 +173,56 @@ export const deleteUser = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete user' })
   }
 }
+
+export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        photos: true,
+      },
+    })
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' })
+    }
+
+    // Find the foaie de zahar photo (handle case where column might not exist)
+    const foaieDeZaharPhoto = order.photos.find(photo => (photo as any).isFoaieDeZahar === true)
+
+    if (!foaieDeZaharPhoto) {
+      return res.status(404).json({ error: 'Foaie de zahar photo not found for this order' })
+    }
+
+    if (!foaieDeZaharPhoto.path) {
+      return res.status(404).json({ error: 'Photo file path not found' })
+    }
+
+    const fs = require('fs')
+    const path = require('path')
+    const filePath = foaieDeZaharPhoto.path
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      // Try absolute path
+      const absolutePath = path.isAbsolute(filePath) 
+        ? filePath 
+        : path.join(process.cwd(), filePath)
+      
+      if (!fs.existsSync(absolutePath)) {
+        return res.status(404).json({ error: 'Photo file not found on disk' })
+      }
+      
+      // Send file
+      res.download(absolutePath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(filePath)}`)
+      return
+    }
+
+    // Send file
+    res.download(filePath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(filePath)}`)
+  } catch (error) {
+    console.error('Error downloading foaie de zahar photo:', error)
+    res.status(500).json({ error: 'Failed to download foaie de zahar photo' })
+  }
+}

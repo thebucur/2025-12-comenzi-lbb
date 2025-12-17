@@ -61,6 +61,7 @@ export interface Order {
   decorDetails: string
   observations: string
   photos: string[]
+  foaieDeZaharPhoto: string | null
   
   // Screen 4 - Finalizare
   orderNumber: string | null

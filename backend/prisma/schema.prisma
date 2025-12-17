@@ -57,12 +57,13 @@ model Order {
 }
 
 model Photo {
-  id        String   @id @default(uuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  url       String
-  path      String?
-  createdAt DateTime @default(now())
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  url             String
+  path            String?
+  isFoaieDeZahar  Boolean  @default(false)
+  createdAt       DateTime @default(now())
 }
 
 model OrderCounter {

@@ -3,6 +3,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 
+interface Photo {
+  id: string
+  url: string
+  path: string | null
+  isFoaieDeZahar: boolean
+  createdAt: string
+}
+
 interface Order {
   id: string
   orderNumber: number
@@ -18,6 +26,7 @@ interface Order {
     id: string
     username: string
   } | null
+  photos?: Photo[]
 }
 
 interface User {
@@ -376,6 +385,25 @@ function AdminDashboard() {
     }
   }
 
+  const handleDownloadFoaieDeZahar = async (orderId: string, orderNumber: number) => {
+    try {
+      const response = await api.get(`/admin/orders/${orderId}/foaie-de-zahar`, {
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `foaie-de-zahar-order-${orderNumber}.jpg`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading foaie de zahar:', err)
+      alert('Eroare la descărcarea foii de zahar')
+    }
+  }
+
   const fetchUsers = async () => {
     try {
       const response = await api.get('/admin/users')
@@ -563,6 +591,8 @@ function AdminDashboard() {
                           ? new Date(order.createdAt).toLocaleDateString('ro-RO')
                           : '-'
                         
+                        const hasFoaieDeZahar = order.photos?.some(photo => photo.isFoaieDeZahar) || false
+                        
                         return (
                           <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
                             <td className="px-2 py-2 font-bold text-accent-purple text-xs">#{order.orderNumber}</td>
@@ -581,12 +611,23 @@ function AdminDashboard() {
                             <td className="px-2 py-2 text-secondary text-xs">{createdDate}</td>
                             <td className="px-2 py-2 text-secondary text-xs">{order.createdByUsername || order.staffName || '-'}</td>
                             <td className="px-2 py-2">
-                              <button
-                                onClick={() => navigate(`/admin/orders/${order.id}`)}
-                                className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all"
-                              >
-                                Vezi
-                              </button>
+                              <div className="flex gap-2 items-center">
+                                {hasFoaieDeZahar && (
+                                  <button
+                                    onClick={() => handleDownloadFoaieDeZahar(order.id, order.orderNumber)}
+                                    className="bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all text-yellow-600"
+                                    title="Descarcă foaie de zahar"
+                                  >
+                                    📄
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => navigate(`/admin/orders/${order.id}`)}
+                                  className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all"
+                                >
+                                  Vezi
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )

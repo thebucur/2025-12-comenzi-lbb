@@ -25,6 +25,7 @@ const initialOrder: Order = {
   decorDetails: '',
   observations: '',
   photos: [],
+  foaieDeZaharPhoto: null,
   orderNumber: null,
 }
 

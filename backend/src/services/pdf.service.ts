@@ -146,11 +146,35 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { photos: true },
+      include: { 
+        photos: true
+      },
     })
 
     if (!order) {
       throw new Error('Order not found')
+    }
+
+    // Filter out foaie de zahar photos from regular photos
+    // Handle case where isFoaieDeZahar field might not exist (migration not run yet)
+    let regularPhotos = order.photos
+    let foaieDeZaharPhoto = null
+    
+    try {
+      // Try to filter photos if isFoaieDeZahar field exists
+      regularPhotos = order.photos.filter(photo => {
+        // Safely check if isFoaieDeZahar exists and is true
+        const isFoaieDeZahar = (photo as any).isFoaieDeZahar
+        return !isFoaieDeZahar
+      })
+      
+      // Check if order has foaie de zahar photo
+      foaieDeZaharPhoto = order.photos.find(photo => (photo as any).isFoaieDeZahar === true) || null
+    } catch (err) {
+      // If field doesn't exist, use all photos as regular photos
+      console.warn('isFoaieDeZahar field not available, using all photos as regular photos')
+      regularPhotos = order.photos
+      foaieDeZaharPhoto = null
     }
 
     console.log(`Order found: ${order.orderNumber}`)
@@ -330,8 +354,8 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     doc.moveDown(0.4)
   }
 
-  // Photos
-  const photosToRender = order.photos.slice(0, 3)
+  // Photos (only regular photos, exclude foaie de zahar)
+  const photosToRender = regularPhotos.slice(0, 3)
 
   if (photosToRender.length > 0) {
     const photoColumnX = margins.left + leftColumnWidth + columnGap
@@ -405,6 +429,41 @@ export const generatePDF = async (orderId: string): Promise<string> => {
         })
       }
     }
+  }
+
+  // Add "ARE FOAIE DE ZAHAR" text at the end if photo exists
+  if (foaieDeZaharPhoto) {
+    doc.moveDown(0.4)
+    
+    const cleanText = removeDiacritics('ARE FOAIE DE ZAHAR')
+    const x = margins.left
+    const y = doc.y
+    
+    // Calculate the height needed for the text
+    const textHeight = doc.font(fontBold).fontSize(12).heightOfString(cleanText, {
+      width: leftColumnWidth,
+    })
+    
+    // Add padding for the background
+    const padding = 4
+    
+    // Save graphics state
+    doc.save()
+    
+    // Draw yellow background rectangle
+    doc.rect(x - padding, y - padding, leftColumnWidth + padding * 2, textHeight + padding * 2)
+    doc.fillAndStroke('#FFFF00', '#FFFF00')
+    
+    // Restore graphics state
+    doc.restore()
+    
+    // Now draw the red text on top
+    doc.fillColor('#FF0000')
+    doc.font(fontBold).fontSize(12).text(cleanText, x, y, {
+      width: leftColumnWidth,
+    })
+    doc.fillColor(textColor) // Reset to default text color
+    doc.moveDown(0.2)
   }
 
   doc.end()

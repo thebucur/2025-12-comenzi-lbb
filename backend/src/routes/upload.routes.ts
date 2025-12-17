@@ -1,11 +1,14 @@
 import { Router } from 'express'
-import { uploadPhoto, linkSessionToOrder, getPhotosBySessionId, markPhotosAsSent } from '../controllers/upload.controller'
+import { uploadPhoto, uploadFoaieDeZahar, linkSessionToOrder, getPhotosBySessionId, markPhotosAsSent } from '../controllers/upload.controller'
 import uploadMiddleware, { uploadAny } from '../middleware/upload.middleware'
 
 const router = Router()
 
 // Accept both single and multiple files, and tolerate any field name
 router.post('/:sessionId', uploadAny, uploadPhoto)
+
+// Endpoint for foaie de zahar upload (single file, no compression)
+router.post('/:sessionId/foaie-de-zahar', uploadAny, uploadFoaieDeZahar)
 
 // Endpoint to get photos by session ID
 router.get('/:sessionId/photos', getPhotosBySessionId)

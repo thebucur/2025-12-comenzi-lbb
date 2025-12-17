@@ -46,6 +46,7 @@ interface Photo {
   id: string
   url: string
   path: string | null
+  isFoaieDeZahar: boolean
   createdAt: string
 }
 
@@ -114,6 +115,26 @@ function AdminOrderView() {
     } catch (err) {
       console.error('Error downloading PDF:', err)
       alert('Eroare la descărcarea PDF-ului')
+    }
+  }
+
+  const handleDownloadFoaieDeZahar = async () => {
+    if (!id || !order) return
+    try {
+      const response = await api.get(`/admin/orders/${id}/foaie-de-zahar`, {
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `foaie-de-zahar-order-${order.orderNumber}.jpg`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading foaie de zahar:', err)
+      alert('Eroare la descărcarea foii de zahar')
     }
   }
 
@@ -301,11 +322,11 @@ function AdminOrderView() {
           </div>
 
           {/* Photos */}
-          {order.photos.length > 0 && (
+          {order.photos.filter(p => !p.isFoaieDeZahar).length > 0 && (
             <div className="card-neumorphic space-y-4 lg:col-span-2">
-              <h2 className="text-3xl font-bold text-gradient mb-6">📸 Poze încărcate ({order.photos.length})</h2>
+              <h2 className="text-3xl font-bold text-gradient mb-6">📸 Poze încărcate ({order.photos.filter(p => !p.isFoaieDeZahar).length})</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {order.photos.map((photo, index) => (
+                {order.photos.filter(p => !p.isFoaieDeZahar).map((photo, index) => (
                   <div key={photo.id || index} className="shadow-neumorphic rounded-2xl overflow-hidden group">
                     <img
                       src={getAbsoluteUrl(photo.url)}
@@ -324,8 +345,8 @@ function AdminOrderView() {
           )}
         </div>
 
-        {/* PDF Download */}
-        <div className="mt-12 flex justify-center">
+        {/* PDF Download and Foaie de Zahar Download */}
+        <div className="mt-12 flex justify-center gap-4 flex-wrap">
           <button
             onClick={handleDownloadPDF}
             className="btn-active px-12 py-6 rounded-3xl font-bold text-2xl hover:scale-105 transition-all duration-300 inline-flex items-center gap-3"
@@ -335,6 +356,17 @@ function AdminOrderView() {
             </svg>
             Descarcă PDF
           </button>
+          {order.photos.some(p => p.isFoaieDeZahar) && (
+            <button
+              onClick={handleDownloadFoaieDeZahar}
+              className="bg-yellow-500/20 border-2 border-yellow-500/50 px-12 py-6 rounded-3xl font-bold text-2xl hover:scale-105 transition-all duration-300 inline-flex items-center gap-3 text-yellow-600"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              📄 Descarcă Foaie de Zahar
+            </button>
+          )}
         </div>
       </div>
     </div>

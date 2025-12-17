@@ -23,7 +23,12 @@ router.post('/:id/generate-pdf', async (req, res) => {
     res.json({ success: true, pdfPath })
   } catch (error) {
     console.error('Error generating PDF:', error)
-    res.status(500).json({ error: 'Failed to generate PDF' })
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    res.status(500).json({ 
+      error: 'Failed to generate PDF',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : String(error)) : undefined
+    })
   }
 })
 
