@@ -70,6 +70,24 @@ export const deleteGlobalConfig = async (req: Request, res: Response) => {
 }
 
 
+// Helper function to check if items are equal (handles both strings and color objects)
+const itemsEqual = (item1: any, item2: any): boolean => {
+  if (item1 === item2) return true
+  if (typeof item1 === 'object' && typeof item2 === 'object' && item1 !== null && item2 !== null) {
+    // Both are objects - compare by name and value
+    return item1.name === item2.name && item1.value === item2.value
+  }
+  if (typeof item1 === 'object' && item1 !== null && typeof item2 === 'string') {
+    // item1 is object, item2 is string - compare object's name or value with string
+    return item1.name === item2 || item1.value === item2
+  }
+  if (typeof item2 === 'object' && item2 !== null && typeof item1 === 'string') {
+    // item2 is object, item1 is string - compare object's name or value with string
+    return item2.name === item1 || item2.value === item1
+  }
+  return false
+}
+
 // Add item to a global config
 export const addItemToConfig = async (req: Request, res: Response) => {
   try {
@@ -89,7 +107,10 @@ export const addItemToConfig = async (req: Request, res: Response) => {
     }
 
     const currentValue = Array.isArray(config.value) ? (config.value as any[]) : []
-    if (currentValue.includes(item)) {
+    
+    // Check if item already exists (handles both string and object formats)
+    const itemExists = currentValue.some((existingItem) => itemsEqual(existingItem, item))
+    if (itemExists) {
       return res.status(400).json({ error: 'Item already exists' })
     }
 
@@ -125,7 +146,8 @@ export const deleteItemFromConfig = async (req: Request, res: Response) => {
     }
 
     const currentValue = Array.isArray(config.value) ? (config.value as any[]) : []
-    const updatedValue = currentValue.filter((i) => i !== item)
+    // Filter out items that match (handles both string and object formats)
+    const updatedValue = currentValue.filter((i) => !itemsEqual(i, item))
 
     const updated = await prisma.globalConfig.update({
       where: { id },

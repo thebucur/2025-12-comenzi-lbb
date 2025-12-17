@@ -138,6 +138,22 @@ function PhotoUpload() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    const existingCount = photos.length
+    const remainingSlots = 3 - existingCount
+
+    if (remainingSlots <= 0) {
+      alert('Poți încărca maximum 3 poze.')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
+
+    const filesToProcess = Array.from(files).slice(0, remainingSlots)
+    if (files.length > remainingSlots) {
+      alert(`Ai ales prea multe poze. Se vor încărca doar primele ${remainingSlots}.`)
+    }
+
     if (!sessionId) {
       alert('Eroare: ID sesiune lipsă')
       return
@@ -181,7 +197,7 @@ function PhotoUpload() {
     const successfullyUploadedUrls: string[] = []
 
     try {
-      for (const file of Array.from(files)) {
+      for (const file of filesToProcess) {
         try {
           // Validate file type
           if (!file.type.startsWith('image/')) {
@@ -354,6 +370,9 @@ function PhotoUpload() {
           >
             {uploading ? 'Se încarcă...' : 'Selectează poze'}
           </label>
+          <p className="text-sm text-gray-400 mt-3 text-center">
+            Maxim 3 poze (mai poți adăuga {Math.max(3 - photos.length, 0)})
+          </p>
         </div>
 
         {photos.length > 0 && (

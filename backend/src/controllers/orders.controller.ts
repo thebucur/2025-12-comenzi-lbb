@@ -63,65 +63,90 @@ export const createOrder = async (req: Request, res: Response) => {
       })
     }
 
-    // Get or create order counter for centralized numbering
-    console.log('Fetching order counter...')
-    let counter = await prisma.orderCounter.findFirst()
-    if (!counter) {
-      console.log('Creating new order counter...')
-      counter = await prisma.orderCounter.create({
-        data: { lastOrder: 0 },
+    // Atomically reserve the next order number in a transaction to avoid duplicates
+    console.log('Reserving next order number...')
+    const { orderNumber, orderCreateData, orderId } = await prisma.$transaction(async (tx) => {
+      // Ensure we have a single canonical counter row and sync it with existing orders
+      let nextOrderNumber: number
+
+      const [existingCounter, orderMax] = await Promise.all([
+        tx.orderCounter.findUnique({ where: { id: 'global-counter' } }),
+        tx.order.aggregate({ _max: { orderNumber: true } }),
+      ])
+
+      const highestOrderNumber = orderMax._max.orderNumber ?? 0
+
+      if (existingCounter) {
+        const base = Math.max(existingCounter.lastOrder, highestOrderNumber)
+        const updated = await tx.orderCounter.update({
+          where: { id: 'global-counter' },
+          data: { lastOrder: base + 1 },
+        })
+        nextOrderNumber = updated.lastOrder
+      } else {
+        // If the canonical row is missing, initialize it using the max of existing counters or orders
+        const counterMax = await tx.orderCounter.aggregate({ _max: { lastOrder: true } })
+        const lastUsed = Math.max(
+          counterMax._max.lastOrder ?? 0,
+          highestOrderNumber,
+        )
+
+        const created = await tx.orderCounter.create({
+          data: { id: 'global-counter', lastOrder: lastUsed + 1 },
+        })
+        nextOrderNumber = created.lastOrder
+      }
+
+      console.log(`Reserved order number: ${nextOrderNumber}`)
+
+      // Prepare order data for creation
+      const preparedData = {
+        orderNumber: nextOrderNumber,
+        deliveryMethod: String(orderData.deliveryMethod),
+        location: orderData.location ? String(orderData.location) : null,
+        address: orderData.address ? String(orderData.address) : null,
+        staffName: String(orderData.staffName),
+        clientName: String(orderData.clientName).trim(),
+        phoneNumber: String(orderData.phoneNumber).trim(),
+        pickupDate: pickupDateObj,
+        tomorrowVerification: Boolean(orderData.tomorrowVerification),
+        advance: orderData.advance ? parseFloat(orderData.advance.toString()) : null,
+        cakeType: String(orderData.cakeType),
+        weight: String(orderData.weight),
+        customWeight: orderData.customWeight ? String(orderData.customWeight) : null,
+        shape: orderData.shape ? String(orderData.shape) : null,
+        floors: orderData.floors ? String(orderData.floors) : null,
+        otherProducts: orderData.otherProducts ? String(orderData.otherProducts) : null,
+        coating: String(orderData.coating),
+        colors: Array.isArray(orderData.colors) ? orderData.colors.map((c: unknown) => String(c)) : [],
+        decorType: String(orderData.decorType),
+        decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
+        observations: orderData.observations ? String(orderData.observations) : null,
+        createdByUsername: orderData.createdByUsername ? String(orderData.createdByUsername) : null,
+      }
+
+      // Create order inside the same transaction so the reserved number is consumed exactly once
+      const createdOrder = await tx.order.create({
+        data: preparedData,
+        include: { photos: true },
       })
-    }
 
-    // Increment order number
-    const orderNumber = counter.lastOrder + 1
-    console.log(`Incrementing order number to: ${orderNumber}`)
-    await prisma.orderCounter.update({
-      where: { id: counter.id },
-      data: { lastOrder: orderNumber },
+      return { 
+        orderNumber: createdOrder.orderNumber, 
+        orderCreateData: preparedData,
+        orderId: createdOrder.id,
+      }
     })
-
-    // Prepare order data for creation
-    const orderCreateData = {
-      orderNumber,
-      deliveryMethod: String(orderData.deliveryMethod),
-      location: orderData.location ? String(orderData.location) : null,
-      address: orderData.address ? String(orderData.address) : null,
-      staffName: String(orderData.staffName),
-      clientName: String(orderData.clientName).trim(),
-      phoneNumber: String(orderData.phoneNumber).trim(),
-      pickupDate: pickupDateObj,
-      tomorrowVerification: Boolean(orderData.tomorrowVerification),
-      advance: orderData.advance ? parseFloat(orderData.advance.toString()) : null,
-      cakeType: String(orderData.cakeType),
-      weight: String(orderData.weight),
-      customWeight: orderData.customWeight ? String(orderData.customWeight) : null,
-      shape: orderData.shape ? String(orderData.shape) : null,
-      floors: orderData.floors ? String(orderData.floors) : null,
-      otherProducts: orderData.otherProducts ? String(orderData.otherProducts) : null,
-      coating: String(orderData.coating),
-      colors: Array.isArray(orderData.colors) ? orderData.colors.map((c: unknown) => String(c)) : [],
-      decorType: String(orderData.decorType),
-      decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
-      observations: orderData.observations ? String(orderData.observations) : null,
-      createdByUsername: orderData.createdByUsername ? String(orderData.createdByUsername) : null,
-    }
     
     console.log('Creating order with data:', JSON.stringify(orderCreateData, null, 2))
 
-    // Create order
-    const order = await prisma.order.create({
-      data: orderCreateData,
-      include: { photos: true },
-    })
-
-    console.log('Order created successfully with ID:', order.id)
+    console.log('Order created successfully with number:', orderNumber)
 
     // Link any pending photo uploads to this order
     if (orderData.uploadSessionId) {
       try {
         console.log('Linking photos from session:', orderData.uploadSessionId)
-        await linkSessionToOrder(orderData.uploadSessionId, order.id)
+        await linkSessionToOrder(orderData.uploadSessionId, orderId)
         console.log('Photos linked successfully')
       } catch (linkError) {
         console.error('Error linking photos to order:', linkError)
@@ -132,7 +157,7 @@ export const createOrder = async (req: Request, res: Response) => {
     // Fetch order with photos to return complete data
     console.log('Fetching order with photos...')
     const orderWithPhotos = await prisma.order.findUnique({
-      where: { id: order.id },
+      where: { orderNumber },
       include: { photos: true },
     })
 
@@ -255,16 +280,33 @@ export const listOrders = async (req: Request, res: Response) => {
 
 export const getNextOrderNumber = async (req: Request, res: Response) => {
   try {
-    // Get or create order counter for centralized numbering
-    let counter = await prisma.orderCounter.findFirst()
-    if (!counter) {
-      counter = await prisma.orderCounter.create({
-        data: { lastOrder: 0 },
+    // Get the singleton counter without incrementing; if missing, initialize using existing data
+    const [counter, orderMax, counterMax] = await Promise.all([
+      prisma.orderCounter.findUnique({ where: { id: 'global-counter' } }),
+      prisma.order.aggregate({ _max: { orderNumber: true } }),
+      prisma.orderCounter.aggregate({ _max: { lastOrder: true } }),
+    ])
+
+    const highestUsed = Math.max(
+      orderMax._max.orderNumber ?? 0,
+      counter?.lastOrder ?? 0,
+      counterMax._max.lastOrder ?? 0,
+    )
+
+    let ensuredCounter = counter
+    if (!ensuredCounter) {
+      ensuredCounter = await prisma.orderCounter.create({
+        data: { id: 'global-counter', lastOrder: highestUsed },
+      })
+    } else if (ensuredCounter.lastOrder < highestUsed) {
+      ensuredCounter = await prisma.orderCounter.update({
+        where: { id: 'global-counter' },
+        data: { lastOrder: highestUsed },
       })
     }
 
     // Return next order number without incrementing
-    const nextOrderNumber = counter.lastOrder + 1
+    const nextOrderNumber = ensuredCounter.lastOrder + 1
     res.json({ nextOrderNumber })
   } catch (error) {
     console.error('Error getting next order number:', error)

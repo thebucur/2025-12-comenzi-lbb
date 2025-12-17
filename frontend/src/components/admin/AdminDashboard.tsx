@@ -33,39 +33,72 @@ interface GlobalConfig {
   createdAt: string
 }
 
+interface ColorOption {
+  name: string
+  value: string
+}
+
 interface SortimentDecorManagerProps {
   category: 'sortiment' | 'decor'
   configs: GlobalConfig[]
-  defaultItems: Record<string, string[]>
+  defaultItems: Record<string, string[] | ColorOption[]>
   onRefresh: () => void
 }
 
 function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: SortimentDecorManagerProps) {
   const [newItemValue, setNewItemValue] = useState('')
+  const [newColorName, setNewColorName] = useState('')
   const [showAddItem, setShowAddItem] = useState<string | null>(null)
 
   const getConfigByKey = (key: string) => {
     return configs.find((c) => c.key === key)
   }
 
-  const getItems = (key: string): string[] => {
+  const getItems = (key: string): (string | ColorOption)[] => {
     const config = getConfigByKey(key)
     if (config && Array.isArray(config.value)) {
-      return config.value as string[]
+      return config.value as (string | ColorOption)[]
     }
     return defaultItems[key] || []
   }
 
-  const handleAddItem = async (key: string, item: string) => {
-    if (!item.trim()) return
+  const isColorItem = (item: string | ColorOption): item is ColorOption => {
+    return typeof item === 'object' && item !== null && 'name' in item && 'value' in item
+  }
+
+  const getItemDisplay = (item: string | ColorOption): string => {
+    if (isColorItem(item)) {
+      return item.name
+    }
+    return item
+  }
+
+  const getItemValue = (item: string | ColorOption): string => {
+    if (isColorItem(item)) {
+      return item.value
+    }
+    return item
+  }
+
+  const handleAddItem = async (key: string, item: string | ColorOption) => {
+    if (key === 'colors') {
+      const colorItem = item as ColorOption
+      if (!colorItem.name?.trim() || !colorItem.value?.trim()) {
+        alert('Numele și culoarea sunt obligatorii')
+        return
+      }
+    } else {
+      if (!item || (typeof item === 'string' && !item.trim())) return
+    }
 
     const config = getConfigByKey(key)
     if (config) {
       // Add to existing config
       try {
-        await api.post(`/config/global/${config.id}/items`, { item: item.trim() })
+        await api.post(`/config/global/${config.id}/items`, { item })
         onRefresh()
         setNewItemValue('')
+        setNewColorName('')
         setShowAddItem(null)
       } catch (error) {
         console.error('Error adding item:', error)
@@ -78,10 +111,11 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
         await api.post('/config/global', {
           category,
           key,
-          value: [...items, item.trim()],
+          value: [...items, item],
         })
         onRefresh()
         setNewItemValue('')
+        setNewColorName('')
         setShowAddItem(null)
       } catch (error) {
         console.error('Error creating config:', error)
@@ -90,8 +124,9 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
     }
   }
 
-  const handleDeleteItem = async (key: string, item: string) => {
-    if (!confirm(`Sigur doriți să ștergeți "${item}"?`)) return
+  const handleDeleteItem = async (key: string, item: string | ColorOption) => {
+    const displayName = getItemDisplay(item)
+    if (!confirm(`Sigur doriți să ștergeți "${displayName}"?`)) return
 
     const config = getConfigByKey(key)
     if (!config) return
@@ -159,63 +194,114 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
             {hasConfig ? (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
-                  {items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="bg-primary/50 px-4 py-2 rounded-xl flex items-center gap-2 group"
-                    >
-                      {key === 'colors' ? (
-                        <div
-                          className="w-6 h-6 rounded-full border-2 border-secondary/30"
-                          style={{ backgroundColor: item }}
-                        />
-                      ) : null}
-                      <span className="text-secondary font-semibold">{item}</span>
-                      <button
-                        onClick={() => handleDeleteItem(key, item)}
-                        className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity font-bold"
+                  {items.map((item, index) => {
+                    const displayName = getItemDisplay(item)
+                    const colorValue = key === 'colors' ? getItemValue(item) : null
+                    return (
+                      <div
+                        key={index}
+                        className="bg-primary/50 px-4 py-2 rounded-xl flex items-center gap-2 group"
                       >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+                        {key === 'colors' && colorValue ? (
+                          <div
+                            className="w-6 h-6 rounded-full border-2 border-secondary/30"
+                            style={{ backgroundColor: colorValue }}
+                          />
+                        ) : null}
+                        <span className="text-secondary font-semibold">{displayName}</span>
+                        <button
+                          onClick={() => handleDeleteItem(key, item)}
+                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {showAddItem === key ? (
-                  <div className="flex gap-2 mt-4">
-                    <input
-                      type={key === 'colors' ? 'color' : 'text'}
-                      value={newItemValue}
-                      onChange={(e) => setNewItemValue(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          handleAddItem(key, newItemValue)
-                        }
-                      }}
-                      className="input-neumorphic flex-1 text-secondary"
-                      placeholder={key === 'colors' ? 'Selectați culoarea' : 'Adaugă element nou'}
-                    />
-                    <button
-                      onClick={() => handleAddItem(key, newItemValue)}
-                      className="btn-active px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
-                    >
-                      ✓
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAddItem(null)
-                        setNewItemValue('')
-                      }}
-                      className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-secondary hover:scale-105 transition-all"
-                    >
-                      ✕
-                    </button>
+                  <div className="space-y-2 mt-4">
+                    {key === 'colors' ? (
+                      <>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newColorName}
+                            onChange={(e) => setNewColorName(e.target.value)}
+                            placeholder="Nume culoare (ex: ROȘU)"
+                            className="input-neumorphic flex-1 text-secondary"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleAddItem(key, { name: newColorName, value: newItemValue })
+                              }
+                            }}
+                          />
+                          <input
+                            type="color"
+                            value={newItemValue}
+                            onChange={(e) => setNewItemValue(e.target.value)}
+                            className="w-16 h-10 rounded-xl cursor-pointer"
+                            title="Selectați culoarea"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAddItem(key, { name: newColorName, value: newItemValue })}
+                            className="btn-active px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
+                          >
+                            ✓ Adaugă
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowAddItem(null)
+                              setNewItemValue('')
+                              setNewColorName('')
+                            }}
+                            className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-secondary hover:scale-105 transition-all"
+                          >
+                            ✕ Anulează
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newItemValue}
+                          onChange={(e) => setNewItemValue(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddItem(key, newItemValue)
+                            }
+                          }}
+                          className="input-neumorphic flex-1 text-secondary"
+                          placeholder="Adaugă element nou"
+                        />
+                        <button
+                          onClick={() => handleAddItem(key, newItemValue)}
+                          className="btn-active px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowAddItem(null)
+                            setNewItemValue('')
+                          }}
+                          className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-secondary hover:scale-105 transition-all"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button
                     onClick={() => {
                       setShowAddItem(key)
-                      setNewItemValue('')
+                      setNewItemValue(key === 'colors' ? '#FF0000' : '')
+                      setNewColorName('')
                     }}
                     className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-secondary hover:scale-105 transition-all mt-2"
                   >
@@ -596,9 +682,18 @@ function AdminDashboard() {
                   defaultItems={{
                     coatings: ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC'],
                     colors: [
-                      '#FF0000', '#FF69B4', '#FF1493', '#FF6347',
-                      '#FFD700', '#FFA500', '#32CD32', '#00CED1',
-                      '#0000FF', '#8A2BE2', '#FFFFFF', '#000000',
+                      { name: 'ROȘU', value: '#FF0000' },
+                      { name: 'ROZ', value: '#FF69B4' },
+                      { name: 'ROZ ÎNCHIS', value: '#FF1493' },
+                      { name: 'PORTOCALIU', value: '#FF6347' },
+                      { name: 'GALBEN', value: '#FFD700' },
+                      { name: 'PORTOCALIU DESCHIS', value: '#FFA500' },
+                      { name: 'VERDE', value: '#32CD32' },
+                      { name: 'TURCOAZ', value: '#00CED1' },
+                      { name: 'ALBASTRU', value: '#0000FF' },
+                      { name: 'VIOLET', value: '#8A2BE2' },
+                      { name: 'ALB', value: '#FFFFFF' },
+                      { name: 'NEGRU', value: '#000000' },
                     ],
                     decorTypes: ['SIMPLU', 'MEDIU', 'COMPLEX', 'PREMIUM'],
                   }}

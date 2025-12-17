@@ -19,7 +19,30 @@ export const defaultColorOptions: ColorOption[] = [
   { name: 'SPECIAL', value: '#4B5563' },
 ]
 
-const hexToName = new Map(defaultColorOptions.map((color) => [color.value.toLowerCase(), color.name]))
+// Extended hex to name mapping for backward compatibility with existing hex values
+const hexToNameMap: Record<string, string> = {
+  '#ffffff': 'ALB',
+  '#000000': 'NEGRU',
+  '#ff0000': 'ROȘU',
+  '#32cd32': 'VERDE',
+  '#0000ff': 'ALBASTRU',
+  '#ffd700': 'GALBEN',
+  '#ff69b4': 'ROZ',
+  '#ffa500': 'PORTOCALIU',
+  '#8b4513': 'MARO',
+  '#8a2be2': 'VIOLET',
+  '#d4af37': 'AURIU',
+  '#4b5563': 'SPECIAL',
+  // Additional mappings for colors used in AdminDashboard defaults
+  '#ff1493': 'ROZ ÎNCHIS',
+  '#ff6347': 'PORTOCALIU',
+  '#00ced1': 'TURCOAZ',
+}
+
+const hexToName = new Map([
+  ...defaultColorOptions.map((color) => [color.value.toLowerCase(), color.name]),
+  ...Object.entries(hexToNameMap).map(([hex, name]) => [hex.toLowerCase(), name]),
+])
 
 export const normalizeColorOptions = (
   colors?: Array<string | ColorOption>

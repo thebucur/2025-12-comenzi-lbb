@@ -12,14 +12,14 @@ const steps = [
 
 function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
   return (
-    <div className="flex items-center justify-center mb-12 px-4">
+    <div className="flex items-center justify-center mb-12 px-2 sm:px-4 max-w-full overflow-hidden">
       {steps.map((step, index) => (
         <div key={step.number} className="flex items-center">
           <div className="flex flex-col items-center">
             <button
               onClick={() => onStepClick(step.number)}
               disabled={step.number > currentStep}
-              className={`relative w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl transition-all duration-300 ${
+              className={`relative w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center font-bold text-lg sm:text-xl md:text-2xl transition-all duration-300 ${
                 step.number === currentStep
                   ? 'btn-active scale-110 shadow-glow-purple'
                   : step.number < currentStep
@@ -28,7 +28,7 @@ function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
               }`}
             >
               {step.number < currentStep ? (
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               ) : (
@@ -40,7 +40,7 @@ function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
               )}
             </button>
             <span
-              className={`mt-4 text-sm font-bold transition-all duration-300 ${
+              className={`mt-2 sm:mt-4 text-xs sm:text-sm font-bold transition-all duration-300 ${
                 step.number === currentStep
                   ? 'text-gradient scale-110'
                   : step.number < currentStep
@@ -52,7 +52,7 @@ function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
             </span>
           </div>
           {index < steps.length - 1 && (
-            <div className="relative w-20 md:w-32 h-2 mx-6 rounded-full bg-primary shadow-neumorphic-inset overflow-hidden">
+            <div className="relative w-8 sm:w-12 md:w-20 lg:w-32 h-1.5 sm:h-2 mx-2 sm:mx-4 md:mx-6 rounded-full bg-primary shadow-neumorphic-inset overflow-hidden">
               <div
                 className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${
                   step.number < currentStep 

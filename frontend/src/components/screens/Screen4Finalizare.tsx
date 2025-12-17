@@ -147,8 +147,29 @@ function Screen4Finalizare() {
         photos: photoUrls,
       })
       
-      // Generate and send PDF
+      // Generate PDF
       await api.post(`/orders/${response.data.id}/generate-pdf`)
+      
+      // Download the generated PDF
+      try {
+        const pdfResponse = await api.get(`/orders/${response.data.id}/pdf`, {
+          responseType: 'blob',
+        })
+        
+        // Create a blob URL and trigger download
+        const blob = new Blob([pdfResponse.data], { type: 'application/pdf' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `comanda-${orderNumber}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url) // Clean up the blob URL
+      } catch (pdfError) {
+        console.error('Error downloading PDF:', pdfError)
+        // Don't block the success flow if PDF download fails
+      }
       
       // Clear upload session
       if (uploadSessionId) {
