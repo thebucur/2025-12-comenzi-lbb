@@ -63,6 +63,22 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
     return defaultItems[key] || []
   }
 
+  const getWeightSortValue = (weight: string) => {
+    const match = weight.match(/[\d]+(?:[.,]\d+)?/)
+    return match ? parseFloat(match[0].replace(',', '.')) : Number.POSITIVE_INFINITY
+  }
+
+  const sortItemsIfNeeded = (key: string, items: (string | ColorOption)[]) => {
+    if (key !== 'weights') return items
+
+    return [...items].sort((a, b) => {
+      const aLabel = getItemDisplay(a)
+      const bLabel = getItemDisplay(b)
+      const diff = getWeightSortValue(aLabel) - getWeightSortValue(bLabel)
+      return diff !== 0 ? diff : aLabel.localeCompare(bLabel)
+    })
+  }
+
   const isColorItem = (item: string | ColorOption): item is ColorOption => {
     return typeof item === 'object' && item !== null && 'name' in item && 'value' in item
   }
@@ -176,6 +192,7 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
       {Object.keys(defaultItems).map((key) => {
         const config = getConfigByKey(key)
         const items = getItems(key)
+        const displayItems = sortItemsIfNeeded(key, items)
         const hasConfig = !!config
 
         return (
@@ -195,7 +212,7 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
             {hasConfig ? (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
-                  {items.map((item, index) => {
+                  {displayItems.map((item, index) => {
                     const displayName = getItemDisplay(item)
                     const colorValue = key === 'colors' ? getItemValue(item) : null
                     return (

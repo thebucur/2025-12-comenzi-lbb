@@ -34,6 +34,16 @@ function Screen2Sortiment() {
   const config = useInstallationConfig()
   const [showOtherProducts, setShowOtherProducts] = useState(false)
 
+  const getWeightSortValue = (weight: string) => {
+    const match = weight.match(/[\d]+(?:[.,]\d+)?/)
+    return match ? parseFloat(match[0].replace(',', '.')) : Number.POSITIVE_INFINITY
+  }
+
+  const sortedWeights = [...((config?.sortiment?.weights as Weight[]) || defaultWeights)].sort((a, b) => {
+    const diff = getWeightSortValue(a) - getWeightSortValue(b)
+    return diff !== 0 ? diff : a.localeCompare(b)
+  })
+
   // Auto-open other products if noCake is selected
   useEffect(() => {
     if (order.noCake) {
@@ -43,7 +53,7 @@ function Screen2Sortiment() {
 
   // Use config values or fallback to defaults
   const cakeTypes = (config?.sortiment?.cakeTypes as CakeType[]) || defaultCakeTypes
-  const weights = (config?.sortiment?.weights as Weight[]) || defaultWeights
+  const weights = sortedWeights
   const shapes = (config?.sortiment?.shapes as Shape[]) || defaultShapes
   const floors = (config?.sortiment?.floors as Floors[]) || defaultFloors
 

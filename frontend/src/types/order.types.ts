@@ -22,7 +22,8 @@ export type CakeType =
   | 'MOUSSE DE MIRABELLE'
   | 'ALT TIP'
 
-export type Weight = '1 KG' | '1.5 KG' | '2 KG' | '2.5 KG' | '3 KG' | 'ALTĂ GREUTATE'
+// Allow dynamic weights coming from config (including ranges like "1-1.5 KG")
+export type Weight = string
 
 export type Shape = 'ROTUND' | 'DREPTUNGHIULAR' | 'ALTĂ FORMĂ'
 
