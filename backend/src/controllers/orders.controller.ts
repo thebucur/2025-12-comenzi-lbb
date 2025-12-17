@@ -178,10 +178,27 @@ export const createOrder = async (req: Request, res: Response) => {
     console.log('Fetching order with photos...')
     const orderWithPhotos = await prisma.order.findUnique({
       where: { orderNumber },
-      include: { photos: true },
+      include: { 
+        photos: {
+          select: {
+            id: true,
+            url: true,
+            path: true,
+            isFoaieDeZahar: true,
+            createdAt: true,
+          },
+        },
+      },
     })
 
-    console.log('Order created successfully:', orderNumber)
+    console.log(`Order created successfully: ${orderNumber} with ${orderWithPhotos?.photos?.length || 0} photos`)
+    if (orderWithPhotos?.photos && orderWithPhotos.photos.length > 0) {
+      console.log('Photos in order:', orderWithPhotos.photos.map(p => ({ 
+        url: p.url, 
+        path: p.path, 
+        isFoaieDeZahar: p.isFoaieDeZahar 
+      })))
+    }
     res.status(201).json({ ...orderWithPhotos, orderNumber })
   } catch (error: any) {
     console.error('Error creating order:', error)

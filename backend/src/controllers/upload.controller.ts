@@ -76,7 +76,11 @@ export const uploadPhoto = async (req: Request, res: Response) => {
             pendingPhotosBySession.set(sessionId, [])
           }
           pendingPhotosBySession.get(sessionId)!.push({ url, path: filepath, filename })
-          console.log(`Photo stored as pending for session ${sessionId}`)
+          console.log(`Photo stored as pending for session ${sessionId}`, {
+            url,
+            path: filepath,
+            totalPending: pendingPhotosBySession.get(sessionId)!.length,
+          })
         }
 
         results.push({ url, path: filepath, filename })
@@ -118,16 +122,21 @@ export const uploadPhoto = async (req: Request, res: Response) => {
 }
 
 export const linkSessionToOrder = async (sessionId: string, orderId: string) => {
+  console.log(`Linking session ${sessionId} to order ${orderId}`)
   sessionToOrderMap.set(sessionId, orderId)
   
   // Link all pending photos for this session to the order
   const pendingPhotos = pendingPhotosBySession.get(sessionId)
+  console.log(`Found ${pendingPhotos?.length || 0} pending photos for session ${sessionId}`)
+  
   if (pendingPhotos && pendingPhotos.length > 0) {
-    console.log(`Linking ${pendingPhotos.length} pending photos to order ${orderId}`)
+    console.log(`Linking ${pendingPhotos.length} pending photos to order ${orderId}`, {
+      photos: pendingPhotos.map(p => ({ url: p.url, path: p.path })),
+    })
     
     try {
       // Save all pending photos to database (without isFoaieDeZahar for regular photos)
-      await prisma.photo.createMany({
+      const createdPhotos = await prisma.photo.createMany({
         data: pendingPhotos.map(photo => ({
           orderId,
           url: photo.url,
@@ -135,7 +144,14 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
         })),
       })
       
-      console.log(`Successfully linked ${pendingPhotos.length} photos to order ${orderId}`)
+      console.log(`Successfully linked ${createdPhotos.count} photos to order ${orderId}`)
+      
+      // Verify photos were saved
+      const verifyPhotos = await prisma.photo.findMany({
+        where: { orderId },
+        select: { id: true, url: true, path: true },
+      })
+      console.log(`Verified ${verifyPhotos.length} photos in database for order ${orderId}`)
       
       // Clear pending photos for this session
       pendingPhotosBySession.delete(sessionId)
@@ -143,6 +159,8 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
       console.error('Error linking pending photos to order:', error)
       // Don't throw - order is already created
     }
+  } else {
+    console.log(`No pending photos found for session ${sessionId}`)
   }
 
   // Link pending foaie de zahar photo if exists

@@ -190,10 +190,29 @@ function Screen3Decor() {
       setUploadModalType(null); // Close the upload type modal
       
       // Store session ID for later use when order is submitted
-      localStorage.setItem('currentUploadSession', sessionId);
+      // Use the same session ID for both photos and foaie de zahar
+      // This ensures all uploads are linked to the same session
+      const existingSessionId = localStorage.getItem('currentUploadSession')
+      if (!existingSessionId) {
+        localStorage.setItem('currentUploadSession', sessionId)
+      } else {
+        // Use existing session ID to keep all uploads in the same session
+        const finalSessionId = existingSessionId
+        // Regenerate QR code with existing session ID
+        const baseUrl = getLocalNetworkUrl()
+        const uploadUrl = type === 'foaieDeZahar' 
+          ? `${baseUrl}/upload/${finalSessionId}?type=foaie-de-zahar`
+          : `${baseUrl}/upload/${finalSessionId}`
+        const dataUrl = await QRCode.toDataURL(uploadUrl)
+        setQrCodeDataUrl(dataUrl)
+        setShowQRCode(true)
+        setUploadModalType(null)
+        startPhotoPolling(finalSessionId)
+        return
+      }
       
       // Start polling for new photos and foaie de zahar
-      startPhotoPolling(sessionId);
+      startPhotoPolling(sessionId)
     } catch (error) {
       console.error('Error generating QR code:', error);
     }
