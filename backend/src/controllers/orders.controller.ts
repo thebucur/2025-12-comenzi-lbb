@@ -6,7 +6,7 @@ export const createOrder = async (req: Request, res: Response) => {
   try {
     const orderData = req.body
     
-    // Log incoming data for debugging
+    // Log incoming data for debugging - v1.1 (noCake support)
     console.log('Received order data:', JSON.stringify(orderData, null, 2))
 
     // Validate required fields
