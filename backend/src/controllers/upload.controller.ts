@@ -36,55 +36,82 @@ export const uploadPhoto = async (req: Request, res: Response) => {
     const results: PendingPhoto[] = []
 
     for (const file of files) {
-      // Compress and resize image
-      const compressed = await sharp(file.buffer)
-        .resize(1000, 1000, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 80 })
-        .toBuffer()
+      try {
+        // Compress and resize image
+        const compressed = await sharp(file.buffer)
+          .resize(1000, 1000, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: 80 })
+          .toBuffer()
 
-      // Generate unique filename
-      const filename = `${uuidv4()}.jpg`
-      const filepath = path.join(UPLOAD_DIR, filename)
+        // Generate unique filename
+        const filename = `${uuidv4()}.jpg`
+        const filepath = path.join(UPLOAD_DIR, filename)
 
-      // Save file
-      await fs.writeFile(filepath, compressed)
+        // Save file
+        await fs.writeFile(filepath, compressed)
 
-      // Return URL (in production, this would be a cloud storage URL)
-      const url = `/uploads/${filename}`
+        // Return URL (in production, this would be a cloud storage URL)
+        const url = `/uploads/${filename}`
 
-      // Check if we have an order ID for this session
-      const orderId = sessionToOrderMap.get(sessionId)
-      if (orderId) {
-        // Order already exists, save photo immediately
-        await prisma.photo.create({
-          data: {
-            orderId,
-            url,
-            path: filepath,
-          },
-        })
-        console.log(`Photo saved immediately for order ${orderId}`)
-      } else {
-        // Order doesn't exist yet, store photo as pending
-        if (!pendingPhotosBySession.has(sessionId)) {
-          pendingPhotosBySession.set(sessionId, [])
+        // Check if we have an order ID for this session
+        const orderId = sessionToOrderMap.get(sessionId)
+        if (orderId) {
+          // Order already exists, save photo immediately
+          await prisma.photo.create({
+            data: {
+              orderId,
+              url,
+              path: filepath,
+            },
+          })
+          console.log(`Photo saved immediately for order ${orderId}`)
+        } else {
+          // Order doesn't exist yet, store photo as pending
+          if (!pendingPhotosBySession.has(sessionId)) {
+            pendingPhotosBySession.set(sessionId, [])
+          }
+          pendingPhotosBySession.get(sessionId)!.push({ url, path: filepath, filename })
+          console.log(`Photo stored as pending for session ${sessionId}`)
         }
-        pendingPhotosBySession.get(sessionId)!.push({ url, path: filepath, filename })
-        console.log(`Photo stored as pending for session ${sessionId}`)
-      }
 
-      results.push({ url, path: filepath, filename })
+        results.push({ url, path: filepath, filename })
+      } catch (fileErr) {
+        console.error('File processing failed', {
+          filename: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          error: fileErr,
+        })
+        return res.status(500).json({
+          error: 'Failed to process image',
+          message: fileErr instanceof Error ? fileErr.message : 'Unknown error',
+        })
+      }
     }
 
     // Keep backwards compatibility: return first url plus full list
     const first = results[0]
     res.json({ url: first?.url, filename: first?.filename, photos: results.map((r) => ({ url: r.url, filename: r.filename })) })
   } catch (error) {
-    console.error('Error uploading photo:', error)
-    res.status(500).json({ error: 'Failed to upload photo' })
+    console.error('Error uploading photo:', {
+      error,
+      filesMeta: Array.isArray(req.files)
+        ? (req.files as Express.Multer.File[]).map((f) => ({
+            originalname: f.originalname,
+            mimetype: f.mimetype,
+            size: f.size,
+          }))
+        : undefined,
+      uploadDir: UPLOAD_DIR,
+      sessionId: req.params.sessionId,
+    })
+    res.status(500).json({
+      error: 'Failed to upload photo',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    })
   }
 }
 
