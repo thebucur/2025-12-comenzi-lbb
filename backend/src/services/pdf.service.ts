@@ -147,7 +147,15 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: { 
-        photos: true
+        photos: {
+          select: {
+            id: true,
+            url: true,
+            path: true,
+            isFoaieDeZahar: true,
+            createdAt: true,
+          },
+        },
       },
     })
 
@@ -155,27 +163,17 @@ export const generatePDF = async (orderId: string): Promise<string> => {
       throw new Error('Order not found')
     }
 
+    // Debug: Log all photos and their isFoaieDeZahar status
+    console.log(`Order #${order.orderNumber} has ${order.photos.length} photos:`)
+    order.photos.forEach((photo, index) => {
+      console.log(`  Photo ${index + 1}: isFoaieDeZahar = ${photo.isFoaieDeZahar} (type: ${typeof photo.isFoaieDeZahar})`)
+    })
+
     // Filter out foaie de zahar photos from regular photos
-    // Handle case where isFoaieDeZahar field might not exist (migration not run yet)
-    let regularPhotos = order.photos
-    let foaieDeZaharPhoto = null
+    let regularPhotos = order.photos.filter(photo => photo.isFoaieDeZahar !== true)
+    let foaieDeZaharPhoto = order.photos.find(photo => photo.isFoaieDeZahar === true) || null
     
-    try {
-      // Try to filter photos if isFoaieDeZahar field exists
-      regularPhotos = order.photos.filter(photo => {
-        // Safely check if isFoaieDeZahar exists and is true
-        const isFoaieDeZahar = (photo as any).isFoaieDeZahar
-        return !isFoaieDeZahar
-      })
-      
-      // Check if order has foaie de zahar photo
-      foaieDeZaharPhoto = order.photos.find(photo => (photo as any).isFoaieDeZahar === true) || null
-    } catch (err) {
-      // If field doesn't exist, use all photos as regular photos
-      console.warn('isFoaieDeZahar field not available, using all photos as regular photos')
-      regularPhotos = order.photos
-      foaieDeZaharPhoto = null
-    }
+    console.log(`Filtered: ${regularPhotos.length} regular photos, ${foaieDeZaharPhoto ? '1' : '0'} foaie de zahar photo`)
 
     console.log(`Order found: ${order.orderNumber}`)
 
@@ -431,13 +429,11 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     }
   }
 
-  // Add "ARE FOAIE DE ZAHAR" text at the end if photo exists
+  // Add "ARE FOAIE DE ZAHAR" text at the very bottom of the page if photo exists
+  // This should be the last thing added to the PDF
   if (foaieDeZaharPhoto) {
-    doc.moveDown(0.4)
-    
     const cleanText = removeDiacritics('ARE FOAIE DE ZAHAR')
     const x = margins.left
-    const y = doc.y
     
     // Calculate the height needed for the text
     const textHeight = doc.font(fontBold).fontSize(12).heightOfString(cleanText, {
@@ -446,12 +442,17 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     
     // Add padding for the background
     const padding = 4
+    const totalHeight = textHeight + padding * 2
+    
+    // Always place at the bottom of the page, above the bottom margin
+    // This ensures it's always at the end, regardless of content length
+    const finalY = doc.page.height - margins.bottom - totalHeight
     
     // Save graphics state
     doc.save()
     
     // Draw yellow background rectangle
-    doc.rect(x - padding, y - padding, leftColumnWidth + padding * 2, textHeight + padding * 2)
+    doc.rect(x - padding, finalY - padding, leftColumnWidth + padding * 2, totalHeight)
     doc.fillAndStroke('#FFFF00', '#FFFF00')
     
     // Restore graphics state
@@ -459,11 +460,10 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     
     // Now draw the red text on top
     doc.fillColor('#FF0000')
-    doc.font(fontBold).fontSize(12).text(cleanText, x, y, {
+    doc.font(fontBold).fontSize(12).text(cleanText, x, finalY, {
       width: leftColumnWidth,
     })
     doc.fillColor(textColor) // Reset to default text color
-    doc.moveDown(0.2)
   }
 
   doc.end()

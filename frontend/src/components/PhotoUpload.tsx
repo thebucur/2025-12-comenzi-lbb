@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useState, useRef, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import api from '../services/api'
 
 // Helper function to convert relative URL to absolute using the same baseURL as axios
@@ -29,6 +29,10 @@ const getAbsoluteUrl = (relativeUrl: string): string => {
 
 function PhotoUpload() {
   const { sessionId } = useParams<{ sessionId: string }>()
+  const [searchParams] = useSearchParams()
+  const uploadType = searchParams.get('type') // 'foaie-de-zahar' or null for regular photos
+  const isFoaieDeZahar = uploadType === 'foaie-de-zahar'
+  
   const [photos, setPhotos] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -54,7 +58,7 @@ function PhotoUpload() {
             const canvas = document.createElement('canvas')
             let width = img.width
             let height = img.height
-            const maxDimension = 2000
+            const maxDimension = 1000 // Compress to max 1000x1000 px
 
             if (width > height) {
               if (width > maxDimension) {
@@ -116,21 +120,39 @@ function PhotoUpload() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const existingCount = photos.length
-    const remainingSlots = 3 - existingCount
-
-    if (remainingSlots <= 0) {
-      alert('Poți încărca maximum 3 poze.')
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+    // For foaie de zahar: only 1 file allowed
+    if (isFoaieDeZahar) {
+      if (photos.length >= 1) {
+        alert('Poți încărca doar o singură foaie de zahar.')
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        return
       }
-      return
+      if (files.length > 1) {
+        alert('Ai ales prea multe fișiere. Se va încărca doar primul fișier.')
+      }
+    } else {
+      // For regular photos: max 3 files
+      const existingCount = photos.length
+      const remainingSlots = 3 - existingCount
+
+      if (remainingSlots <= 0) {
+        alert('Poți încărca maximum 3 poze.')
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        return
+      }
+
+      if (files.length > remainingSlots) {
+        alert(`Ai ales prea multe poze. Se vor încărca doar primele ${remainingSlots}.`)
+      }
     }
 
-    const filesToProcess = Array.from(files).slice(0, remainingSlots)
-    if (files.length > remainingSlots) {
-      alert(`Ai ales prea multe poze. Se vor încărca doar primele ${remainingSlots}.`)
-    }
+    const filesToProcess = isFoaieDeZahar 
+      ? Array.from(files).slice(0, 1) // Only first file for foaie de zahar
+      : Array.from(files).slice(0, 3 - photos.length) // Up to remaining slots for photos
 
     if (!sessionId) {
       alert('Eroare: ID sesiune lipsă')
@@ -189,25 +211,42 @@ function PhotoUpload() {
             continue
           }
 
-          console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`)
-          const compressed = await compressImage(file)
-          console.log(`Compressed to ${(compressed.size / 1024 / 1024).toFixed(2)}MB`)
-          
-          // Ensure we have a valid blob
-          if (!compressed || compressed.size === 0) {
-            uploadErrors.push(`${file.name}: Eroare la compresia imaginii`)
-            continue
+          const formData = new FormData()
+          let fileToUpload: Blob | File
+          let filename: string
+
+          if (isFoaieDeZahar) {
+            // For foaie de zahar: upload original file without compression
+            fileToUpload = file
+            filename = file.name
+            formData.append('photo', fileToUpload, filename)
+            console.log(`Uploading foaie de zahar ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB, uncompressed)...`)
+          } else {
+            // For regular photos: compress to 1000x1000
+            console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`)
+            const compressed = await compressImage(file)
+            console.log(`Compressed to ${(compressed.size / 1024 / 1024).toFixed(2)}MB`)
+            
+            // Ensure we have a valid blob
+            if (!compressed || compressed.size === 0) {
+              uploadErrors.push(`${file.name}: Eroare la compresia imaginii`)
+              continue
+            }
+
+            fileToUpload = compressed
+            // Use the original filename but ensure .jpg extension for compressed images
+            filename = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
+            formData.append('photo', fileToUpload, filename)
+            console.log(`Uploading ${file.name} to ${apiBaseURL}/upload/${sessionId}...`)
           }
 
-          const formData = new FormData()
-          // Use the original filename but ensure .jpg extension for compressed images
-          const filename = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
-          formData.append('photo', compressed, filename)
-
-          console.log(`Uploading ${file.name} to ${apiBaseURL}/upload/${sessionId}...`)
+          // Use different endpoint based on upload type
+          const uploadEndpoint = isFoaieDeZahar 
+            ? `/upload/${sessionId}/foaie-de-zahar`
+            : `/upload/${sessionId}`
           
           // Don't set Content-Type header manually - let axios set it with proper boundary
-          const response = await api.post(`/upload/${sessionId}`, formData, {
+          const response = await api.post(uploadEndpoint, formData, {
             timeout: 120000, // 2 minutes timeout for large files
             onUploadProgress: (progressEvent) => {
               if (progressEvent.total) {
@@ -333,38 +372,47 @@ function PhotoUpload() {
   return (
     <div className="min-h-screen bg-dark-navy text-white p-4">
       <div className="max-w-md mx-auto">
-        <h1 className="text-2xl font-bold mb-6 text-center">Încarcă poze</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          {isFoaieDeZahar ? '📄 Încarcă foaie de zahar' : '📸 Încarcă poze'}
+        </h1>
         
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            multiple
+            multiple={!isFoaieDeZahar}
             onChange={handleFileSelect}
-            disabled={uploading}
+            disabled={uploading || (isFoaieDeZahar && photos.length >= 1)}
             className="hidden"
             id="file-input"
           />
           <label
             htmlFor="file-input"
             className={`block w-full py-4 px-6 text-center rounded-lg cursor-pointer transition-all ${
-              uploading
+              uploading || (isFoaieDeZahar && photos.length >= 1)
                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 : 'bg-neon-pink hover:bg-neon-pink/90'
             }`}
           >
-            {uploading ? 'Se încarcă...' : 'Selectează poze'}
+            {uploading ? 'Se încarcă...' : isFoaieDeZahar ? 'Selectează foaie de zahar' : 'Selectează poze'}
           </label>
           <p className="text-sm text-gray-400 mt-3 text-center">
-            Maxim 3 poze (mai poți adăuga {Math.max(3 - photos.length, 0)})
+            {isFoaieDeZahar 
+              ? photos.length >= 1 
+                ? 'Foaie de zahar încărcată (1/1)' 
+                : 'O singură imagine, necomprimată (0/1)'
+              : `Maxim 3 poze (mai poți adăuga ${Math.max(3 - photos.length, 0)})`
+            }
           </p>
         </div>
 
         {photos.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold mb-4">Poze încărcate ({photos.length})</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <h2 className="text-xl font-semibold mb-4">
+              {isFoaieDeZahar ? 'Foaie de zahar încărcată' : `Poze încărcate (${photos.length})`}
+            </h2>
+            <div className={`grid gap-4 ${isFoaieDeZahar ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {photos.map((photo, index) => {
                 console.log(`Rendering photo ${index + 1}:`, photo)
                 // Use photo URL as key to ensure proper re-rendering
@@ -409,7 +457,7 @@ function PhotoUpload() {
           </div>
         )}
 
-        {photos.length > 0 && !sent && (
+        {photos.length > 0 && !sent && !isFoaieDeZahar && (
           <div className="mt-6">
             <button
               onClick={async () => {
@@ -449,10 +497,17 @@ function PhotoUpload() {
           </div>
         )}
         
-        {sent && (
+        {sent && !isFoaieDeZahar && (
           <div className="mt-6 text-center">
             <p className="text-green-400 mb-2 text-lg font-semibold">✅ Pozele au fost trimise!</p>
             <p className="text-gray-400 text-sm">Pozele vor apărea în aplicația principală</p>
+          </div>
+        )}
+
+        {isFoaieDeZahar && photos.length > 0 && (
+          <div className="mt-6 text-center">
+            <p className="text-green-400 mb-2 text-lg font-semibold">✅ Foaia de zahar a fost încărcată!</p>
+            <p className="text-gray-400 text-sm">Foaia de zahar va fi disponibilă în panoul de administrare</p>
           </div>
         )}
         

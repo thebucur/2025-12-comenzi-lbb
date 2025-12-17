@@ -148,12 +148,15 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
   // Link pending foaie de zahar photo if exists
   const pendingFoaieDeZahar = pendingFoaieDeZaharBySession.get(sessionId)
   if (pendingFoaieDeZahar) {
-    console.log(`Linking pending foaie de zahar photo to order ${orderId}`)
+    console.log(`Linking pending foaie de zahar photo to order ${orderId}`, {
+      url: pendingFoaieDeZahar.url,
+      path: pendingFoaieDeZahar.path,
+      isFoaieDeZahar: pendingFoaieDeZahar.isFoaieDeZahar,
+    })
     
     try {
       // Try to save the foaie de zahar photo with the flag
-      // This may fail if migration hasn't been applied
-      await prisma.photo.create({
+      const createdPhoto = await prisma.photo.create({
         data: {
           orderId,
           url: pendingFoaieDeZahar.url,
@@ -162,12 +165,27 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
         },
       })
       
-      console.log(`Successfully linked foaie de zahar photo to order ${orderId}`)
+      console.log(`Successfully linked foaie de zahar photo to order ${orderId}`, {
+        photoId: createdPhoto.id,
+        isFoaieDeZahar: createdPhoto.isFoaieDeZahar,
+      })
+      
+      // Verify it was saved correctly
+      const verifyPhoto = await prisma.photo.findUnique({
+        where: { id: createdPhoto.id },
+        select: { id: true, isFoaieDeZahar: true, url: true },
+      })
+      console.log(`Verified foaie de zahar photo in DB:`, verifyPhoto)
       
       // Clear pending foaie de zahar photo for this session
       pendingFoaieDeZaharBySession.delete(sessionId)
     } catch (error: any) {
       console.error('Error linking pending foaie de zahar photo to order:', error)
+      console.error('Error details:', {
+        code: error?.code,
+        message: error?.message,
+        meta: error?.meta,
+      })
       
       // If it's a column not found error (P2022), try saving without the flag
       if (error?.code === 'P2022') {
@@ -187,6 +205,8 @@ export const linkSessionToOrder = async (sessionId: string, orderId: string) => 
       }
       // Don't throw - order is already created
     }
+  } else {
+    console.log(`No pending foaie de zahar photo found for session ${sessionId}`)
   }
 }
 
@@ -205,7 +225,18 @@ export const getPhotosBySessionId = async (req: Request, res: Response) => {
       filename: photo.filename,
     }))
     
-    res.json({ photos, count: photos.length })
+    // Also check for foaie de zahar
+    const pendingFoaieDeZahar = pendingFoaieDeZaharBySession.get(sessionId)
+    const foaieDeZahar = pendingFoaieDeZahar ? {
+      url: pendingFoaieDeZahar.url,
+      filename: pendingFoaieDeZahar.filename,
+    } : null
+    
+    res.json({ 
+      photos, 
+      count: photos.length,
+      foaieDeZahar 
+    })
   } catch (error) {
     console.error('Error getting photos by session:', error)
     res.status(500).json({ error: 'Failed to get photos' })

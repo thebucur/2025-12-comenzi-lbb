@@ -12,6 +12,9 @@ import axios from 'axios'
 const defaultCoatings: Coating[] = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
 const defaultDecorTypes = ['SIMPLU', 'MEDIU', 'COMPLEX', 'PREMIUM']
 
+// Type for upload modal
+type UploadModalType = 'photos' | 'foaieDeZahar' | null
+
 function Screen3Decor() {
   const { order, updateOrder } = useOrder()
   const config = useInstallationConfig()
@@ -22,6 +25,7 @@ function Screen3Decor() {
   const [showIPInput, setShowIPInput] = useState(false)
   const [isLocalUploading, setIsLocalUploading] = useState(false)
   const [isFoaieDeZaharUploading, setIsFoaieDeZaharUploading] = useState(false)
+  const [uploadModalType, setUploadModalType] = useState<UploadModalType>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const currentTextareaRef = useRef<'decorDetails' | 'observations' | null>(null)
   const photoPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -57,19 +61,21 @@ function Screen3Decor() {
     return `${backendURL}${url}`
   }
 
-  // Poll for photos by session ID
+  // Poll for photos and foaie de zahar by session ID
   const startPhotoPolling = (sessionId: string) => {
     // Clear any existing interval
     if (photoPollIntervalRef.current) {
       clearInterval(photoPollIntervalRef.current)
     }
 
-    // Poll every 2 seconds for new photos
+    // Poll every 2 seconds for new photos and foaie de zahar
     photoPollIntervalRef.current = setInterval(async () => {
       try {
         const response = await api.get(`/upload/${sessionId}/photos`)
         const photos = response.data.photos || []
+        const foaieDeZahar = response.data.foaieDeZahar || null
         
+        // Handle regular photos
         if (photos.length > 0) {
           // Convert relative URLs to absolute URLs
           const absolutePhotoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
@@ -82,6 +88,19 @@ function Screen3Decor() {
             console.log(`📸 Found ${newPhotos.length} new photos for session ${sessionId}`)
             updateOrder({
               photos: [...existingPhotos, ...newPhotos]
+            })
+          }
+        }
+        
+        // Handle foaie de zahar
+        if (foaieDeZahar && foaieDeZahar.url) {
+          const absoluteFoaieDeZaharUrl = getAbsoluteUrl(foaieDeZahar.url)
+          
+          // Only update if it's different from current
+          if (order.foaieDeZaharPhoto !== absoluteFoaieDeZaharUrl) {
+            console.log(`📄 Found foaie de zahar for session ${sessionId}`)
+            updateOrder({
+              foaieDeZaharPhoto: absoluteFoaieDeZaharUrl
             })
           }
         }
@@ -130,14 +149,17 @@ function Screen3Decor() {
     }
   }
 
-  const generateQRCode = async () => {
+  const generateQRCode = async (type: 'photos' | 'foaieDeZahar' = 'photos') => {
     try {
       // Generate a session ID for this upload session
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Use local network URL instead of localhost for mobile access
       const baseUrl = getLocalNetworkUrl();
-      const uploadUrl = `${baseUrl}/upload/${sessionId}`;
+      // Use query parameter to indicate upload type (frontend route is /upload/:sessionId)
+      const uploadUrl = type === 'foaieDeZahar' 
+        ? `${baseUrl}/upload/${sessionId}?type=foaie-de-zahar`
+        : `${baseUrl}/upload/${sessionId}`;
       
       // Check if we need to warn about localhost
       const localIP = getLocalNetworkIP();
@@ -152,11 +174,12 @@ function Screen3Decor() {
       const dataUrl = await QRCode.toDataURL(uploadUrl);
       setQrCodeDataUrl(dataUrl);
       setShowQRCode(true);
+      setUploadModalType(null); // Close the upload type modal
       
       // Store session ID for later use when order is submitted
       localStorage.setItem('currentUploadSession', sessionId);
       
-      // Start polling for new photos
+      // Start polling for new photos and foaie de zahar
       startPhotoPolling(sessionId);
     } catch (error) {
       console.error('Error generating QR code:', error);
@@ -175,6 +198,7 @@ function Screen3Decor() {
 
   const handleLocalUploadClick = () => {
     ensureUploadSession()
+    setUploadModalType(null) // Close the modal
     fileInputRef.current?.click()
   }
 
@@ -214,6 +238,7 @@ function Screen3Decor() {
 
   const handleFoaieDeZaharClick = () => {
     ensureUploadSession()
+    setUploadModalType(null) // Close the modal
     foaieDeZaharInputRef.current?.click()
   }
 
@@ -463,46 +488,90 @@ function Screen3Decor() {
       {/* Photo Upload Section */}
       <div className="card-neumorphic">
         <h3 className="text-xl font-bold text-secondary mb-6">📸 Poze model</h3>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        
+        {/* Hidden file inputs */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleLocalFilesSelected}
+        />
+        <input
+          ref={foaieDeZaharInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFoaieDeZaharSelected}
+        />
+        
+        {/* Two main buttons */}
+        <div className="flex flex-col sm:flex-row gap-4">
           <button
-            onClick={generateQRCode}
-            className="btn-active px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300"
+            onClick={() => setUploadModalType('photos')}
+            disabled={order.photos.length >= 3 || isLocalUploading}
+            className={`flex-1 px-8 py-6 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 ${
+              order.photos.length >= 3 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'btn-active'
+            }`}
           >
-            📱 SCANEAZĂ CODUL QR PENTRU POZE
+            {isLocalUploading ? 'Se încarcă...' : `📸 ÎNCARCĂ POZE (${order.photos.length}/3)`}
           </button>
-          <div className="sm:w-px sm:h-10 sm:bg-gradient-to-b sm:from-transparent sm:via-gray-300 sm:to-transparent sm:mx-2" />
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleLocalFilesSelected}
-            />
-            <button
-              onClick={handleLocalUploadClick}
-              disabled={isLocalUploading}
-              className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 disabled:opacity-60"
-            >
-              {isLocalUploading ? 'Se încarcă...' : '📂 Încarcă din device'}
-            </button>
-            <input
-              ref={foaieDeZaharInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFoaieDeZaharSelected}
-            />
-            <button
-              onClick={handleFoaieDeZaharClick}
-              disabled={isFoaieDeZaharUploading}
-              className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 disabled:opacity-60 bg-yellow-500/20 border-2 border-yellow-500/50"
-            >
-              {isFoaieDeZaharUploading ? 'Se încarcă...' : '📄 Încarcă foaie de zahar'}
-            </button>
-          </div>
+          <button
+            onClick={() => setUploadModalType('foaieDeZahar')}
+            disabled={!!order.foaieDeZaharPhoto || isFoaieDeZaharUploading}
+            className={`flex-1 px-8 py-6 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 ${
+              order.foaieDeZaharPhoto 
+                ? 'bg-green-100 text-green-700 border-2 border-green-500' 
+                : 'bg-yellow-500/20 border-2 border-yellow-500/50 text-secondary'
+            }`}
+          >
+            {isFoaieDeZaharUploading ? 'Se încarcă...' : order.foaieDeZaharPhoto ? '✅ FOAIE DE ZAHAR ÎNCĂRCATĂ' : '📄 ÎNCARCĂ FOAIE DE ZAHAR'}
+          </button>
         </div>
+
+        {/* Upload Type Modal */}
+        {uploadModalType && (
+          <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="glass-card max-w-md w-full p-8 animate-float">
+              <h3 className="text-2xl font-bold text-gradient mb-6 text-center">
+                {uploadModalType === 'photos' ? '📸 Încarcă Poze' : '📄 Încarcă Foaie de Zahar'}
+              </h3>
+              <p className="text-center text-secondary/70 mb-6">
+                {uploadModalType === 'photos' 
+                  ? `Alege metoda de încărcare (max 3 poze, ${3 - order.photos.length} disponibile)`
+                  : 'Alege metoda de încărcare (1 imagine, neccomprimată)'
+                }
+              </p>
+              
+              <div className="flex flex-col gap-4">
+                <button
+                  onClick={() => generateQRCode(uploadModalType)}
+                  className="btn-active px-8 py-6 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+                >
+                  📱 CLIENT
+                  <span className="text-sm font-normal opacity-80">(Scanează QR)</span>
+                </button>
+                <button
+                  onClick={uploadModalType === 'photos' ? handleLocalUploadClick : handleFoaieDeZaharClick}
+                  className="btn-neumorphic px-8 py-6 rounded-2xl font-bold text-xl text-secondary hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+                >
+                  💻 LOCAL
+                  <span className="text-sm font-normal opacity-80">(Din device)</span>
+                </button>
+              </div>
+              
+              <button
+                onClick={() => setUploadModalType(null)}
+                className="mt-6 w-full btn-neumorphic py-4 rounded-2xl font-bold text-secondary hover:scale-102 transition-all"
+              >
+                ✕ Anulează
+              </button>
+            </div>
+          </div>
+        )}
 
         {order.foaieDeZaharPhoto && (
           <div className="mt-4 p-4 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-2xl">
@@ -526,9 +595,9 @@ function Screen3Decor() {
         {showQRCode && (
           <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="glass-card max-w-lg w-full p-8 animate-float">
-              <h3 className="text-2xl font-bold text-gradient mb-6 text-center">Scanați codul QR</h3>
+              <h3 className="text-2xl font-bold text-gradient mb-6 text-center">📱 Scanați codul QR</h3>
               <p className="text-center text-secondary/70 mb-6">
-                Folosiți camera telefonului pentru a scana codul și a încărca poze
+                Folosiți camera telefonului pentru a scana codul și a încărca imaginea
               </p>
               
               {!getLocalNetworkIP() && import.meta.env.DEV && (
@@ -551,7 +620,7 @@ function Screen3Decor() {
                             localStorage.setItem('localNetworkIP', localIP)
                             setShowIPInput(false)
                             // Regenerate QR code with new IP
-                            generateQRCode()
+                            generateQRCode('photos')
                           }
                         }}
                         className="px-4 py-2 bg-neon-pink rounded-lg font-semibold hover:bg-neon-pink/90"

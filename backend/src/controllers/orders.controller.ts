@@ -280,7 +280,15 @@ export const listOrders = async (req: Request, res: Response) => {
     const orders = await prisma.order.findMany({
       where,
       include: { 
-        photos: true,
+        photos: {
+          select: {
+            id: true,
+            url: true,
+            path: true,
+            isFoaieDeZahar: true,
+            createdAt: true,
+          },
+        },
         pickedUpBy: {
           select: {
             id: true,
@@ -289,6 +297,14 @@ export const listOrders = async (req: Request, res: Response) => {
         },
       },
       orderBy: { createdAt: 'desc' },
+    })
+
+    // Debug: Log orders with foaie de zahar
+    orders.forEach(order => {
+      const foaieDeZaharPhotos = order.photos.filter(photo => photo.isFoaieDeZahar === true)
+      if (foaieDeZaharPhotos.length > 0) {
+        console.log(`Order #${order.orderNumber} has ${foaieDeZaharPhotos.length} foaie de zahar photo(s)`)
+      }
     })
 
     res.json(orders)

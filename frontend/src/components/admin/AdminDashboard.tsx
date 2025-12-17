@@ -378,6 +378,14 @@ function AdminDashboard() {
     try {
       const response = await api.get('/orders')
       setOrders(response.data)
+      
+      // Debug: Log orders with foaie de zahar
+      response.data.forEach((order: Order) => {
+        const foaieDeZaharPhotos = order.photos?.filter(photo => photo.isFoaieDeZahar) || []
+        if (foaieDeZaharPhotos.length > 0) {
+          console.log(`Order #${order.orderNumber} has foaie de zahar:`, foaieDeZaharPhotos)
+        }
+      })
     } catch (error) {
       console.error('Error fetching orders:', error)
     } finally {
@@ -591,7 +599,19 @@ function AdminDashboard() {
                           ? new Date(order.createdAt).toLocaleDateString('ro-RO')
                           : '-'
                         
-                        const hasFoaieDeZahar = order.photos?.some(photo => photo.isFoaieDeZahar) || false
+                        // Check if any photo has isFoaieDeZahar set to true (explicitly check for true)
+                        const hasFoaieDeZahar = order.photos?.some(photo => photo.isFoaieDeZahar === true) || false
+                        
+                        // Debug log - log all photos to see what we're getting
+                        if (order.photos && order.photos.length > 0) {
+                          console.log(`Order #${order.orderNumber} - All photos:`, order.photos.map(p => ({ 
+                            id: p.id, 
+                            isFoaieDeZahar: p.isFoaieDeZahar, 
+                            type: typeof p.isFoaieDeZahar 
+                          })))
+                          const foaieDeZaharPhotos = order.photos.filter(photo => photo.isFoaieDeZahar === true)
+                          console.log(`Order #${order.orderNumber} - hasFoaieDeZahar: ${hasFoaieDeZahar}, found ${foaieDeZaharPhotos.length} foaie de zahar photos`)
+                        }
                         
                         return (
                           <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
