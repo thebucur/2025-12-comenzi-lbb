@@ -1,13 +1,11 @@
 import { Router } from 'express'
 import { uploadPhoto, linkSessionToOrder, getPhotosBySessionId, markPhotosAsSent } from '../controllers/upload.controller'
-import uploadMiddleware, { uploadPhotos, uploadAny } from '../middleware/upload.middleware'
+import uploadMiddleware, { uploadAny } from '../middleware/upload.middleware'
 
 const router = Router()
 
-// Accept both single and multiple files, and tolerate different field names
-router.post('/:sessionId', uploadPhotos, uploadPhoto)
-// fallback route to ensure older clients still work (any field name)
-router.post('/:sessionId/any', uploadAny, uploadPhoto)
+// Accept both single and multiple files, and tolerate any field name
+router.post('/:sessionId', uploadAny, uploadPhoto)
 
 // Endpoint to get photos by session ID
 router.get('/:sessionId/photos', getPhotosBySessionId)
