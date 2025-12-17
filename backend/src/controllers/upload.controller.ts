@@ -250,6 +250,12 @@ export const getPhotosBySessionId = async (req: Request, res: Response) => {
       filename: pendingFoaieDeZahar.filename,
     } : null
     
+    console.log(`Getting photos for session ${sessionId}:`, {
+      photosCount: photos.length,
+      hasFoaieDeZahar: !!foaieDeZahar,
+      foaieDeZaharUrl: foaieDeZahar?.url,
+    })
+    
     res.json({ 
       photos, 
       count: photos.length,

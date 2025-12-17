@@ -109,13 +109,26 @@ function Screen3Decor() {
         if (foaieDeZahar && foaieDeZahar.url) {
           const absoluteFoaieDeZaharUrl = getAbsoluteUrl(foaieDeZahar.url)
           
+          console.log(`📄 Polling found foaie de zahar for session ${sessionId}:`, {
+            relativeUrl: foaieDeZahar.url,
+            absoluteUrl: absoluteFoaieDeZaharUrl,
+            currentFoaieDeZahar: order.foaieDeZaharPhoto,
+            isDifferent: order.foaieDeZaharPhoto !== absoluteFoaieDeZaharUrl,
+          })
+          
           // Only update if it's different from current
           if (order.foaieDeZaharPhoto !== absoluteFoaieDeZaharUrl) {
-            console.log(`📄 Found foaie de zahar for session ${sessionId}`)
+            console.log(`📄 Updating foaie de zahar in order context`)
             updateOrder({
               foaieDeZaharPhoto: absoluteFoaieDeZaharUrl
             })
           }
+        } else {
+          // Debug: log when foaie de zahar is not found
+          console.log(`📄 No foaie de zahar found in polling response for session ${sessionId}`, {
+            responseData: response.data,
+            foaieDeZahar: response.data?.foaieDeZahar,
+          })
         }
       } catch (error) {
         // Silently fail - session might not exist yet or no photos uploaded
@@ -164,8 +177,18 @@ function Screen3Decor() {
 
   const generateQRCode = async (type: 'photos' | 'foaieDeZahar' = 'photos') => {
     try {
-      // Generate a session ID for this upload session
-      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Use the same session ID for both photos and foaie de zahar
+      // This ensures all uploads are linked to the same session
+      let sessionId = localStorage.getItem('currentUploadSession')
+      
+      if (!sessionId) {
+        // Generate a new session ID if none exists
+        sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        localStorage.setItem('currentUploadSession', sessionId)
+        console.log(`Created new upload session: ${sessionId}`)
+      } else {
+        console.log(`Using existing upload session: ${sessionId}`)
+      }
       
       // Use local network URL instead of localhost for mobile access
       const baseUrl = getLocalNetworkUrl();
@@ -173,6 +196,12 @@ function Screen3Decor() {
       const uploadUrl = type === 'foaieDeZahar' 
         ? `${baseUrl}/upload/${sessionId}?type=foaie-de-zahar`
         : `${baseUrl}/upload/${sessionId}`;
+      
+      console.log(`Generating QR code for ${type}:`, {
+        sessionId,
+        uploadUrl,
+        baseUrl,
+      })
       
       // Check if we need to warn about localhost
       const localIP = getLocalNetworkIP();
@@ -189,29 +218,9 @@ function Screen3Decor() {
       setShowQRCode(true);
       setUploadModalType(null); // Close the upload type modal
       
-      // Store session ID for later use when order is submitted
-      // Use the same session ID for both photos and foaie de zahar
-      // This ensures all uploads are linked to the same session
-      const existingSessionId = localStorage.getItem('currentUploadSession')
-      if (!existingSessionId) {
-        localStorage.setItem('currentUploadSession', sessionId)
-      } else {
-        // Use existing session ID to keep all uploads in the same session
-        const finalSessionId = existingSessionId
-        // Regenerate QR code with existing session ID
-        const baseUrl = getLocalNetworkUrl()
-        const uploadUrl = type === 'foaieDeZahar' 
-          ? `${baseUrl}/upload/${finalSessionId}?type=foaie-de-zahar`
-          : `${baseUrl}/upload/${finalSessionId}`
-        const dataUrl = await QRCode.toDataURL(uploadUrl)
-        setQrCodeDataUrl(dataUrl)
-        setShowQRCode(true)
-        setUploadModalType(null)
-        startPhotoPolling(finalSessionId)
-        return
-      }
-      
       // Start polling for new photos and foaie de zahar
+      // Make sure polling is started with the correct session ID
+      console.log(`Starting photo polling for session: ${sessionId}`)
       startPhotoPolling(sessionId)
     } catch (error) {
       console.error('Error generating QR code:', error);
