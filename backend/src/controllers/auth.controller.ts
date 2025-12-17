@@ -30,6 +30,7 @@ export const login = async (req: Request, res: Response) => {
     res.json({
       user: userWithoutPassword,
       token: user.username, // Token is username (matches auth.middleware.ts logic)
+      _deployTest: "v2-" + new Date().toISOString(), // Test to verify deployment
     })
   } catch (error) {
     console.error('Error during login:', error)
