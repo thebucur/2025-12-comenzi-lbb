@@ -655,16 +655,18 @@ function Screen3Decor() {
           </div>
         )}
 
-        {order.foaieDeZaharPhoto && (
+        {order.foaieDeZaharPhoto && (() => {
+          const foaieDeZaharUrl = order.foaieDeZaharPhoto
+          return (
           <div className="mt-4 p-4 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-2xl">
             <p className="text-sm font-bold text-secondary mb-2">✅ Foaie de zahar încărcată</p>
             <div className="relative inline-block">
               <img
-                src={getAbsoluteUrl(order.foaieDeZaharPhoto)}
+                src={getAbsoluteUrl(foaieDeZaharUrl)}
                 alt="Foaie de zahar"
                 className="w-32 h-32 object-cover rounded-lg border-2 border-yellow-500/50"
                 onError={(e) => {
-                  console.error('Error loading foaie de zahar image:', order.foaieDeZaharPhoto, 'Absolute URL:', getAbsoluteUrl(order.foaieDeZaharPhoto))
+                  console.error('Error loading foaie de zahar image:', foaieDeZaharUrl, 'Absolute URL:', getAbsoluteUrl(foaieDeZaharUrl))
                   const target = e.target as HTMLImageElement
                   target.style.display = 'none'
                 }}
@@ -677,7 +679,8 @@ function Screen3Decor() {
               </button>
             </div>
           </div>
-        )}
+          )
+        })()}
 
         {showQRCode && (
           <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
