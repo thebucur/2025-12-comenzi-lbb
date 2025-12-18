@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import JSZip from 'jszip'
 import api from '../../services/api'
 
 interface Photo {
@@ -355,6 +356,8 @@ function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
+  const [isDownloading, setIsDownloading] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [userFormData, setUserFormData] = useState({
@@ -491,6 +494,113 @@ function AdminDashboard() {
     }
   }
 
+  // Group orders by date
+  const groupOrdersByDate = (ordersList: Order[]) => {
+    const grouped = new Map<string, Order[]>()
+    
+    ordersList.forEach((order) => {
+      const date = new Date(order.createdAt)
+      const dateKey = date.toLocaleDateString('ro-RO', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })
+      
+      if (!grouped.has(dateKey)) {
+        grouped.set(dateKey, [])
+      }
+      grouped.get(dateKey)!.push(order)
+    })
+    
+    // Sort orders within each group by createdAt descending (latest first)
+    grouped.forEach((groupOrders) => {
+      groupOrders.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+    })
+    
+    // Convert to array and sort by date descending (latest first)
+    return Array.from(grouped.entries()).sort((a, b) => {
+      const dateA = new Date(a[1][0].createdAt)
+      const dateB = new Date(b[1][0].createdAt)
+      return dateB.getTime() - dateA.getTime()
+    })
+  }
+
+  // Checkbox handlers
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrders((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId)
+      } else {
+        newSet.add(orderId)
+      }
+      return newSet
+    })
+  }
+
+  // Bulk PDF download
+  const handleBulkDownloadPDFs = async () => {
+    if (selectedOrders.size === 0) {
+      alert('Selectați cel puțin o comandă pentru descărcare')
+      return
+    }
+
+    setIsDownloading(true)
+
+    try {
+      const zip = new JSZip()
+      const selectedOrderList = orders.filter((o) => selectedOrders.has(o.id))
+
+      // Process each selected order
+      for (const order of selectedOrderList) {
+        try {
+          // First, try to generate PDF if it doesn't exist
+          try {
+            await api.post(`/orders/${order.id}/generate-pdf`)
+          } catch (error) {
+            // PDF might already exist, continue
+            console.log(`PDF generation for order ${order.orderNumber} skipped or already exists`)
+          }
+
+          // Download the PDF
+          const pdfResponse = await api.get(`/orders/${order.id}/pdf`, {
+            responseType: 'blob',
+          })
+
+          // Add to zip with proper filename
+          const filename = `comanda-${order.orderNumber}.pdf`
+          zip.file(filename, pdfResponse.data)
+        } catch (error) {
+          console.error(`Error processing order ${order.orderNumber}:`, error)
+          // Continue with other orders even if one fails
+        }
+      }
+
+      // Generate zip file
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+
+      // Download the zip file
+      const url = window.URL.createObjectURL(zipBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `comenzi-${new Date().toISOString().split('T')[0]}.zip`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      // Clear selections
+      setSelectedOrders(new Set())
+    } catch (error) {
+      console.error('Error downloading PDFs:', error)
+      alert('Eroare la descărcarea PDF-urilor')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
 
   if (loading) {
     return (
@@ -563,6 +673,27 @@ function AdminDashboard() {
         {/* Orders Tab */}
         {activeTab === 'orders' && (
           <div className="space-y-6">
+            {/* Download Button */}
+            {orders.length > 0 && (
+              <div className="card-neumorphic flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-secondary">Comenzi</h2>
+                  <p className="text-secondary/60">
+                    {selectedOrders.size > 0 
+                      ? `${selectedOrders.size} comandă${selectedOrders.size > 1 ? 'e' : ''} selectată${selectedOrders.size > 1 ? 'e' : ''}`
+                      : 'Selectați comenzi pentru descărcare'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleBulkDownloadPDFs}
+                  disabled={selectedOrders.size === 0 || isDownloading}
+                  className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDownloading ? 'Se creează arhiva...' : 'DESCARCA PDF'}
+                </button>
+              </div>
+            )}
+
             {/* Orders List */}
             <div className="card-neumorphic overflow-hidden">
               {orders.length === 0 ? (
@@ -572,91 +703,136 @@ function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b-2 border-primary">
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Nt.</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Client</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Telefon</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare pe</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Preluat pe</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Locatie</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Detalii</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.map((order) => {
-                        const deliveryText = order.deliveryMethod === 'ridicare' 
-                          ? `Ridicare din ${order.location || 'N/A'}`
-                          : 'Livrare la adresa'
-                        
-                        const deliveryDate = order.pickupDate 
-                          ? new Date(order.pickupDate).toLocaleDateString('ro-RO')
-                          : '-'
-                        
-                        const createdDate = order.createdAt 
-                          ? new Date(order.createdAt).toLocaleDateString('ro-RO')
-                          : '-'
-                        
-                        // Check if any photo has isFoaieDeZahar set to true (explicitly check for true)
-                        const hasFoaieDeZahar = order.photos?.some(photo => photo.isFoaieDeZahar === true) || false
-                        
-                        // Debug log - log all photos to see what we're getting
-                        if (order.photos && order.photos.length > 0) {
-                          console.log(`Order #${order.orderNumber} - All photos:`, order.photos.map(p => ({ 
-                            id: p.id, 
-                            isFoaieDeZahar: p.isFoaieDeZahar, 
-                            type: typeof p.isFoaieDeZahar 
-                          })))
-                          const foaieDeZaharPhotos = order.photos.filter(photo => photo.isFoaieDeZahar === true)
-                          console.log(`Order #${order.orderNumber} - hasFoaieDeZahar: ${hasFoaieDeZahar}, found ${foaieDeZaharPhotos.length} foaie de zahar photos`)
-                        }
-                        
-                        return (
-                          <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
-                            <td className="px-2 py-2 font-bold text-accent-purple text-xs">#{order.orderNumber}</td>
-                            <td className="px-2 py-2 text-secondary text-xs">{order.clientName}</td>
-                            <td className="px-2 py-2 text-secondary text-xs">07{order.phoneNumber}</td>
-                            <td className="px-2 py-2 text-secondary text-xs">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold inline-block ${
-                                order.deliveryMethod === 'ridicare' 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : 'bg-blue-100 text-blue-700'
-                              }`}>
-                                {deliveryText}
-                              </span>
-                            </td>
-                            <td className="px-2 py-2 text-secondary text-xs">{deliveryDate}</td>
-                            <td className="px-2 py-2 text-secondary text-xs">{createdDate}</td>
-                            <td className="px-2 py-2 text-secondary text-xs">{order.createdByUsername || order.staffName || '-'}</td>
-                            <td className="px-2 py-2">
-                              <div className="flex gap-2 items-center">
-                                {hasFoaieDeZahar && (
-                                  <button
-                                    onClick={() => handleDownloadFoaieDeZahar(order.id, order.orderNumber)}
-                                    className="bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all text-yellow-600"
-                                    title="Descarcă foaie de zahar"
-                                  >
-                                    📄
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => navigate(`/admin/orders/${order.id}`)}
-                                  className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all"
-                                >
-                                  Vezi
-                                </button>
-                              </div>
-                            </td>
+                  {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
+                    <div key={dateKey} className="mb-6 last:mb-0">
+                      <h3 className="text-left text-xl font-bold text-secondary mb-3 px-4 pt-4">
+                        {dateKey}
+                      </h3>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b-2 border-primary">
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Nt.</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Client</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Telefon</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare pe</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Preluat pe</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Locatie</th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs w-12">
+                              <input
+                                type="checkbox"
+                                checked={dateOrders.every((o) => selectedOrders.has(o.id)) && dateOrders.length > 0}
+                                onChange={() => {
+                                  const allSelected = dateOrders.every((o) => selectedOrders.has(o.id))
+                                  if (allSelected) {
+                                    setSelectedOrders((prev) => {
+                                      const newSet = new Set(prev)
+                                      dateOrders.forEach((o) => newSet.delete(o.id))
+                                      return newSet
+                                    })
+                                  } else {
+                                    setSelectedOrders((prev) => {
+                                      const newSet = new Set(prev)
+                                      dateOrders.forEach((o) => newSet.add(o.id))
+                                      return newSet
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4 cursor-pointer"
+                              />
+                            </th>
+                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Detalii</th>
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {dateOrders.map((order) => {
+                            const deliveryText = order.deliveryMethod === 'ridicare' 
+                              ? `Ridicare din ${order.location || 'N/A'}`
+                              : 'Livrare la adresa'
+                            
+                            const deliveryDate = order.pickupDate 
+                              ? new Date(order.pickupDate).toLocaleDateString('ro-RO')
+                              : '-'
+                            
+                            const createdDate = order.createdAt 
+                              ? new Date(order.createdAt).toLocaleDateString('ro-RO')
+                              : '-'
+                            
+                            // Check if any photo has isFoaieDeZahar set to true (explicitly check for true)
+                            const hasFoaieDeZahar = order.photos?.some(photo => photo.isFoaieDeZahar === true) || false
+                            
+                            return (
+                              <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
+                                <td className="px-2 py-2 font-bold text-accent-purple text-xs">#{order.orderNumber}</td>
+                                <td className="px-2 py-2 text-secondary text-xs">{order.clientName}</td>
+                                <td className="px-2 py-2 text-secondary text-xs">07{order.phoneNumber}</td>
+                                <td className="px-2 py-2 text-secondary text-xs">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold inline-block ${
+                                    order.deliveryMethod === 'ridicare' 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {deliveryText}
+                                  </span>
+                                </td>
+                                <td className="px-2 py-2 text-secondary text-xs">{deliveryDate}</td>
+                                <td className="px-2 py-2 text-secondary text-xs">{createdDate}</td>
+                                <td className="px-2 py-2 text-secondary text-xs">{order.createdByUsername || order.staffName || '-'}</td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedOrders.has(order.id)}
+                                    onChange={() => handleSelectOrder(order.id)}
+                                    className="w-4 h-4 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <div className="flex gap-2 items-center">
+                                    <button
+                                      onClick={() => navigate(`/admin/orders/${order.id}`)}
+                                      className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all"
+                                    >
+                                      Vezi
+                                    </button>
+                                    {hasFoaieDeZahar && (
+                                      <button
+                                        onClick={() => handleDownloadFoaieDeZahar(order.id, order.orderNumber)}
+                                        className="bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all text-yellow-600"
+                                        title="Descarcă foaie de zahar"
+                                      >
+                                        📄
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+
+            {/* Loading Overlay */}
+            {isDownloading && (
+              <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="glass-card p-8 animate-float">
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple mb-4 animate-float">
+                      <svg className="animate-spin h-10 w-10 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                    <p className="text-2xl font-bold text-gradient">Se creează arhiva PDF...</p>
+                    <p className="text-secondary/60 mt-2">Vă rugăm să așteptați</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
