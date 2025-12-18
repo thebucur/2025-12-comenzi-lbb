@@ -401,17 +401,62 @@ function AdminDashboard() {
       const response = await api.get(`/admin/orders/${orderId}/foaie-de-zahar`, {
         responseType: 'blob',
       })
+      
+      // Check if response is actually a blob or an error JSON
+      if (response.data.type && response.data.type.includes('application/json')) {
+        // Response is JSON error, parse it
+        const text = await response.data.text()
+        const errorData = JSON.parse(text)
+        alert(`Eroare: ${errorData.message || errorData.error || 'Eroare necunoscută la descărcarea foii de zahar'}`)
+        return
+      }
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers['content-disposition']
+      let filename = `foaie-de-zahar-order-${orderNumber}.jpg`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `foaie-de-zahar-order-${orderNumber}.jpg`)
+      link.setAttribute('download', filename)
       document.body.appendChild(link)
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error downloading foaie de zahar:', err)
-      alert('Eroare la descărcarea foii de zahar')
+      
+      // Try to extract error message from response
+      let errorMessage = 'Eroare la descărcarea foii de zahar'
+      if (err.response) {
+        if (err.response.data) {
+          try {
+            // If error response is blob, try to parse it
+            if (err.response.data instanceof Blob) {
+              const text = await err.response.data.text()
+              const errorData = JSON.parse(text)
+              errorMessage = errorData.message || errorData.error || errorMessage
+            } else if (typeof err.response.data === 'object') {
+              errorMessage = err.response.data.message || err.response.data.error || errorMessage
+            }
+          } catch (parseError) {
+            // If parsing fails, use status text
+            errorMessage = err.response.statusText || errorMessage
+          }
+        } else {
+          errorMessage = err.response.statusText || errorMessage
+        }
+      } else if (err.message) {
+        errorMessage = err.message
+      }
+      
+      alert(errorMessage)
     }
   }
 

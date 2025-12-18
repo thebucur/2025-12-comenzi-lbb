@@ -238,6 +238,7 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     }
 
     const fs = require('fs')
+    const fsPromises = require('fs/promises')
     const path = require('path')
     const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
     
@@ -364,11 +365,65 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Photo file path could not be resolved' })
     }
 
-    console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${resolvedPath}`)
-    res.download(resolvedPath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(resolvedPath)}`)
-  } catch (error) {
+    // Ensure path is absolute (required by res.sendFile)
+    const absolutePath = path.isAbsolute(resolvedPath) 
+      ? resolvedPath 
+      : path.resolve(resolvedPath)
+    
+    console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${absolutePath}`)
+    
+    // Check if file exists and is readable
+    try {
+      await fsPromises.access(absolutePath, fs.constants.R_OK)
+    } catch (accessError) {
+      console.error(`File is not readable: ${absolutePath}`, accessError)
+      return res.status(404).json({ 
+        error: 'Photo file is not accessible',
+        message: `The file for order ${order.orderNumber} exists but cannot be read.`,
+        path: absolutePath,
+      })
+    }
+
+    // Get file stats for content length
+    const stats = await fsPromises.stat(absolutePath)
+    
+    // Determine content type based on file extension
+    const ext = path.extname(absolutePath).toLowerCase()
+    const contentTypeMap: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+    }
+    const contentType = contentTypeMap[ext] || 'application/octet-stream'
+    
+    // Set headers for blob download
+    const filename = `foaie-de-zahar-order-${order.orderNumber}${ext}`
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Content-Length', stats.size)
+    
+    // Send file using sendFile (requires absolute path)
+    res.sendFile(absolutePath, (err) => {
+      if (err) {
+        console.error(`Error sending file for order ${order.orderNumber}:`, err)
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            error: 'Failed to send file',
+            message: err.message,
+          })
+        }
+      }
+    })
+  } catch (error: any) {
     console.error('Error downloading foaie de zahar photo:', error)
-    res.status(500).json({ error: 'Failed to download foaie de zahar photo' })
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to download foaie de zahar photo',
+        message: error.message || 'Unknown error occurred',
+      })
+    }
   }
 }
 
