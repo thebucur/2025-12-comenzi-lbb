@@ -131,3 +131,4 @@ Dacă problema persistă:
 2. Verifică consola browser-ului (F12 → Console)
 3. Verifică Network tab în browser (F12 → Network) pentru a vedea request-urile eșuate
 
+

@@ -703,48 +703,42 @@ function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
-                    <div key={dateKey} className="mb-6 last:mb-0">
-                      <h3 className="text-left text-xl font-bold text-secondary mb-3 px-4 pt-4">
-                        {dateKey}
-                      </h3>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b-2 border-primary">
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Nt.</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Client</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Telefon</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Livrare pe</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Preluat pe</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Locatie</th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs w-12">
-                              <input
-                                type="checkbox"
-                                checked={dateOrders.every((o) => selectedOrders.has(o.id)) && dateOrders.length > 0}
-                                onChange={() => {
-                                  const allSelected = dateOrders.every((o) => selectedOrders.has(o.id))
-                                  if (allSelected) {
-                                    setSelectedOrders((prev) => {
-                                      const newSet = new Set(prev)
-                                      dateOrders.forEach((o) => newSet.delete(o.id))
-                                      return newSet
-                                    })
-                                  } else {
-                                    setSelectedOrders((prev) => {
-                                      const newSet = new Set(prev)
-                                      dateOrders.forEach((o) => newSet.add(o.id))
-                                      return newSet
-                                    })
-                                  }
-                                }}
-                                className="w-4 h-4 cursor-pointer"
-                              />
-                            </th>
-                            <th className="px-2 py-2 text-left font-bold text-secondary text-xs">Detalii</th>
+                  <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                    <thead>
+                      <tr className="border-b-2 border-primary">
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '5%' }}>Nt.</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '12%' }}>Client</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '10%' }}>Telefon</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '18%' }}>Livrare</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '10%' }}>Livrare pe</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '10%' }}>Preluat pe</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '12%' }}>Locatie</th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '5%' }}>
+                          <input
+                            type="checkbox"
+                            checked={orders.every((o) => selectedOrders.has(o.id)) && orders.length > 0}
+                            onChange={() => {
+                              const allSelected = orders.every((o) => selectedOrders.has(o.id))
+                              if (allSelected) {
+                                setSelectedOrders(new Set())
+                              } else {
+                                setSelectedOrders(new Set(orders.map((o) => o.id)))
+                              }
+                            }}
+                            className="w-4 h-4 cursor-pointer"
+                          />
+                        </th>
+                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '16%' }}>Detalii</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
+                        <>
+                          <tr key={`date-${dateKey}`} className="bg-primary/20">
+                            <td colSpan={9} className="px-4 py-3 text-left text-xl font-bold text-secondary">
+                              {dateKey}
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
                           {dateOrders.map((order) => {
                             const deliveryText = order.deliveryMethod === 'ridicare' 
                               ? `Ridicare din ${order.location || 'N/A'}`
@@ -808,10 +802,10 @@ function AdminDashboard() {
                               </tr>
                             )
                           })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

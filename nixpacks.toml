@@ -9,3 +9,4 @@ cmds = ['cd backend', 'npx prisma generate', 'npx tsc']
 
 [start]
 cmd = 'sh -c "cd backend && node dist/server.js"'
+
