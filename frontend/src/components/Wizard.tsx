@@ -87,6 +87,12 @@ function Wizard({ onLogout }: WizardProps) {
     navigate('/login', { replace: true })
   }
 
+  const handleTrimiteInventar = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    // TODO: Implement functionality
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary">
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
@@ -116,15 +122,24 @@ function Wizard({ onLogout }: WizardProps) {
       </div>
 
       {username && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-secondary/60 text-xs z-50">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-secondary/60 text-xs z-50 pb-2">
           <span>Logged in as {username}</span>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="underline hover:text-secondary transition-colors cursor-pointer"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="underline hover:text-secondary transition-colors cursor-pointer"
+            >
+              Logout
+            </button>
+            <button
+              type="button"
+              onClick={handleTrimiteInventar}
+              className="underline hover:text-secondary transition-colors cursor-pointer"
+            >
+              Trimite inventar
+            </button>
+          </div>
         </div>
       )}
     </div>

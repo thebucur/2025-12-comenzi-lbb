@@ -161,4 +161,3 @@ export const deleteItemFromConfig = async (req: Request, res: Response) => {
   }
 }
 
-
