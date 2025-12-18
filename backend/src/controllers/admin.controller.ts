@@ -188,41 +188,203 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Order not found' })
     }
 
-    // Find the foaie de zahar photo (handle case where column might not exist)
-    const foaieDeZaharPhoto = order.photos.find(photo => (photo as any).isFoaieDeZahar === true)
+    console.log(`Looking for foaie de zahar for order ${order.orderNumber} (id: ${id})`, {
+      totalPhotos: order.photos.length,
+      photos: order.photos.map(p => ({
+        id: p.id,
+        url: p.url,
+        path: p.path,
+        isFoaieDeZahar: (p as any).isFoaieDeZahar,
+      })),
+    })
+
+    // First, try to find photo with isFoaieDeZahar flag set to true
+    let foaieDeZaharPhoto = order.photos.find(photo => (photo as any).isFoaieDeZahar === true)
+
+    // If not found, try to find by filename pattern in path or URL
+    if (!foaieDeZaharPhoto) {
+      console.log('No photo with isFoaieDeZahar flag found, trying filename pattern match')
+      foaieDeZaharPhoto = order.photos.find(photo => {
+        const pathMatch = photo.path?.toLowerCase().includes('foaie-de-zahar')
+        const urlMatch = photo.url?.toLowerCase().includes('foaie-de-zahar')
+        return pathMatch || urlMatch
+      })
+    }
 
     if (!foaieDeZaharPhoto) {
-      return res.status(404).json({ error: 'Foaie de zahar photo not found for this order' })
+      console.error(`Foaie de zahar photo not found for order ${order.orderNumber}`, {
+        orderId: id,
+        orderNumber: order.orderNumber,
+        availablePhotos: order.photos.map(p => ({
+          id: p.id,
+          url: p.url,
+          path: p.path,
+          isFoaieDeZahar: (p as any).isFoaieDeZahar,
+        })),
+      })
+      return res.status(404).json({ 
+        error: 'Foaie de zahar photo not found for this order',
+        orderNumber: order.orderNumber,
+        availablePhotosCount: order.photos.length,
+      })
     }
 
     if (!foaieDeZaharPhoto.path) {
+      console.error(`Photo path missing for order ${order.orderNumber}`, {
+        photoId: foaieDeZaharPhoto.id,
+        url: foaieDeZaharPhoto.url,
+      })
       return res.status(404).json({ error: 'Photo file path not found' })
     }
 
     const fs = require('fs')
     const path = require('path')
-    const filePath = foaieDeZaharPhoto.path
+    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+    
+    // Try multiple path resolution strategies
+    let filePath = foaieDeZaharPhoto.path
+    let resolvedPath: string | null = null
 
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      // Try absolute path
-      const absolutePath = path.isAbsolute(filePath) 
-        ? filePath 
-        : path.join(process.cwd(), filePath)
-      
-      if (!fs.existsSync(absolutePath)) {
-        return res.status(404).json({ error: 'Photo file not found on disk' })
+    // Strategy 1: Use path as-is if it exists
+    if (filePath && fs.existsSync(filePath)) {
+      resolvedPath = filePath
+      console.log(`File found at original path: ${filePath}`)
+    } else {
+      // Strategy 2: Try constructing from URL (extract filename and use UPLOAD_DIR)
+      if (foaieDeZaharPhoto.url) {
+        const urlPath = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')
+        const pathFromUrl = path.join(UPLOAD_DIR, urlPath)
+        if (fs.existsSync(pathFromUrl)) {
+          resolvedPath = pathFromUrl
+          console.log(`File found using URL path: ${pathFromUrl}`)
+        }
       }
       
-      // Send file
-      res.download(absolutePath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(filePath)}`)
-      return
+      // Strategy 3: If path is absolute (Railway path like /app/backend/uploads/...), try as-is
+      if (!resolvedPath && filePath && path.isAbsolute(filePath)) {
+        // On Railway, the path might be correct but process.cwd() might be different
+        // Try the path as-is first
+        if (fs.existsSync(filePath)) {
+          resolvedPath = filePath
+          console.log(`File found at absolute Railway path: ${filePath}`)
+        } else {
+          // Try constructing from UPLOAD_DIR + filename
+          const filename = path.basename(filePath)
+          const pathFromUploadDir = path.join(UPLOAD_DIR, filename)
+          if (fs.existsSync(pathFromUploadDir)) {
+            resolvedPath = pathFromUploadDir
+            console.log(`File found at UPLOAD_DIR: ${pathFromUploadDir}`)
+          }
+        }
+      }
+      
+      // Strategy 4: Try relative to process.cwd()
+      if (!resolvedPath && filePath) {
+        const relativePath = path.isAbsolute(filePath)
+          ? path.join(process.cwd(), path.basename(filePath))
+          : path.join(process.cwd(), filePath)
+        if (fs.existsSync(relativePath)) {
+          resolvedPath = relativePath
+          console.log(`File found at relative path: ${relativePath}`)
+        }
+      }
+    }
+
+    if (!resolvedPath) {
+      console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
+        originalPath: filePath,
+        url: foaieDeZaharPhoto.url,
+        uploadDir: UPLOAD_DIR,
+        cwd: process.cwd(),
+        triedPaths: [
+          filePath,
+          foaieDeZaharPhoto.url ? path.join(UPLOAD_DIR, foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')) : null,
+          filePath ? path.join(UPLOAD_DIR, path.basename(filePath)) : null,
+        ].filter(Boolean),
+      })
+      return res.status(404).json({ 
+        error: 'Photo file not found on disk',
+        path: filePath,
+        url: foaieDeZaharPhoto.url,
+        uploadDir: UPLOAD_DIR,
+      })
     }
 
     // Send file
-    res.download(filePath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(filePath)}`)
+    console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${resolvedPath}`)
+    res.download(resolvedPath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(resolvedPath)}`)
   } catch (error) {
     console.error('Error downloading foaie de zahar photo:', error)
     res.status(500).json({ error: 'Failed to download foaie de zahar photo' })
+  }
+}
+
+export const fixFoaieDeZaharFlags = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.query
+    
+    // Build where clause
+    const whereClause: any = {}
+    if (orderNumber) {
+      whereClause.orderNumber = parseInt(orderNumber as string)
+    }
+
+    // Find all orders (or specific order if orderNumber provided)
+    const orders = await prisma.order.findMany({
+      where: whereClause,
+      include: {
+        photos: true,
+      },
+    })
+
+    let fixedCount = 0
+    const results: any[] = []
+
+    for (const order of orders) {
+      for (const photo of order.photos) {
+        // Check if photo has "foaie-de-zahar" in filename but flag is not set
+        const hasFoaieDeZaharInName = 
+          photo.path?.toLowerCase().includes('foaie-de-zahar') ||
+          photo.url?.toLowerCase().includes('foaie-de-zahar')
+        
+        const isFlagSet = (photo as any).isFoaieDeZahar === true
+
+        if (hasFoaieDeZaharInName && !isFlagSet) {
+          try {
+            await prisma.photo.update({
+              where: { id: photo.id },
+              data: { isFoaieDeZahar: true },
+            })
+            fixedCount++
+            results.push({
+              orderNumber: order.orderNumber,
+              orderId: order.id,
+              photoId: photo.id,
+              action: 'fixed',
+            })
+            console.log(`Fixed foaie de zahar flag for order ${order.orderNumber}, photo ${photo.id}`)
+          } catch (error) {
+            console.error(`Error fixing photo ${photo.id} for order ${order.orderNumber}:`, error)
+            results.push({
+              orderNumber: order.orderNumber,
+              orderId: order.id,
+              photoId: photo.id,
+              action: 'error',
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
+          }
+        }
+      }
+    }
+
+    res.json({
+      message: `Fixed ${fixedCount} photo(s)`,
+      fixedCount,
+      totalOrdersChecked: orders.length,
+      results,
+    })
+  } catch (error) {
+    console.error('Error fixing foaie de zahar flags:', error)
+    res.status(500).json({ error: 'Failed to fix foaie de zahar flags' })
   }
 }
