@@ -360,6 +360,10 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     }
 
     // Send file
+    if (!resolvedPath) {
+      return res.status(404).json({ error: 'Photo file path could not be resolved' })
+    }
+
     console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${resolvedPath}`)
     res.download(resolvedPath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(resolvedPath)}`)
   } catch (error) {
