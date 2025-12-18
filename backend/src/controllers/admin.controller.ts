@@ -242,52 +242,97 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     const path = require('path')
     const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
     
+    console.log(`[Railway Debug] Starting file resolution for order ${order.orderNumber}`, {
+      photoId: foaieDeZaharPhoto.id,
+      originalPath: foaieDeZaharPhoto.path,
+      url: foaieDeZaharPhoto.url,
+      uploadDir: UPLOAD_DIR,
+      cwd: process.cwd(),
+      nodeEnv: process.env.NODE_ENV,
+    })
+    
     // Try multiple path resolution strategies
+    // PRIORITY: URL-based path first (most reliable on Railway after redeploy)
     let filePath = foaieDeZaharPhoto.path
     let resolvedPath: string | null = null
 
-    // Strategy 1: Use path as-is if it exists
-    if (filePath && fs.existsSync(filePath)) {
-      resolvedPath = filePath
-      console.log(`File found at original path: ${filePath}`)
-    } else {
-      // Strategy 2: Try constructing from URL (extract filename and use UPLOAD_DIR)
-      if (foaieDeZaharPhoto.url) {
-        const urlPath = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')
-        const pathFromUrl = path.join(UPLOAD_DIR, urlPath)
-        if (fs.existsSync(pathFromUrl)) {
-          resolvedPath = pathFromUrl
-          console.log(`File found using URL path: ${pathFromUrl}`)
+    // Strategy 1 (HIGHEST PRIORITY): Try constructing from URL first
+    // This is most reliable on Railway because URL is relative and consistent
+    if (foaieDeZaharPhoto.url) {
+      // Remove /uploads/ prefix if present, and any leading slashes
+      let urlPath = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '').replace(/^\//, '')
+      
+      // Try direct path from URL
+      const pathFromUrl = path.join(UPLOAD_DIR, urlPath)
+      if (fs.existsSync(pathFromUrl)) {
+        resolvedPath = pathFromUrl
+        console.log(`[Railway Debug] File found using URL path: ${pathFromUrl}`)
+      } else {
+        // Try with just the filename (in case URL has subdirectories that don't exist)
+        const filename = path.basename(urlPath)
+        const pathFromFilename = path.join(UPLOAD_DIR, filename)
+        if (fs.existsSync(pathFromFilename)) {
+          resolvedPath = pathFromFilename
+          console.log(`[Railway Debug] File found using filename from URL: ${pathFromFilename}`)
         }
       }
-      
-      // Strategy 3: If path is absolute (Railway path like /app/backend/uploads/...), try as-is
-      if (!resolvedPath && filePath && path.isAbsolute(filePath)) {
-        // On Railway, the path might be correct but process.cwd() might be different
-        // Try the path as-is first
-        if (fs.existsSync(filePath)) {
-          resolvedPath = filePath
-          console.log(`File found at absolute Railway path: ${filePath}`)
-        } else {
-          // Try constructing from UPLOAD_DIR + filename
-          const filename = path.basename(filePath)
-          const pathFromUploadDir = path.join(UPLOAD_DIR, filename)
-          if (fs.existsSync(pathFromUploadDir)) {
-            resolvedPath = pathFromUploadDir
-            console.log(`File found at UPLOAD_DIR: ${pathFromUploadDir}`)
-          }
+    }
+
+    // Strategy 2: Use original path as-is if it exists (might work on Railway)
+    if (!resolvedPath && filePath && fs.existsSync(filePath)) {
+      resolvedPath = filePath
+      console.log(`[Railway Debug] File found at original path: ${filePath}`)
+    } else if (!resolvedPath && filePath) {
+      // Strategy 3: If path is absolute, try extracting just filename
+      if (path.isAbsolute(filePath)) {
+        const filename = path.basename(filePath)
+        const pathFromUploadDir = path.join(UPLOAD_DIR, filename)
+        if (fs.existsSync(pathFromUploadDir)) {
+          resolvedPath = pathFromUploadDir
+          console.log(`[Railway Debug] File found by extracting filename from absolute path: ${pathFromUploadDir}`)
         }
       }
       
       // Strategy 4: Try relative to process.cwd()
-      if (!resolvedPath && filePath) {
+      if (!resolvedPath) {
         const relativePath = path.isAbsolute(filePath)
           ? path.join(process.cwd(), path.basename(filePath))
           : path.join(process.cwd(), filePath)
         if (fs.existsSync(relativePath)) {
           resolvedPath = relativePath
-          console.log(`File found at relative path: ${relativePath}`)
+          console.log(`[Railway Debug] File found at relative path: ${relativePath}`)
         }
+      }
+    }
+
+    // Final fallback: Try to find file by searching for order number in filename
+    if (!resolvedPath) {
+      try {
+        if (fs.existsSync(UPLOAD_DIR)) {
+          const allFiles = fs.readdirSync(UPLOAD_DIR)
+          const orderNumberStr = order.orderNumber.toString()
+          
+          // Look for files with foaie-de-zahar AND order number
+          const matchingFiles = allFiles.filter(f => {
+            const lowerF = f.toLowerCase()
+            return lowerF.includes('foaie-de-zahar') && 
+                   (lowerF.includes(orderNumberStr) || 
+                    lowerF.includes(`order-${orderNumberStr}`) ||
+                    lowerF.includes(`order${orderNumberStr}`))
+          })
+          
+          if (matchingFiles.length > 0) {
+            // Use the first matching file (should usually be only one)
+            const matchedFile = matchingFiles[0]
+            const matchedPath = path.join(UPLOAD_DIR, matchedFile)
+            if (fs.existsSync(matchedPath)) {
+              resolvedPath = matchedPath
+              console.log(`[Railway Debug] File found by searching for order number: ${matchedPath}`)
+            }
+          }
+        }
+      } catch (searchError) {
+        console.log(`[Railway Debug] Error searching for file by order number: ${searchError}`)
       }
     }
 
@@ -295,27 +340,55 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
       // Final fallback: Try to serve via static route redirect
       // This handles cases where files might be accessible via /uploads but path resolution failed
       if (foaieDeZaharPhoto.url && foaieDeZaharPhoto.url.startsWith('/uploads/')) {
-        console.log(`File not found via direct path, trying static route redirect for order ${order.orderNumber}`)
-        console.log(`Redirecting to: ${foaieDeZaharPhoto.url}`)
+        console.log(`[Railway Debug] File not found via direct path, trying static route redirect for order ${order.orderNumber}`)
+        console.log(`[Railway Debug] Redirecting to: ${foaieDeZaharPhoto.url}`)
         
         // Try to check if file exists via static route by attempting to read it
-        const urlFilename = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')
+        const urlFilename = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '').replace(/^\//, '')
         const staticPath = path.join(UPLOAD_DIR, urlFilename)
         
         // One more attempt with the exact filename from URL
         if (fs.existsSync(staticPath)) {
           resolvedPath = staticPath
-          console.log(`File found via static route path: ${staticPath}`)
+          console.log(`[Railway Debug] File found via static route path: ${staticPath}`)
         } else {
-          // List available files in uploads directory for debugging (first 10)
+          // List available files in uploads directory for debugging
+          let availableFiles: string[] = []
+          let foaieDeZaharFiles: string[] = []
           try {
-            const uploadFiles = fs.readdirSync(UPLOAD_DIR).slice(0, 10)
-            console.log(`Available files in uploads (first 10):`, uploadFiles)
+            if (fs.existsSync(UPLOAD_DIR)) {
+              availableFiles = fs.readdirSync(UPLOAD_DIR)
+              foaieDeZaharFiles = availableFiles.filter(f => f.toLowerCase().includes('foaie-de-zahar'))
+              console.log(`[Railway Debug] Available files in uploads: ${availableFiles.length} total`)
+              console.log(`[Railway Debug] Files with 'foaie-de-zahar' in name: ${foaieDeZaharFiles.length}`)
+              if (foaieDeZaharFiles.length > 0) {
+                console.log(`[Railway Debug] Foaie de zahar files (first 20):`, foaieDeZaharFiles.slice(0, 20))
+              }
+              if (availableFiles.length > 0 && availableFiles.length <= 50) {
+                console.log(`[Railway Debug] All upload files:`, availableFiles)
+              } else if (availableFiles.length > 50) {
+                console.log(`[Railway Debug] First 50 upload files:`, availableFiles.slice(0, 50))
+              }
+            } else {
+              console.log(`[Railway Debug] UPLOAD_DIR does not exist: ${UPLOAD_DIR}`)
+            }
           } catch (err) {
-            console.log(`Could not read uploads directory: ${err}`)
+            console.log(`[Railway Debug] Could not read uploads directory: ${err}`)
           }
           
-          console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
+          // Try to find any foaie-de-zahar file that might match this order
+          let potentialMatches: string[] = []
+          if (foaieDeZaharFiles.length > 0 && filePath) {
+            const searchFilename = path.basename(filePath).toLowerCase()
+            const orderNumberStr = order.orderNumber.toString()
+            potentialMatches = foaieDeZaharFiles.filter(f => 
+              f.toLowerCase().includes(orderNumberStr) || 
+              f.toLowerCase().includes(searchFilename)
+            )
+            console.log(`[Railway Debug] Potential matching files:`, potentialMatches)
+          }
+          
+          console.error(`[Railway Debug] Photo file not found on disk for order ${order.orderNumber}`, {
             originalPath: filePath,
             url: foaieDeZaharPhoto.url,
             uploadDir: UPLOAD_DIR,
@@ -327,6 +400,8 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
               filePath ? path.join(UPLOAD_DIR, path.basename(filePath)) : null,
               staticPath,
             ].filter(Boolean),
+            availableFoaieDeZaharFiles: foaieDeZaharFiles,
+            potentialMatches: potentialMatches,
           })
           
           // Return 404 with detailed error
