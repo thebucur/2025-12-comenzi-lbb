@@ -269,10 +269,12 @@ function Screen3Decor() {
       // Generate QR code with error correction level for better scanning
       const dataUrl = await QRCode.toDataURL(uploadUrl, {
         errorCorrectionLevel: 'M',
-        type: 'image/png',
-        quality: 0.92,
         margin: 1,
         width: 300,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
       });
       
       console.log(`QR code generated successfully for URL: ${uploadUrl}`)
