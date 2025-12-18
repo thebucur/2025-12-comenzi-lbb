@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "install:backend": "cd backend && npm install",
-    "build": "cd backend && npm run build",
+    "build": "cd backend && npm install && npx prisma generate && npx tsc",
     "start": "cd backend && npx prisma db push && npm start"
   }
 }
