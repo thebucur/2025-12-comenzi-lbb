@@ -5,7 +5,7 @@ nixPkgs = ['nodejs_18']
 cmds = ['cd backend', 'npm install']
 
 [phases.build]
-cmds = ['cd backend', 'npx prisma generate', 'npx tsc']
+cmds = ['cd backend', 'npx prisma generate --schema=./prisma/schema.prisma', 'npx tsc']
 
 [start]
 cmd = 'sh -c "cd backend && node dist/server.js"'
