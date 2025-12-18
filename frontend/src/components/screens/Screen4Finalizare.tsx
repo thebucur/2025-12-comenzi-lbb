@@ -4,6 +4,7 @@ import { useOrder } from '../../context/OrderContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
+import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 
 function Screen4Finalizare() {
   const { order, updateOrder, resetOrder } = useOrder()
@@ -33,34 +34,8 @@ function Screen4Finalizare() {
     setSearchParams({ step: step.toString(), edit: '1' })
   }
 
-  // Helper function to convert relative URL to absolute (same as PhotoUpload)
-  const getAbsoluteUrl = (relativeUrl: string): string => {
-    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
-      return relativeUrl
-    }
-    
-    let backendURL: string
-    if (import.meta.env.DEV) {
-      const currentHostname = window.location.hostname
-      if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
-        backendURL = `http://${currentHostname}:5000`
-      } else {
-        const localIP = localStorage.getItem('localNetworkIP')
-        if (localIP) {
-          backendURL = `http://${localIP}:5000`
-        } else {
-          const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-          backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-        }
-      }
-    } else {
-      const envURL = import.meta.env.VITE_API_URL || window.location.origin
-      backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-    }
-    
-    const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
-    return `${backendURL}${url}`
-  }
+  // Use centralized function
+  const getAbsoluteUrl = getAbsoluteImageUrl
 
   const handleSubmit = async () => {
     setIsSubmitting(true)

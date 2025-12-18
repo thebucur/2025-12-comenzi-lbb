@@ -2,45 +2,10 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
+import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 
-// Helper function to convert relative URL to absolute
-const getAbsoluteUrl = (relativeUrl: string): string => {
-  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
-    return relativeUrl
-  }
-  
-  // Get base URL for backend (not frontend origin)
-  let backendURL: string
-  
-  // In development, detect IP from current location or localStorage
-  if (import.meta.env.DEV) {
-    const currentHostname = window.location.hostname
-    
-    // If accessing from mobile device via IP (not localhost), use that IP with backend port
-    if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
-      // Use current hostname with port 5000 for backend
-      backendURL = `http://${currentHostname}:5000`
-    } else {
-      // Check localStorage for manually set IP
-      const localIP = localStorage.getItem('localNetworkIP')
-      if (localIP) {
-        backendURL = `http://${localIP}:5000`
-      } else {
-        // Fallback to environment variable or default
-        const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-        backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-      }
-    }
-  } else {
-    // In production, use environment variable or construct from current origin
-    const envURL = import.meta.env.VITE_API_URL || window.location.origin
-    backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-  }
-  
-  // Ensure relative URL starts with /
-  const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
-  return `${backendURL}${url}`
-}
+// Use centralized function
+const getAbsoluteUrl = getAbsoluteImageUrl
 
 interface Photo {
   id: string

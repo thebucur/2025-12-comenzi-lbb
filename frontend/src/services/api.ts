@@ -2,10 +2,12 @@ import axios from 'axios'
 
 // Normalize baseURL to always end with /api
 const getBaseURL = () => {
-  let envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  let envURL: string
   
-  // In development, detect IP from current location or localStorage
   if (import.meta.env.DEV) {
+    // Development: start with default localhost or VITE_API_URL if set
+    envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    
     const currentHostname = typeof window !== 'undefined' ? window.location.hostname : null
     
     // If accessing from mobile device via IP (not localhost), use that IP for API
@@ -22,6 +24,22 @@ const getBaseURL = () => {
         envURL = envURL.replace('localhost', localIP).replace('127.0.0.1', localIP)
         console.log(`Using local network IP from localStorage: ${envURL}`)
       }
+    }
+  } else {
+    // Production: use VITE_API_URL if set (injected at build time)
+    envURL = import.meta.env.VITE_API_URL || ''
+    
+    // Remove /api suffix if present for base URL processing
+    if (envURL) {
+      envURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+    }
+    
+    // If still not set, log error (VITE_API_URL should be set at build time)
+    if (!envURL && typeof window !== 'undefined') {
+      console.error('VITE_API_URL is not set at build time!')
+      console.error('This will cause broken image URLs.')
+      // Fallback - this won't work correctly if frontend and backend are on different domains
+      envURL = window.location.origin
     }
   }
   

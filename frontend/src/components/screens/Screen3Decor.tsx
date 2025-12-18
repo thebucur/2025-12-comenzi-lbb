@@ -7,6 +7,7 @@ import { ColorOption, normalizeColorOptions, resolveColorValue } from '../../con
 import { getLocalNetworkUrl, getLocalNetworkIP } from '../../utils/network'
 import api from '../../services/api'
 import axios from 'axios'
+import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 
 // Default values (fallback if config not available)
 const defaultCoatings: Coating[] = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
@@ -34,34 +35,8 @@ function Screen3Decor() {
   // Track deleted photos to prevent polling from re-adding them
   const deletedPhotosRef = useRef<Set<string>>(new Set())
 
-  // Helper function to convert relative URL to absolute
-  const getAbsoluteUrl = (relativeUrl: string): string => {
-    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
-      return relativeUrl
-    }
-    
-    let backendURL: string
-    if (import.meta.env.DEV) {
-      const currentHostname = window.location.hostname
-      if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
-        backendURL = `http://${currentHostname}:5000`
-      } else {
-        const localIP = getLocalNetworkIP()
-        if (localIP) {
-          backendURL = `http://${localIP}:5000`
-        } else {
-          const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-          backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-        }
-      }
-    } else {
-      const envURL = import.meta.env.VITE_API_URL || window.location.origin
-      backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
-    }
-    
-    const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
-    return `${backendURL}${url}`
-  }
+  // Use centralized function
+  const getAbsoluteUrl = getAbsoluteImageUrl
 
   // Poll for photos and foaie de zahar by session ID
   const startPhotoPolling = (sessionId: string) => {

@@ -2,30 +2,10 @@ import axios from 'axios'
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import api from '../services/api'
+import { getAbsoluteImageUrl } from '../utils/imageUrl'
 
-// Helper function to convert relative URL to absolute using the same baseURL as axios
-const getAbsoluteUrl = (relativeUrl: string): string => {
-  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
-    return relativeUrl
-  }
-
-  // Prefer the axios baseURL so production always matches the backend host
-  const baseFromApi = api.defaults.baseURL
-  const backendURL = baseFromApi
-    ? baseFromApi.replace(/\/api$/, '').replace(/\/$/, '')
-    : window.location.origin.replace(/\/$/, '')
-
-  const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
-  const fullURL = `${backendURL}${url}`
-
-  console.log(`getAbsoluteUrl: ${relativeUrl} -> ${fullURL}`, {
-    baseFromApi,
-    backendURL,
-    relativeUrl,
-  })
-
-  return fullURL
-}
+// Use centralized function
+const getAbsoluteUrl = getAbsoluteImageUrl
 
 function PhotoUpload() {
   const { sessionId } = useParams<{ sessionId: string }>()
