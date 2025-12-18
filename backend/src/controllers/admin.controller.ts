@@ -543,6 +543,108 @@ export const listUploadsFiles = async (req: Request, res: Response) => {
   }
 }
 
+export const deleteAllOrders = async (req: Request, res: Response) => {
+  try {
+    const fs = require('fs').promises
+    const fsSync = require('fs')
+    const path = require('path')
+    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+    const PDF_DIR = process.env.PDF_DIR || path.join(process.cwd(), 'pdfs')
+
+    console.log('🗑️  Starting deletion of all orders, photos, and files...')
+
+    // Step 1: Get all orders with their photos and PDF paths
+    console.log('📋 Fetching all orders...')
+    const orders = await prisma.order.findMany({
+      include: {
+        photos: true,
+      },
+    })
+
+    console.log(`   Found ${orders.length} orders`)
+
+    // Step 2: Collect all file paths to delete
+    const filesToDelete: string[] = []
+
+    for (const order of orders) {
+      // Add PDF path if exists
+      if (order.pdfPath) {
+        filesToDelete.push(order.pdfPath)
+      }
+
+      // Add photo paths if they exist
+      for (const photo of order.photos) {
+        if (photo.path) {
+          filesToDelete.push(photo.path)
+        }
+      }
+    }
+
+    console.log(`   Total files to delete: ${filesToDelete.length}`)
+
+    // Step 3: Delete files from disk
+    console.log('🗂️  Deleting files from disk...')
+    let deletedCount = 0
+    let failedCount = 0
+
+    for (const filePath of filesToDelete) {
+      try {
+        // Resolve absolute path
+        const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath)
+        
+        try {
+          await fs.access(absolutePath)
+          await fs.unlink(absolutePath)
+          deletedCount++
+        } catch (error: any) {
+          if (error.code === 'ENOENT') {
+            // File not found, skip
+          } else {
+            throw error
+          }
+        }
+      } catch (error) {
+        failedCount++
+        console.error(`   Failed to delete: ${filePath}`, error)
+      }
+    }
+
+    console.log(`   Files deleted: ${deletedCount}, Failed: ${failedCount}`)
+
+    // Step 4: Delete all orders from database (photos will be deleted automatically due to cascade)
+    console.log('🗄️  Deleting orders from database...')
+    const deleteResult = await prisma.order.deleteMany({})
+    console.log(`   Deleted ${deleteResult.count} orders from database`)
+
+    // Step 5: Reset order counter
+    console.log('🔄 Resetting order counter...')
+    await prisma.orderCounter.updateMany({
+      where: {},
+      data: {
+        lastOrder: 0,
+      },
+    })
+    console.log('   Order counter reset to 0')
+
+    res.json({
+      success: true,
+      message: 'All orders deleted successfully',
+      summary: {
+        ordersDeleted: orders.length,
+        filesDeleted: deletedCount,
+        filesFailed: failedCount,
+        orderCounterReset: true,
+      },
+    })
+  } catch (error) {
+    console.error('Error deleting orders:', error)
+    res.status(500).json({
+      error: 'Failed to delete orders',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+}
+
 export const fixFoaieDeZaharFlags = async (req: Request, res: Response) => {
   try {
     const { orderNumber } = req.query

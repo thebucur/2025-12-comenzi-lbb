@@ -8,7 +8,8 @@ import {
   deleteUser,
   downloadFoaieDeZahar,
   fixFoaieDeZaharFlags,
-  listUploadsFiles
+  listUploadsFiles,
+  deleteAllOrders
 } from '../controllers/admin.controller'
 
 const router = Router()
@@ -20,6 +21,7 @@ router.get('/orders/:id', getOrderDetails)
 router.get('/orders/:id/foaie-de-zahar', downloadFoaieDeZahar)
 router.get('/uploads/files', listUploadsFiles)
 router.post('/fix-foaie-de-zahar-flags', fixFoaieDeZaharFlags)
+router.delete('/orders/all', deleteAllOrders) // Temporary endpoint to delete all orders
 router.get('/users', listUsers)
 router.post('/users', createUser)
 router.put('/users/:id', updateUser)
