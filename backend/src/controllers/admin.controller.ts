@@ -339,19 +339,30 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     if (!resolvedPath) {
       // Final fallback: Try to serve via static route redirect
       // This handles cases where files might be accessible via /uploads but path resolution failed
+      // On Railway, filesystem is ephemeral, so files might not exist on disk after redeploy
+      // If we have a URL, redirect to it (the static route handler will serve it if it exists)
       if (foaieDeZaharPhoto.url && foaieDeZaharPhoto.url.startsWith('/uploads/')) {
-        console.log(`[Railway Debug] File not found via direct path, trying static route redirect for order ${order.orderNumber}`)
-        console.log(`[Railway Debug] Redirecting to: ${foaieDeZaharPhoto.url}`)
+        console.log(`[Railway Debug] File not found on disk, trying to serve via static route for order ${order.orderNumber}`)
+        console.log(`[Railway Debug] Static URL: ${foaieDeZaharPhoto.url}`)
         
-        // Try to check if file exists via static route by attempting to read it
+        // Try one more time with exact filename from URL (in case uploads dir was recreated)
         const urlFilename = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '').replace(/^\//, '')
         const staticPath = path.join(UPLOAD_DIR, urlFilename)
         
-        // One more attempt with the exact filename from URL
-        if (fs.existsSync(staticPath)) {
-          resolvedPath = staticPath
-          console.log(`[Railway Debug] File found via static route path: ${staticPath}`)
-        } else {
+        // Ensure uploads directory exists
+        try {
+          await fsPromises.mkdir(UPLOAD_DIR, { recursive: true })
+          if (fs.existsSync(staticPath)) {
+            resolvedPath = staticPath
+            console.log(`[Railway Debug] File found after creating uploads directory: ${staticPath}`)
+          }
+        } catch (mkdirError) {
+          console.log(`[Railway Debug] Could not create uploads directory: ${mkdirError}`)
+        }
+        
+        // If still not found, try to redirect to static route
+        // This will work if file is accessible via the /uploads endpoint
+        if (!resolvedPath) {
           // List available files in uploads directory for debugging
           let availableFiles: string[] = []
           let foaieDeZaharFiles: string[] = []
@@ -404,15 +415,15 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
             potentialMatches: potentialMatches,
           })
           
-          // Return 404 with detailed error
-          return res.status(404).json({ 
-            error: 'Photo file not found on disk',
-            message: `The file for order ${order.orderNumber} does not exist on the server. The file may have been deleted or never uploaded to Railway.`,
-            path: filePath,
-            url: foaieDeZaharPhoto.url,
-            uploadDir: UPLOAD_DIR,
-            orderNumber: order.orderNumber,
-          })
+          // On Railway, filesystem is ephemeral - files are lost on redeploy
+          // Redirect to static URL as last resort (even though it probably won't work if file doesn't exist)
+          console.log(`[Railway Debug] Attempting redirect to static URL: ${foaieDeZaharPhoto.url}`)
+          const staticUrl = foaieDeZaharPhoto.url.startsWith('http') 
+            ? foaieDeZaharPhoto.url 
+            : `${req.protocol}://${req.get('host')}${foaieDeZaharPhoto.url}`
+          
+          // Return redirect to static URL
+          return res.redirect(302, staticUrl)
         }
       } else {
         console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
