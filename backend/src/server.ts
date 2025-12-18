@@ -147,6 +147,7 @@ console.log('  GET  /api/auth/test')
 console.log('  POST /api/auth/login')
 console.log('  GET  /api/auth/config')
 console.log('  POST /api/auth/seed-admin')
+console.log('  DELETE /api/admin/orders/all (temporary - delete all orders)')
 
 // Root route
 app.get('/', (req, res) => {
