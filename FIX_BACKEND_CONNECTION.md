@@ -132,3 +132,4 @@ Dacă problema persistă:
 3. Verifică Network tab în browser (F12 → Network) pentru a vedea request-urile eșuate
 
 
+

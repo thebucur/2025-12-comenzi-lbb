@@ -185,9 +185,9 @@ function Screen4Finalizare() {
       }
       
       alert(`Comanda #${orderNumber} a fost trimisă cu succes!`)
-      // Reset and go back to start
+      // Reset and go back to step 1 to take a new order
       resetOrder()
-      navigate('/')
+      navigate('/?step=1', { replace: true })
     } catch (error: unknown) {
       console.error('Error submitting order:', error)
       if (axios.isAxiosError(error)) {

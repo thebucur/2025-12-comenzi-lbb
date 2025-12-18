@@ -116,3 +116,4 @@ fixFoaieDeZaharFlags(orderNumbers.length > 0 ? orderNumbers : undefined)
     console.error('\n❌ Script failed:', error)
     process.exit(1)
   })
+

@@ -17,3 +17,4 @@ test('reorderList no-ops for out-of-range indexes', () => {
   assert.deepEqual(reorderList(items, 0, 5), ['A', 'B'])
 })
 
+

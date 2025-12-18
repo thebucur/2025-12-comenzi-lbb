@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ProgressStepper from './ProgressStepper'
-import NavigationButtons from './NavigationButtons'
 import Screen1Ridicare from './screens/Screen1Ridicare'
 import Screen2Sortiment from './screens/Screen2Sortiment'
 import Screen3Decor from './screens/Screen3Decor'
@@ -27,6 +26,11 @@ function Wizard({ onLogout }: WizardProps) {
       setCurrentStep(parseInt(stepParam))
     }
   }, [searchParams])
+
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [currentStep])
 
   const handleNext = () => {
     if (validateStep(currentStep) && currentStep < 4) {
@@ -111,37 +115,84 @@ function Wizard({ onLogout }: WizardProps) {
           {currentStep === 4 && <Screen4Finalizare />}
         </div>
 
-        <NavigationButtons
-          currentStep={currentStep}
-          onNext={handleNext}
-          onPrevious={handlePrevious}
-          canProceed={validateStep(currentStep)}
-          isEditMode={isEditingFromReview && currentStep !== 4}
-          onFinishEdit={handleFinishEdit}
-        />
-      </div>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mt-12 gap-4">
+          <button
+            onClick={handlePrevious}
+            disabled={currentStep === 1}
+            className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
+              currentStep === 1
+                ? 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                : 'btn-neumorphic text-secondary hover:scale-105'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            ÎNAPOI
+          </button>
 
-      {username && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-secondary/60 text-xs z-50 pb-2">
-          <span>Logged in as {username}</span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 justify-center flex-1">
+            {!isEditingFromReview && (
+              <button
+                type="button"
+                onClick={handleTrimiteInventar}
+                className="w-12 h-12 rounded-full bg-purple-100/90 hover:bg-purple-200/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-purple-200/50"
+                title="Trimite inventar"
+              >
+                <svg className="w-6 h-6 text-secondary/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </button>
+            )}
+            
+            {username && (
+              <div className="flex items-center gap-2 text-secondary/60 text-xs whitespace-nowrap">
+                <span>Logged in as {username}</span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="underline hover:text-secondary transition-colors cursor-pointer"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+
+          {isEditingFromReview && currentStep !== 4 ? (
             <button
-              type="button"
-              onClick={handleLogout}
-              className="underline hover:text-secondary transition-colors cursor-pointer"
+              onClick={handleFinishEdit}
+              disabled={!validateStep(currentStep)}
+              className={`px-12 py-5 rounded-2xl font-bold text-2xl transition-all duration-300 ${
+                validateStep(currentStep)
+                  ? 'btn-active hover:scale-105 shadow-glow-purple'
+                  : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+              }`}
             >
-              Logout
+              GATA!
             </button>
+          ) : currentStep < 4 ? (
             <button
-              type="button"
-              onClick={handleTrimiteInventar}
-              className="underline hover:text-secondary transition-colors cursor-pointer"
+              onClick={handleNext}
+              disabled={!validateStep(currentStep)}
+              className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
+                validateStep(currentStep)
+                  ? 'btn-active hover:scale-105'
+                  : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+              }`}
             >
-              Trimite inventar
+              URMĂTORUL
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </button>
+          ) : (
+            <div></div>
+          )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
