@@ -422,15 +422,23 @@ function Screen4Finalizare() {
             <div className="md:col-span-2">
               <p className="text-sm text-secondary/60 mb-3">Poze încărcate ({order.photos.length})</p>
               <div className="grid grid-cols-4 gap-4">
-                {order.photos.map((photo, index) => (
+                {order.photos.map((photo, index) => {
+                  // Ensure photo URL is absolute (handle both absolute and relative URLs from old orders)
+                  const photoUrl = getAbsoluteUrl(photo)
+                  return (
                   <div key={index} className="shadow-neumorphic rounded-2xl overflow-hidden">
                     <img
-                      src={photo}
+                      src={photoUrl}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-24 object-cover"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo, 'Absolute URL:', photoUrl)
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                      }}
                     />
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           )}

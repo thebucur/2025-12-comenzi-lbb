@@ -429,10 +429,12 @@ function PhotoUpload() {
                 console.log(`Rendering photo ${index + 1}:`, photo)
                 // Use photo URL as key to ensure proper re-rendering
                 const photoKey = photo.substring(photo.lastIndexOf('/') + 1) || `photo-${index}`
+                // Ensure photo URL is absolute (handle both absolute and relative URLs)
+                const photoUrl = getAbsoluteUrl(photo)
                 return (
                   <div key={photoKey} className="relative">
                     <img
-                      src={photo}
+                      src={photoUrl}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-700"
                       onLoad={() => {

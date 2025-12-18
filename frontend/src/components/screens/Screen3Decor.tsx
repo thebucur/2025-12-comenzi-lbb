@@ -660,9 +660,14 @@ function Screen3Decor() {
             <p className="text-sm font-bold text-secondary mb-2">✅ Foaie de zahar încărcată</p>
             <div className="relative inline-block">
               <img
-                src={order.foaieDeZaharPhoto}
+                src={getAbsoluteUrl(order.foaieDeZaharPhoto)}
                 alt="Foaie de zahar"
                 className="w-32 h-32 object-cover rounded-lg border-2 border-yellow-500/50"
+                onError={(e) => {
+                  console.error('Error loading foaie de zahar image:', order.foaieDeZaharPhoto, 'Absolute URL:', getAbsoluteUrl(order.foaieDeZaharPhoto))
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'none'
+                }}
               />
               <button
                 onClick={() => updateOrder({ foaieDeZaharPhoto: null })}
@@ -741,13 +746,21 @@ function Screen3Decor() {
           <div className="mt-8">
             <h4 className="text-lg font-bold text-secondary mb-4">Poze încărcate ({order.photos.length})</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {order.photos.map((photo, index) => (
+              {order.photos.map((photo, index) => {
+                // Ensure photo URL is absolute (handle both absolute and relative URLs from old orders)
+                const photoUrl = getAbsoluteUrl(photo)
+                return (
                 <div key={index} className="relative group">
                   <div className="shadow-neumorphic rounded-2xl overflow-hidden">
                     <img
-                      src={photo}
+                      src={photoUrl}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-40 object-cover"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo, 'Absolute URL:', photoUrl)
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                      }}
                     />
                   </div>
                   <button
@@ -765,7 +778,7 @@ function Screen3Decor() {
                     ✕
                   </button>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         )}
