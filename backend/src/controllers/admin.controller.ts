@@ -313,7 +313,7 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
           const orderNumberStr = order.orderNumber.toString()
           
           // Look for files with foaie-de-zahar AND order number
-          const matchingFiles = allFiles.filter(f => {
+          const matchingFiles = allFiles.filter((f: string) => {
             const lowerF = f.toLowerCase()
             return lowerF.includes('foaie-de-zahar') && 
                    (lowerF.includes(orderNumberStr) || 
@@ -369,7 +369,7 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
           try {
             if (fs.existsSync(UPLOAD_DIR)) {
               availableFiles = fs.readdirSync(UPLOAD_DIR)
-              foaieDeZaharFiles = availableFiles.filter(f => f.toLowerCase().includes('foaie-de-zahar'))
+              foaieDeZaharFiles = availableFiles.filter((f: string) => f.toLowerCase().includes('foaie-de-zahar'))
               console.log(`[Railway Debug] Available files in uploads: ${availableFiles.length} total`)
               console.log(`[Railway Debug] Files with 'foaie-de-zahar' in name: ${foaieDeZaharFiles.length}`)
               if (foaieDeZaharFiles.length > 0) {
@@ -392,7 +392,7 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
           if (foaieDeZaharFiles.length > 0 && filePath) {
             const searchFilename = path.basename(filePath).toLowerCase()
             const orderNumberStr = order.orderNumber.toString()
-            potentialMatches = foaieDeZaharFiles.filter(f => 
+            potentialMatches = foaieDeZaharFiles.filter((f: string) => 
               f.toLowerCase().includes(orderNumberStr) || 
               f.toLowerCase().includes(searchFilename)
             )
@@ -529,7 +529,7 @@ export const listUploadsFiles = async (req: Request, res: Response) => {
     }
     
     // Filter for foaie-de-zahar files
-    const foaieDeZaharFiles = files.filter(f => f.toLowerCase().includes('foaie-de-zahar'))
+    const foaieDeZaharFiles = files.filter((f: string) => f.toLowerCase().includes('foaie-de-zahar'))
     
     res.json({
       uploadDir: UPLOAD_DIR,
