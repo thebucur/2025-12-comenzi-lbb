@@ -224,7 +224,17 @@ function Screen3Decor() {
       }
       
       // Use local network URL instead of localhost for mobile access
-      const baseUrl = getLocalNetworkUrl();
+      let baseUrl = getLocalNetworkUrl();
+      
+      // Ensure baseUrl is a complete, valid URL
+      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        // If baseUrl doesn't start with http/https, use window.location.origin
+        baseUrl = window.location.origin
+      }
+      
+      // Remove trailing slash if present
+      baseUrl = baseUrl.replace(/\/$/, '')
+      
       // Use query parameter to indicate upload type (frontend route is /upload/:sessionId)
       const uploadUrl = type === 'foaieDeZahar' 
         ? `${baseUrl}/upload/${sessionId}?type=foaie-de-zahar`
@@ -234,7 +244,17 @@ function Screen3Decor() {
         sessionId,
         uploadUrl,
         baseUrl,
+        isValidUrl: uploadUrl.startsWith('http://') || uploadUrl.startsWith('https://'),
       })
+      
+      // Validate URL before generating QR code
+      try {
+        new URL(uploadUrl) // This will throw if URL is invalid
+      } catch (error) {
+        console.error('Invalid URL generated for QR code:', uploadUrl, error)
+        alert('Eroare: URL invalid pentru QR code. Verifică configurația.')
+        return
+      }
       
       // Check if we need to warn about localhost
       const localIP = getLocalNetworkIP();
@@ -246,7 +266,18 @@ function Screen3Decor() {
         console.warn('Find your IP: Windows: ipconfig | findstr IPv4');
       }
       
-      const dataUrl = await QRCode.toDataURL(uploadUrl);
+      // Generate QR code with error correction level for better scanning
+      const dataUrl = await QRCode.toDataURL(uploadUrl, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        width: 300,
+      });
+      
+      console.log(`QR code generated successfully for URL: ${uploadUrl}`)
+      console.log(`QR code data URL length: ${dataUrl.length} characters`)
+      
       setQrCodeDataUrl(dataUrl);
       setShowQRCode(true);
       setUploadModalType(null); // Close the upload type modal
