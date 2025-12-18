@@ -7,7 +7,8 @@ import {
   updateUser,
   deleteUser,
   downloadFoaieDeZahar,
-  fixFoaieDeZaharFlags
+  fixFoaieDeZaharFlags,
+  listUploadsFiles
 } from '../controllers/admin.controller'
 
 const router = Router()
@@ -17,6 +18,7 @@ router.use(authenticate)
 
 router.get('/orders/:id', getOrderDetails)
 router.get('/orders/:id/foaie-de-zahar', downloadFoaieDeZahar)
+router.get('/uploads/files', listUploadsFiles)
 router.post('/fix-foaie-de-zahar-flags', fixFoaieDeZaharFlags)
 router.get('/users', listUsers)
 router.post('/users', createUser)

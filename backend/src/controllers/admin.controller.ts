@@ -291,23 +291,72 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     }
 
     if (!resolvedPath) {
-      console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
-        originalPath: filePath,
-        url: foaieDeZaharPhoto.url,
-        uploadDir: UPLOAD_DIR,
-        cwd: process.cwd(),
-        triedPaths: [
-          filePath,
-          foaieDeZaharPhoto.url ? path.join(UPLOAD_DIR, foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')) : null,
-          filePath ? path.join(UPLOAD_DIR, path.basename(filePath)) : null,
-        ].filter(Boolean),
-      })
-      return res.status(404).json({ 
-        error: 'Photo file not found on disk',
-        path: filePath,
-        url: foaieDeZaharPhoto.url,
-        uploadDir: UPLOAD_DIR,
-      })
+      // Final fallback: Try to serve via static route redirect
+      // This handles cases where files might be accessible via /uploads but path resolution failed
+      if (foaieDeZaharPhoto.url && foaieDeZaharPhoto.url.startsWith('/uploads/')) {
+        console.log(`File not found via direct path, trying static route redirect for order ${order.orderNumber}`)
+        console.log(`Redirecting to: ${foaieDeZaharPhoto.url}`)
+        
+        // Try to check if file exists via static route by attempting to read it
+        const urlFilename = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')
+        const staticPath = path.join(UPLOAD_DIR, urlFilename)
+        
+        // One more attempt with the exact filename from URL
+        if (fs.existsSync(staticPath)) {
+          resolvedPath = staticPath
+          console.log(`File found via static route path: ${staticPath}`)
+        } else {
+          // List available files in uploads directory for debugging (first 10)
+          try {
+            const uploadFiles = fs.readdirSync(UPLOAD_DIR).slice(0, 10)
+            console.log(`Available files in uploads (first 10):`, uploadFiles)
+          } catch (err) {
+            console.log(`Could not read uploads directory: ${err}`)
+          }
+          
+          console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
+            originalPath: filePath,
+            url: foaieDeZaharPhoto.url,
+            uploadDir: UPLOAD_DIR,
+            cwd: process.cwd(),
+            staticPath: staticPath,
+            triedPaths: [
+              filePath,
+              foaieDeZaharPhoto.url ? path.join(UPLOAD_DIR, foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')) : null,
+              filePath ? path.join(UPLOAD_DIR, path.basename(filePath)) : null,
+              staticPath,
+            ].filter(Boolean),
+          })
+          
+          // Return 404 with detailed error
+          return res.status(404).json({ 
+            error: 'Photo file not found on disk',
+            message: `The file for order ${order.orderNumber} does not exist on the server. The file may have been deleted or never uploaded to Railway.`,
+            path: filePath,
+            url: foaieDeZaharPhoto.url,
+            uploadDir: UPLOAD_DIR,
+            orderNumber: order.orderNumber,
+          })
+        }
+      } else {
+        console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
+          originalPath: filePath,
+          url: foaieDeZaharPhoto.url,
+          uploadDir: UPLOAD_DIR,
+          cwd: process.cwd(),
+          triedPaths: [
+            filePath,
+            foaieDeZaharPhoto.url ? path.join(UPLOAD_DIR, foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')) : null,
+            filePath ? path.join(UPLOAD_DIR, path.basename(filePath)) : null,
+          ].filter(Boolean),
+        })
+        return res.status(404).json({ 
+          error: 'Photo file not found on disk',
+          path: filePath,
+          url: foaieDeZaharPhoto.url,
+          uploadDir: UPLOAD_DIR,
+        })
+      }
     }
 
     // Send file
@@ -316,6 +365,36 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error downloading foaie de zahar photo:', error)
     res.status(500).json({ error: 'Failed to download foaie de zahar photo' })
+  }
+}
+
+export const listUploadsFiles = async (req: Request, res: Response) => {
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+    
+    let files: string[] = []
+    try {
+      if (fs.existsSync(UPLOAD_DIR)) {
+        files = fs.readdirSync(UPLOAD_DIR)
+      }
+    } catch (error) {
+      console.error('Error reading uploads directory:', error)
+    }
+    
+    // Filter for foaie-de-zahar files
+    const foaieDeZaharFiles = files.filter(f => f.toLowerCase().includes('foaie-de-zahar'))
+    
+    res.json({
+      uploadDir: UPLOAD_DIR,
+      totalFiles: files.length,
+      foaieDeZaharFiles: foaieDeZaharFiles,
+      allFiles: files.slice(0, 50), // First 50 files
+    })
+  } catch (error) {
+    console.error('Error listing uploads files:', error)
+    res.status(500).json({ error: 'Failed to list uploads files' })
   }
 }
 
