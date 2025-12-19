@@ -239,7 +239,9 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
 
     const fs = require('fs')
     const path = require('path')
-    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+    // Use Railway persistent volume for production, local directory for development
+    const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
     
     // Try multiple path resolution strategies
     let filePath = foaieDeZaharPhoto.path
@@ -381,7 +383,9 @@ export const listUploadsFiles = async (req: Request, res: Response) => {
   try {
     const fs = require('fs')
     const path = require('path')
-    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+    // Use Railway persistent volume for production, local directory for development
+    const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
     
     let files: string[] = []
     try {

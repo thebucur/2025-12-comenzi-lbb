@@ -62,3 +62,4 @@ try {
 }
 
 Write-Host "`n✨ Operațiune finalizată cu succes!" -ForegroundColor Green
+

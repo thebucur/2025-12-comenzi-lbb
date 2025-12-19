@@ -5,9 +5,10 @@ import fs from 'fs/promises'
 import path from 'path'
 import prisma from '../lib/prisma'
 
-// For Railway, we'll store files temporarily and then upload to cloud storage
-// For now, using a simple file system approach (can be replaced with Cloudinary/S3)
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+// Use Railway persistent volume for production, local directory for development
+// Railway volume should be mounted at /app/storage
+const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
 
 // Store session to order mapping (in production, use Redis or database)
 const sessionToOrderMap = new Map<string, string>()

@@ -2,8 +2,10 @@ import prisma from '../src/lib/prisma'
 import fs from 'fs/promises'
 import path from 'path'
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
-const PDF_DIR = process.env.PDF_DIR || path.join(process.cwd(), 'pdfs')
+// Use Railway persistent volume for production, local directory for development
+const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
+const PDF_DIR = process.env.PDF_DIR || path.join(STORAGE_BASE, 'pdfs')
 
 async function deleteAllOrders() {
   try {
@@ -133,3 +135,4 @@ deleteAllOrders()
     console.error('\n💥 Script failed:', error)
     process.exit(1)
   })
+

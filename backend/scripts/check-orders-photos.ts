@@ -43,7 +43,9 @@ async function checkOrdersPhotos(orderNumbers: number[]) {
             console.log(`      File exists (absolute: ${absolutePath}): ${absoluteExists}`)
             
             // Also check if it's in uploads directory
-            const uploadsPath = path.join(process.cwd(), 'uploads', path.basename(photo.path))
+            const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+            const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
+            const uploadsPath = path.join(UPLOAD_DIR, path.basename(photo.path))
             const uploadsExists = fs.existsSync(uploadsPath)
             console.log(`      File exists (uploads: ${uploadsPath}): ${uploadsExists}`)
           }
@@ -89,4 +91,5 @@ checkOrdersPhotos(orderNumbers)
     console.error('\n❌ Script failed:', error)
     process.exit(1)
   })
+
 

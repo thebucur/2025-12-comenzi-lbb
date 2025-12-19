@@ -1,134 +1,152 @@
-# Configurare Volum Persistent pe Railway
+# Railway Persistent Volume Setup
 
-## Problema
+## Problem
 
-Pe Railway, filesystem-ul este **efemer** - la fiecare redeploy, toate fișierele din sistemul de fișiere sunt șterse. Acest lucru înseamnă că fișierele încărcate (fotografii, PDF-uri) sunt pierdute la fiecare redeploy.
+On Railway, the filesystem is **ephemeral** - on every redeploy, all files in the filesystem are wiped. This means uploaded files (photos, PDFs) are lost on every redeploy.
 
-## Soluție: Volum Persistent
+## Solution: Persistent Volume
 
-Un volum persistent este un spațiu de stocare care persista între redeploy-uri.
+A persistent volume is a storage space that persists between redeploys.
 
-## ✅ Configurare Completă
+## Setup Instructions
 
-Volumul persistent a fost deja configurat! Detalii:
-- **Volum**: `nodejs-volume`
-- **Mount Path**: `/app/backend/uploads`
-- **Variabile setate**: `UPLOAD_DIR=/app/backend/uploads`, `PDF_DIR=/app/backend/pdfs`
+### Step 1: Create Persistent Volume via Railway Dashboard (Recommended)
 
-## Pași pentru configurare (dacă trebuie să reconfigurezi)
+1. Go to https://railway.app
+2. Select your project
+3. Select the **backend** service (not frontend)
 
-1. Mergi la https://railway.app
-2. Selectează proiectul tău
-3. Selectează serviciul **backend** (nu frontend)
+4. Go to the **"Volumes"** tab (or **"Settings" → "Volumes"**)
+5. Click **"Add Volume"** or **"Create Volume"**
+6. Configure:
+   - **Name**: `storage-persistent` (or any descriptive name)
+   - **Mount Path**: `/app/storage`
+   - **Size**: 2 GB or more (depending on how many photos/PDFs you'll store)
 
-### 2. Adaugă Volum Persistent
+7. Click **"Create"** or **"Add"**
 
-#### Opțiunea A: Via Railway Dashboard (Recomandat)
+### Step 2: Set Environment Variables
 
-1. În serviciul backend, mergi la tab-ul **"Volumes"** sau **"Settings" → "Volumes"**
-2. Click pe butonul **"Add Volume"** sau **"Create Volume"**
-3. Completează:
-   - **Name**: `uploads-persistent` (sau alt nume descriptiv)
-   - **Mount Path**: `/app/backend/uploads` (sau `/uploads`)
-   - **Size**: 1 GB sau mai mult (în funcție de câte fotografii vei stoca)
+In the backend service, go to **"Variables"** tab and add/update:
 
-4. Click **"Create"** sau **"Add"**
+```
+STORAGE_BASE=/app/storage
+UPLOAD_DIR=/app/storage/uploads
+PDF_DIR=/app/storage/pdfs
+```
 
-#### Opțiunea B: Via Railway CLI (Folosit deja)
+**Note**: The code will automatically create `uploads` and `pdfs` subdirectories inside the mounted volume.
+
+### Step 3: Alternative - Setup via Railway CLI
+
+If you prefer using the CLI:
 
 ```bash
-# Navighează la directorul backend
+# Navigate to backend directory
 cd backend
 
-# Link la proiectul Railway (dacă nu e deja link-at)
+# Link to Railway project (if not already linked)
 railway link
 
-# Creează volumul (COMANDĂ FOLOSITĂ DEJA)
-railway volume add -m /app/backend/uploads
+# Create the persistent volume
+railway volume add -m /app/storage
 
-# Setează variabilele (COMANDĂ FOLOSITĂ DEJA)
-railway variables --set "UPLOAD_DIR=/app/backend/uploads"
-railway variables --set "PDF_DIR=/app/backend/pdfs"
+# Set environment variables
+railway variables --set "STORAGE_BASE=/app/storage"
+railway variables --set "UPLOAD_DIR=/app/storage/uploads"
+railway variables --set "PDF_DIR=/app/storage/pdfs"
 ```
 
-### 3. Verifică Variabilele de Mediu
+### Step 4: Redeploy
 
-1. În serviciul backend, mergi la tab-ul **"Variables"**
-2. Verifică dacă există variabila `UPLOAD_DIR`
-3. Dacă nu există sau este diferită, adaugă/actualizează:
-   ```
-   UPLOAD_DIR=/app/backend/uploads
-   ```
-   (sau `/uploads` dacă ai montat volumul acolo)
-
-### 4. Verifică PDF_DIR (opțional)
-
-Dacă dorești să păstrezi și PDF-urile generate persistent, poți crea un volum separat sau folosi același:
-
-```
-PDF_DIR=/app/backend/pdfs
-```
-
-Sau pentru a folosi același volum:
-```
-PDF_DIR=/app/backend/uploads
-```
-
-### 5. Redeploy
-
-După configurarea volumului, fă un redeploy:
+After configuring the volume, redeploy the service:
 
 #### Via Dashboard:
-- Click pe serviciul backend → **"Deployments"** → **"Redeploy"**
+- Click on backend service → **"Deployments"** → **"Redeploy"**
 
 #### Via Git:
-- Fă un commit gol sau modificare minoră și push:
+- Make an empty commit or minor change and push:
   ```bash
-  git commit --allow-empty -m "Trigger redeploy for volume setup"
+  git commit --allow-empty -m "Configure persistent volume"
   git push
   ```
 
-## Verificare
+## Verification
 
-După redeploy, poți verifica dacă volumul funcționează:
+After redeploy, verify the volume is working:
 
-1. Încarcă o fotografie nouă prin aplicație
-2. Verifică log-urile Railway pentru mesajele `[Railway Debug]`
-3. Fă un redeploy
-4. Verifică dacă fotografia încă există și poate fi descărcată
+1. Upload a new photo through the application
+2. Check Railway logs for storage path messages (you should see `📁 Storage configuration:` with the paths)
+3. Perform a redeploy
+4. Verify the photo still exists and can be downloaded
 
-## Limitări și Alternative
+## How It Works
 
-### Limitări Volume Persistent Railway:
-- Volumul este legat de serviciu (nu se sincronizează între servicii)
-- Poate deveni costisitor pentru multe fișiere
-- Limită de dimensiune (depinde de plan)
+- **Development**: Files are stored in local `uploads/` and `pdfs/` directories
+- **Production (Railway)**: Files are stored in the persistent volume at `/app/storage/uploads` and `/app/storage/pdfs`
+- The code automatically detects the environment and uses the appropriate paths
+- Static file serving is configured to serve from the persistent volume paths
 
-### Alternative (Recomandate pentru producție):
+## File Structure
 
-1. **AWS S3** - Scalabil, ieftin, redundanță
-2. **Cloudinary** - Optimizare imagini automată
-3. **DigitalOcean Spaces** - Compatibil S3, simplu
-4. **Azure Blob Storage** - Integrare bună cu Azure
+```
+/app/storage/          (Persistent volume mount point)
+├── uploads/          (Photos stored here)
+│   ├── [uuid].jpg
+│   └── ...
+└── pdfs/             (PDFs stored here)
+    ├── order-1.pdf
+    └── ...
+```
 
-Pentru implementare cu storage cloud, consultă documentația fiecărui serviciu.
+## Limitations and Alternatives
+
+### Railway Persistent Volume Limitations:
+- Volume is tied to the service (doesn't sync between services)
+- Can become expensive for many files
+- Size limit depends on your plan
+- Single point of failure (if volume is lost, files are lost)
+
+### Alternatives (Recommended for production at scale):
+
+1. **AWS S3** - Scalable, cheap, redundant
+2. **Cloudinary** - Automatic image optimization
+3. **DigitalOcean Spaces** - S3-compatible, simple
+4. **Azure Blob Storage** - Good Azure integration
+
+For cloud storage implementation, consult each service's documentation.
 
 ## Troubleshooting
 
-### Volumul nu se montează
+### Volume not mounting
 
-1. Verifică că mount path-ul este corect
-2. Verifică că variabila `UPLOAD_DIR` corespunde cu mount path-ul
-3. Verifică log-urile pentru erori de montare
+1. Verify the mount path is correct (`/app/storage`)
+2. Verify environment variables match the mount path
+3. Check logs for mounting errors
+4. Ensure the volume is created and attached to the backend service
 
-### Fișierele tot dispăr
+### Files still disappearing
 
-1. Verifică că volumul este creat și montat corect
-2. Verifică log-urile pentru path-urile încercate
-3. Asigură-te că codul folosește `UPLOAD_DIR` și nu path-uri hardcodate
+1. Verify the volume is created and mounted correctly
+2. Check logs for the storage paths being used (look for `📁 Storage configuration:`)
+3. Ensure code uses environment variables, not hardcoded paths
+4. Verify environment variables are set correctly in Railway dashboard
 
-### Nu pot accesa fișierele
+### Cannot access files
 
-1. Verifică permisiunile volumului
-2. Verifică că endpoint-ul static `/uploads` este configurat corect în `server.ts`
-3. Verifică log-urile pentru erori 404
+1. Verify volume permissions
+2. Check that static file endpoints `/uploads` and `/pdfs` are configured correctly in `server.ts`
+3. Check logs for 404 errors
+4. Verify the files actually exist in the volume (you can check via Railway's file explorer if available)
+
+### Storage paths in logs
+
+On startup, you should see:
+```
+📁 Storage configuration:
+   STORAGE_BASE: /app/storage
+   UPLOAD_DIR: /app/storage/uploads
+   PDF_DIR: /app/storage/pdfs
+```
+
+If you see different paths, check your environment variables.

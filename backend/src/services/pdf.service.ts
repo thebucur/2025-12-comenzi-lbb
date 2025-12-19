@@ -6,8 +6,11 @@ import path from 'path'
 import https from 'https'
 import sharp from 'sharp'
 
-const PDF_DIR = process.env.PDF_DIR || path.join(process.cwd(), 'pdfs')
-const FONTS_DIR = path.join(process.cwd(), 'fonts')
+// Use Railway persistent volume for production, local directory for development
+// Railway volume should be mounted at /app/storage
+const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+const PDF_DIR = process.env.PDF_DIR || path.join(STORAGE_BASE, 'pdfs')
+const FONTS_DIR = process.env.FONTS_DIR || path.join(STORAGE_BASE, 'fonts')
 
 // Helper function to replace Romanian diacritics with non-diacritic letters
 const removeDiacritics = (text: string | null | undefined): string => {
