@@ -452,14 +452,14 @@ function PhotoUpload() {
                 return (
                   <div key={photoKey} className="relative">
                     <img
-                      src={photo}
+                      src={getAbsoluteUrl(photo)}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-700"
                       onLoad={() => {
                         console.log(`✅ Image ${index + 1} loaded successfully:`, photo)
                       }}
                       onError={(e) => {
-                        console.error(`❌ Image ${index + 1} failed to load:`, photo, e)
+                        console.error(`❌ Image ${index + 1} failed to load:`, photo, 'Full URL:', getAbsoluteUrl(photo), e)
                         // Show error indicator
                         const target = e.target as HTMLImageElement
                         target.style.border = '2px solid red'

@@ -770,9 +770,15 @@ function Screen3Decor() {
                 <div key={index} className="relative group">
                   <div className="shadow-neumorphic rounded-2xl overflow-hidden">
                     <img
-                      src={photo}
+                      src={getAbsoluteUrl(photo)}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-40 object-cover"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo, 'Full URL:', getAbsoluteUrl(photo))
+                        const target = e.target as HTMLImageElement
+                        target.style.border = '2px solid red'
+                        target.alt = `Eroare la încărcarea pozei ${index + 1}`
+                      }}
                     />
                   </div>
                   <button

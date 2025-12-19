@@ -450,9 +450,15 @@ function Screen4Finalizare() {
                 {order.photos.map((photo, index) => (
                   <div key={index} className="shadow-neumorphic rounded-2xl overflow-hidden">
                     <img
-                      src={photo}
+                      src={getAbsoluteUrl(photo)}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-24 object-cover"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo, 'Full URL:', getAbsoluteUrl(photo))
+                        const target = e.target as HTMLImageElement
+                        target.style.border = '2px solid red'
+                        target.alt = `Eroare la încărcarea pozei ${index + 1}`
+                      }}
                     />
                   </div>
                 ))}
