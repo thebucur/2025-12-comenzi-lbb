@@ -60,6 +60,10 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
   const [newItemValue, setNewItemValue] = useState('')
   const [newColorName, setNewColorName] = useState('')
   const [showAddItem, setShowAddItem] = useState<string | null>(null)
+  const [editingItem, setEditingItem] = useState<string | null>(null)
+  const [editItemValue, setEditItemValue] = useState('')
+  const [editColorName, setEditColorName] = useState('')
+  const [editColorValue, setEditColorValue] = useState('')
 
   const getConfigByKey = (key: string) => {
     return configs.find((c) => c.key === key)
@@ -167,6 +171,58 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
     }
   }
 
+  const handleStartEdit = (key: string, item: string | ColorOption, index: number) => {
+    const editKey = `${key}-${index}`
+    setEditingItem(editKey)
+    if (key === 'colors' && isColorItem(item)) {
+      setEditColorName(item.name)
+      setEditColorValue(item.value)
+    } else {
+      setEditItemValue(getItemDisplay(item))
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingItem(null)
+    setEditItemValue('')
+    setEditColorName('')
+    setEditColorValue('')
+  }
+
+  const handleSaveEdit = async (key: string, oldItem: string | ColorOption) => {
+    const config = getConfigByKey(key)
+    if (!config) return
+
+    let newItem: string | ColorOption
+
+    if (key === 'colors') {
+      if (!editColorName?.trim() || !editColorValue?.trim()) {
+        alert('Numele și culoarea sunt obligatorii')
+        return
+      }
+      newItem = { name: editColorName, value: editColorValue }
+    } else {
+      if (!editItemValue?.trim()) {
+        alert('Valoarea nu poate fi goală')
+        return
+      }
+      newItem = editItemValue
+    }
+
+    try {
+      await api.put(`/config/global/${config.id}/items`, {
+        oldItem,
+        newItem,
+      })
+      onRefresh()
+      handleCancelEdit()
+    } catch (error: any) {
+      console.error('Error updating item:', error)
+      const errorMessage = error.response?.data?.error || 'Eroare la actualizarea elementului'
+      alert(errorMessage)
+    }
+  }
+
   const handleInitializeConfig = async (key: string) => {
     const items = defaultItems[key] || []
     if (items.length === 0) return
@@ -225,10 +281,81 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
                   {displayItems.map((item, index) => {
                     const displayName = getItemDisplay(item)
                     const colorValue = key === 'colors' ? getItemValue(item) : null
+                    const editKey = `${key}-${index}`
+                    const isEditing = editingItem === editKey
+
+                    if (isEditing) {
+                      return (
+                        <div
+                          key={index}
+                          className="bg-primary/50 px-4 py-2 rounded-xl flex items-center gap-2"
+                        >
+                          {key === 'colors' ? (
+                            <>
+                              <input
+                                type="text"
+                                value={editColorName}
+                                onChange={(e) => setEditColorName(e.target.value)}
+                                className="input-neumorphic w-32 text-secondary text-sm"
+                                placeholder="Nume culoare"
+                                autoFocus
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleSaveEdit(key, item)
+                                  } else if (e.key === 'Escape') {
+                                    handleCancelEdit()
+                                  }
+                                }}
+                              />
+                              <input
+                                type="color"
+                                value={editColorValue}
+                                onChange={(e) => setEditColorValue(e.target.value)}
+                                className="w-12 h-8 rounded-lg cursor-pointer"
+                                title="Selectați culoarea"
+                              />
+                            </>
+                          ) : (
+                            <input
+                              type="text"
+                              value={editItemValue}
+                              onChange={(e) => setEditItemValue(e.target.value)}
+                              className="input-neumorphic flex-1 text-secondary text-sm"
+                              placeholder="Valoare"
+                              autoFocus
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveEdit(key, item)
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEdit()
+                                }
+                              }}
+                            />
+                          )}
+                          <button
+                            onClick={() => handleSaveEdit(key, item)}
+                            className="text-green-500 hover:text-green-700 transition-colors font-bold"
+                            title="Salvează"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="text-red-500 hover:text-red-700 transition-colors font-bold"
+                            title="Anulează"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )
+                    }
+
                     return (
                       <div
                         key={index}
-                        className="bg-primary/50 px-4 py-2 rounded-xl flex items-center gap-2 group"
+                        className="bg-primary/50 px-4 py-2 rounded-xl flex items-center gap-2 group cursor-pointer"
+                        onClick={() => handleStartEdit(key, item, index)}
+                        title="Click pentru a edita"
                       >
                         {key === 'colors' && colorValue ? (
                           <div
@@ -238,8 +365,12 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
                         ) : null}
                         <span className="text-secondary font-semibold">{displayName}</span>
                         <button
-                          onClick={() => handleDeleteItem(key, item)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteItem(key, item)
+                          }}
                           className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity font-bold"
+                          title="Șterge"
                         >
                           ✕
                         </button>

@@ -161,3 +161,53 @@ export const deleteItemFromConfig = async (req: Request, res: Response) => {
   }
 }
 
+// Update item in a global config
+export const updateItemInConfig = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const { oldItem, newItem } = req.body
+
+    if (!oldItem || !newItem) {
+      return res.status(400).json({ error: 'Both oldItem and newItem are required' })
+    }
+
+    const config = await prisma.globalConfig.findUnique({
+      where: { id },
+    })
+
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' })
+    }
+
+    const currentValue = Array.isArray(config.value) ? (config.value as any[]) : []
+    
+    // Find the index of the old item
+    const itemIndex = currentValue.findIndex((i) => itemsEqual(i, oldItem))
+    if (itemIndex === -1) {
+      return res.status(404).json({ error: 'Item not found' })
+    }
+
+    // Check if new item already exists (and it's not the same as the old one)
+    const newItemExists = currentValue.some((existingItem, index) => 
+      index !== itemIndex && itemsEqual(existingItem, newItem)
+    )
+    if (newItemExists) {
+      return res.status(400).json({ error: 'New item already exists' })
+    }
+
+    // Replace the old item with the new one
+    const updatedValue = [...currentValue]
+    updatedValue[itemIndex] = newItem
+
+    const updated = await prisma.globalConfig.update({
+      where: { id },
+      data: { value: updatedValue },
+    })
+
+    res.json(updated)
+  } catch (error) {
+    console.error('Error updating item in config:', error)
+    res.status(500).json({ error: 'Failed to update item in configuration' })
+  }
+}
+

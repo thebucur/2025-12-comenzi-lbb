@@ -5,6 +5,7 @@ import {
   deleteGlobalConfig,
   addItemToConfig,
   deleteItemFromConfig,
+  updateItemInConfig,
 } from '../controllers/config.controller'
 
 const router = Router()
@@ -15,6 +16,7 @@ router.put('/global/:id', upsertGlobalConfig)
 router.delete('/global/:id', deleteGlobalConfig)
 router.post('/global/:id/items', addItemToConfig)
 router.post('/global/:id/items/delete', deleteItemFromConfig)
+router.put('/global/:id/items', updateItemInConfig)
 
 export default router
 
