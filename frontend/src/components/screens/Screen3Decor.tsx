@@ -7,7 +7,6 @@ import { ColorOption, normalizeColorOptions, resolveColorValue } from '../../con
 import { getLocalNetworkUrl, getLocalNetworkIP } from '../../utils/network'
 import api from '../../services/api'
 import axios from 'axios'
-import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 
 // Default values (fallback if config not available)
 const defaultCoatings: Coating[] = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
@@ -34,13 +33,35 @@ function Screen3Decor() {
   const foaieDeZaharInputRef = useRef<HTMLInputElement | null>(null)
   // Track deleted photos to prevent polling from re-adding them
   const deletedPhotosRef = useRef<Set<string>>(new Set())
-  // Track failed image URLs to prevent re-adding them
-  const failedImageUrlsRef = useRef<Set<string>>(new Set())
-  // Track failed images for UI display
-  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
 
-  // Use centralized function
-  const getAbsoluteUrl = getAbsoluteImageUrl
+  // Helper function to convert relative URL to absolute
+  const getAbsoluteUrl = (relativeUrl: string): string => {
+    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+      return relativeUrl
+    }
+    
+    let backendURL: string
+    if (import.meta.env.DEV) {
+      const currentHostname = window.location.hostname
+      if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+        backendURL = `http://${currentHostname}:5000`
+      } else {
+        const localIP = getLocalNetworkIP()
+        if (localIP) {
+          backendURL = `http://${localIP}:5000`
+        } else {
+          const envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+          backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+        }
+      }
+    } else {
+      const envURL = import.meta.env.VITE_API_URL || window.location.origin
+      backendURL = envURL.replace(/\/api$/, '').replace(/\/$/, '')
+    }
+    
+    const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
+    return `${backendURL}${url}`
+  }
 
   // Poll for photos and foaie de zahar by session ID
   const startPhotoPolling = (sessionId: string) => {
@@ -61,12 +82,10 @@ function Screen3Decor() {
           // Convert relative URLs to absolute URLs
           const absolutePhotoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
           
-          // Filter out deleted photos and failed images
-          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => 
-            !deletedPhotosRef.current.has(url) && !failedImageUrlsRef.current.has(url)
-          )
+          // Filter out deleted photos
+          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => !deletedPhotosRef.current.has(url))
           
-          // Update order with new photos (merge with existing, but respect deleted photos and failed images)
+          // Update order with new photos (merge with existing, but respect deleted photos)
           const existingPhotos = order.photos || []
           const newPhotos = filteredPhotoUrls.filter((url: string) => !existingPhotos.includes(url))
           
@@ -76,12 +95,11 @@ function Screen3Decor() {
               photos: [...existingPhotos, ...newPhotos]
             })
           } else {
-            // Sync with backend - remove photos that were deleted locally, failed to load, or don't exist in backend
+            // Sync with backend - remove photos that were deleted locally but still exist in backend
             const photosToKeep = existingPhotos.filter((url: string) => 
-              filteredPhotoUrls.includes(url) || deletedPhotosRef.current.has(url) || failedImageUrlsRef.current.has(url)
+              filteredPhotoUrls.includes(url) || deletedPhotosRef.current.has(url)
             )
             if (photosToKeep.length !== existingPhotos.length) {
-              console.log(`Removing ${existingPhotos.length - photosToKeep.length} photos that are no longer valid`)
               updateOrder({ photos: photosToKeep })
             }
           }
@@ -662,21 +680,14 @@ function Screen3Decor() {
           </div>
         )}
 
-        {order.foaieDeZaharPhoto && (() => {
-          const foaieDeZaharUrl = order.foaieDeZaharPhoto
-          return (
+        {order.foaieDeZaharPhoto && (
           <div className="mt-4 p-4 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-2xl">
             <p className="text-sm font-bold text-secondary mb-2">✅ Foaie de zahar încărcată</p>
             <div className="relative inline-block">
               <img
-                src={getAbsoluteUrl(foaieDeZaharUrl)}
+                src={order.foaieDeZaharPhoto}
                 alt="Foaie de zahar"
                 className="w-32 h-32 object-cover rounded-lg border-2 border-yellow-500/50"
-                onError={(e) => {
-                  console.error('Error loading foaie de zahar image:', foaieDeZaharUrl, 'Absolute URL:', getAbsoluteUrl(foaieDeZaharUrl))
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                }}
               />
               <button
                 onClick={() => updateOrder({ foaieDeZaharPhoto: null })}
@@ -686,8 +697,7 @@ function Screen3Decor() {
               </button>
             </div>
           </div>
-          )
-        })()}
+        )}
 
         {showQRCode && (
           <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -756,58 +766,20 @@ function Screen3Decor() {
           <div className="mt-8">
             <h4 className="text-lg font-bold text-secondary mb-4">Poze încărcate ({order.photos.length})</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {order.photos.map((photo, index) => {
-                // Ensure photo URL is absolute (handle both absolute and relative URLs from old orders)
-                const photoUrl = getAbsoluteUrl(photo)
-                const isFailed = failedImages.has(photo)
-                
-                return (
-                <div key={`${photo}-${index}`} className="relative group">
-                  <div className="shadow-neumorphic rounded-2xl overflow-hidden bg-gray-800 min-h-[160px] flex items-center justify-center relative">
-                    {!isFailed ? (
-                      <img
-                        src={photoUrl}
-                        alt={`Poza ${index + 1}`}
-                        className="w-full h-40 object-cover"
-                        onError={(e) => {
-                          console.error('❌ Error loading image:', photo, 'Absolute URL:', photoUrl)
-                          // Mark this URL as failed to prevent polling from re-adding it
-                          failedImageUrlsRef.current.add(photo)
-                          setFailedImages(prev => new Set(prev).add(photo))
-                          // Remove from order after a short delay
-                          setTimeout(() => {
-                            const failedPhotoIndex = order.photos.findIndex(p => p === photo)
-                            if (failedPhotoIndex >= 0) {
-                              console.warn(`Removing failed image from order: ${photo}`)
-                              const newPhotos = order.photos.filter((_, i) => i !== failedPhotoIndex)
-                              updateOrder({ photos: newPhotos })
-                              setFailedImages(prev => {
-                                const next = new Set(prev)
-                                next.delete(photo)
-                                return next
-                              })
-                            }
-                          }, 2000)
-                        }}
-                        onLoad={() => {
-                          // If image loads successfully, remove from failed list (in case it was retried)
-                          if (failedImageUrlsRef.current.has(photo)) {
-                            console.log(`✅ Image loaded successfully after previous failure: ${photo}`)
-                            failedImageUrlsRef.current.delete(photo)
-                            setFailedImages(prev => {
-                              const next = new Set(prev)
-                              next.delete(photo)
-                              return next
-                            })
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="text-center p-4 text-gray-400">
-                        <p className="text-sm">❌ Imagine indisponibilă</p>
-                        <p className="text-xs mt-1">Se elimină...</p>
-                      </div>
-                    )}
+              {order.photos.map((photo, index) => (
+                <div key={index} className="relative group">
+                  <div className="shadow-neumorphic rounded-2xl overflow-hidden">
+                    <img
+                      src={getAbsoluteUrl(photo)}
+                      alt={`Poza ${index + 1}`}
+                      className="w-full h-40 object-cover"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo, 'Full URL:', getAbsoluteUrl(photo))
+                        const target = e.target as HTMLImageElement
+                        target.style.border = '2px solid red'
+                        target.alt = `Eroare la încărcarea pozei ${index + 1}`
+                      }}
+                    />
                   </div>
                   <button
                     onClick={() => {
@@ -824,7 +796,7 @@ function Screen3Decor() {
                     ✕
                   </button>
                 </div>
-              )})}
+              ))}
             </div>
           </div>
         )}

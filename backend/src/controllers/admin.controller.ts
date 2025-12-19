@@ -238,168 +238,83 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     }
 
     const fs = require('fs')
-    const fsPromises = require('fs/promises')
     const path = require('path')
     const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
     
-    console.log(`[Railway Debug] Starting file resolution for order ${order.orderNumber}`, {
-      photoId: foaieDeZaharPhoto.id,
-      originalPath: foaieDeZaharPhoto.path,
-      url: foaieDeZaharPhoto.url,
-      uploadDir: UPLOAD_DIR,
-      cwd: process.cwd(),
-      nodeEnv: process.env.NODE_ENV,
-    })
-    
     // Try multiple path resolution strategies
-    // PRIORITY: URL-based path first (most reliable on Railway after redeploy)
     let filePath = foaieDeZaharPhoto.path
     let resolvedPath: string | null = null
 
-    // Strategy 1 (HIGHEST PRIORITY): Try constructing from URL first
-    // This is most reliable on Railway because URL is relative and consistent
-    if (foaieDeZaharPhoto.url) {
-      // Remove /uploads/ prefix if present, and any leading slashes
-      let urlPath = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '').replace(/^\//, '')
-      
-      // Try direct path from URL
-      const pathFromUrl = path.join(UPLOAD_DIR, urlPath)
-      if (fs.existsSync(pathFromUrl)) {
-        resolvedPath = pathFromUrl
-        console.log(`[Railway Debug] File found using URL path: ${pathFromUrl}`)
-      } else {
-        // Try with just the filename (in case URL has subdirectories that don't exist)
-        const filename = path.basename(urlPath)
-        const pathFromFilename = path.join(UPLOAD_DIR, filename)
-        if (fs.existsSync(pathFromFilename)) {
-          resolvedPath = pathFromFilename
-          console.log(`[Railway Debug] File found using filename from URL: ${pathFromFilename}`)
+    // Strategy 1: Use path as-is if it exists
+    if (filePath && fs.existsSync(filePath)) {
+      resolvedPath = filePath
+      console.log(`File found at original path: ${filePath}`)
+    } else {
+      // Strategy 2: Try constructing from URL (extract filename and use UPLOAD_DIR)
+      if (foaieDeZaharPhoto.url) {
+        const urlPath = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')
+        const pathFromUrl = path.join(UPLOAD_DIR, urlPath)
+        if (fs.existsSync(pathFromUrl)) {
+          resolvedPath = pathFromUrl
+          console.log(`File found using URL path: ${pathFromUrl}`)
         }
       }
-    }
-
-    // Strategy 2: Use original path as-is if it exists (might work on Railway)
-    if (!resolvedPath && filePath && fs.existsSync(filePath)) {
-      resolvedPath = filePath
-      console.log(`[Railway Debug] File found at original path: ${filePath}`)
-    } else if (!resolvedPath && filePath) {
-      // Strategy 3: If path is absolute, try extracting just filename
-      if (path.isAbsolute(filePath)) {
-        const filename = path.basename(filePath)
-        const pathFromUploadDir = path.join(UPLOAD_DIR, filename)
-        if (fs.existsSync(pathFromUploadDir)) {
-          resolvedPath = pathFromUploadDir
-          console.log(`[Railway Debug] File found by extracting filename from absolute path: ${pathFromUploadDir}`)
+      
+      // Strategy 3: If path is absolute (Railway path like /app/backend/uploads/...), try as-is
+      if (!resolvedPath && filePath && path.isAbsolute(filePath)) {
+        // On Railway, the path might be correct but process.cwd() might be different
+        // Try the path as-is first
+        if (fs.existsSync(filePath)) {
+          resolvedPath = filePath
+          console.log(`File found at absolute Railway path: ${filePath}`)
+        } else {
+          // Try constructing from UPLOAD_DIR + filename
+          const filename = path.basename(filePath)
+          const pathFromUploadDir = path.join(UPLOAD_DIR, filename)
+          if (fs.existsSync(pathFromUploadDir)) {
+            resolvedPath = pathFromUploadDir
+            console.log(`File found at UPLOAD_DIR: ${pathFromUploadDir}`)
+          }
         }
       }
       
       // Strategy 4: Try relative to process.cwd()
-      if (!resolvedPath) {
+      if (!resolvedPath && filePath) {
         const relativePath = path.isAbsolute(filePath)
           ? path.join(process.cwd(), path.basename(filePath))
           : path.join(process.cwd(), filePath)
         if (fs.existsSync(relativePath)) {
           resolvedPath = relativePath
-          console.log(`[Railway Debug] File found at relative path: ${relativePath}`)
+          console.log(`File found at relative path: ${relativePath}`)
         }
-      }
-    }
-
-    // Final fallback: Try to find file by searching for order number in filename
-    if (!resolvedPath) {
-      try {
-        if (fs.existsSync(UPLOAD_DIR)) {
-          const allFiles = fs.readdirSync(UPLOAD_DIR)
-          const orderNumberStr = order.orderNumber.toString()
-          
-          // Look for files with foaie-de-zahar AND order number
-          const matchingFiles = allFiles.filter((f: string) => {
-            const lowerF = f.toLowerCase()
-            return lowerF.includes('foaie-de-zahar') && 
-                   (lowerF.includes(orderNumberStr) || 
-                    lowerF.includes(`order-${orderNumberStr}`) ||
-                    lowerF.includes(`order${orderNumberStr}`))
-          })
-          
-          if (matchingFiles.length > 0) {
-            // Use the first matching file (should usually be only one)
-            const matchedFile = matchingFiles[0]
-            const matchedPath = path.join(UPLOAD_DIR, matchedFile)
-            if (fs.existsSync(matchedPath)) {
-              resolvedPath = matchedPath
-              console.log(`[Railway Debug] File found by searching for order number: ${matchedPath}`)
-            }
-          }
-        }
-      } catch (searchError) {
-        console.log(`[Railway Debug] Error searching for file by order number: ${searchError}`)
       }
     }
 
     if (!resolvedPath) {
       // Final fallback: Try to serve via static route redirect
       // This handles cases where files might be accessible via /uploads but path resolution failed
-      // On Railway, filesystem is ephemeral, so files might not exist on disk after redeploy
-      // If we have a URL, redirect to it (the static route handler will serve it if it exists)
       if (foaieDeZaharPhoto.url && foaieDeZaharPhoto.url.startsWith('/uploads/')) {
-        console.log(`[Railway Debug] File not found on disk, trying to serve via static route for order ${order.orderNumber}`)
-        console.log(`[Railway Debug] Static URL: ${foaieDeZaharPhoto.url}`)
+        console.log(`File not found via direct path, trying static route redirect for order ${order.orderNumber}`)
+        console.log(`Redirecting to: ${foaieDeZaharPhoto.url}`)
         
-        // Try one more time with exact filename from URL (in case uploads dir was recreated)
-        const urlFilename = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '').replace(/^\//, '')
+        // Try to check if file exists via static route by attempting to read it
+        const urlFilename = foaieDeZaharPhoto.url.replace(/^\/uploads\//, '')
         const staticPath = path.join(UPLOAD_DIR, urlFilename)
         
-        // Ensure uploads directory exists
-        try {
-          await fsPromises.mkdir(UPLOAD_DIR, { recursive: true })
-          if (fs.existsSync(staticPath)) {
-            resolvedPath = staticPath
-            console.log(`[Railway Debug] File found after creating uploads directory: ${staticPath}`)
-          }
-        } catch (mkdirError) {
-          console.log(`[Railway Debug] Could not create uploads directory: ${mkdirError}`)
-        }
-        
-        // If still not found, try to redirect to static route
-        // This will work if file is accessible via the /uploads endpoint
-        if (!resolvedPath) {
-          // List available files in uploads directory for debugging
-          let availableFiles: string[] = []
-          let foaieDeZaharFiles: string[] = []
+        // One more attempt with the exact filename from URL
+        if (fs.existsSync(staticPath)) {
+          resolvedPath = staticPath
+          console.log(`File found via static route path: ${staticPath}`)
+        } else {
+          // List available files in uploads directory for debugging (first 10)
           try {
-            if (fs.existsSync(UPLOAD_DIR)) {
-              availableFiles = fs.readdirSync(UPLOAD_DIR)
-              foaieDeZaharFiles = availableFiles.filter((f: string) => f.toLowerCase().includes('foaie-de-zahar'))
-              console.log(`[Railway Debug] Available files in uploads: ${availableFiles.length} total`)
-              console.log(`[Railway Debug] Files with 'foaie-de-zahar' in name: ${foaieDeZaharFiles.length}`)
-              if (foaieDeZaharFiles.length > 0) {
-                console.log(`[Railway Debug] Foaie de zahar files (first 20):`, foaieDeZaharFiles.slice(0, 20))
-              }
-              if (availableFiles.length > 0 && availableFiles.length <= 50) {
-                console.log(`[Railway Debug] All upload files:`, availableFiles)
-              } else if (availableFiles.length > 50) {
-                console.log(`[Railway Debug] First 50 upload files:`, availableFiles.slice(0, 50))
-              }
-            } else {
-              console.log(`[Railway Debug] UPLOAD_DIR does not exist: ${UPLOAD_DIR}`)
-            }
+            const uploadFiles = fs.readdirSync(UPLOAD_DIR).slice(0, 10)
+            console.log(`Available files in uploads (first 10):`, uploadFiles)
           } catch (err) {
-            console.log(`[Railway Debug] Could not read uploads directory: ${err}`)
+            console.log(`Could not read uploads directory: ${err}`)
           }
           
-          // Try to find any foaie-de-zahar file that might match this order
-          let potentialMatches: string[] = []
-          if (foaieDeZaharFiles.length > 0 && filePath) {
-            const searchFilename = path.basename(filePath).toLowerCase()
-            const orderNumberStr = order.orderNumber.toString()
-            potentialMatches = foaieDeZaharFiles.filter((f: string) => 
-              f.toLowerCase().includes(orderNumberStr) || 
-              f.toLowerCase().includes(searchFilename)
-            )
-            console.log(`[Railway Debug] Potential matching files:`, potentialMatches)
-          }
-          
-          console.error(`[Railway Debug] Photo file not found on disk for order ${order.orderNumber}`, {
+          console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
             originalPath: filePath,
             url: foaieDeZaharPhoto.url,
             uploadDir: UPLOAD_DIR,
@@ -411,19 +326,17 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
               filePath ? path.join(UPLOAD_DIR, path.basename(filePath)) : null,
               staticPath,
             ].filter(Boolean),
-            availableFoaieDeZaharFiles: foaieDeZaharFiles,
-            potentialMatches: potentialMatches,
           })
           
-          // On Railway, filesystem is ephemeral - files are lost on redeploy
-          // Redirect to static URL as last resort (even though it probably won't work if file doesn't exist)
-          console.log(`[Railway Debug] Attempting redirect to static URL: ${foaieDeZaharPhoto.url}`)
-          const staticUrl = foaieDeZaharPhoto.url.startsWith('http') 
-            ? foaieDeZaharPhoto.url 
-            : `${req.protocol}://${req.get('host')}${foaieDeZaharPhoto.url}`
-          
-          // Return redirect to static URL
-          return res.redirect(302, staticUrl)
+          // Return 404 with detailed error
+          return res.status(404).json({ 
+            error: 'Photo file not found on disk',
+            message: `The file for order ${order.orderNumber} does not exist on the server. The file may have been deleted or never uploaded to Railway.`,
+            path: filePath,
+            url: foaieDeZaharPhoto.url,
+            uploadDir: UPLOAD_DIR,
+            orderNumber: order.orderNumber,
+          })
         }
       } else {
         console.error(`Photo file not found on disk for order ${order.orderNumber}`, {
@@ -448,68 +361,19 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
 
     // Send file
     if (!resolvedPath) {
-      return res.status(404).json({ error: 'Photo file path could not be resolved' })
-    }
-
-    // Ensure path is absolute (required by res.sendFile)
-    const absolutePath = path.isAbsolute(resolvedPath) 
-      ? resolvedPath 
-      : path.resolve(resolvedPath)
-    
-    console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${absolutePath}`)
-    
-    // Check if file exists and is readable
-    try {
-      await fsPromises.access(absolutePath, fs.constants.R_OK)
-    } catch (accessError) {
-      console.error(`File is not readable: ${absolutePath}`, accessError)
       return res.status(404).json({ 
-        error: 'Photo file is not accessible',
-        message: `The file for order ${order.orderNumber} exists but cannot be read.`,
-        path: absolutePath,
+        error: 'Photo file not found on disk',
+        path: filePath,
+        url: foaieDeZaharPhoto.url,
+        uploadDir: UPLOAD_DIR,
       })
     }
 
-    // Get file stats for content length
-    const stats = await fsPromises.stat(absolutePath)
-    
-    // Determine content type based on file extension
-    const ext = path.extname(absolutePath).toLowerCase()
-    const contentTypeMap: Record<string, string> = {
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.gif': 'image/gif',
-      '.webp': 'image/webp',
-    }
-    const contentType = contentTypeMap[ext] || 'application/octet-stream'
-    
-    // Set headers for blob download
-    const filename = `foaie-de-zahar-order-${order.orderNumber}${ext}`
-    res.setHeader('Content-Type', contentType)
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-    res.setHeader('Content-Length', stats.size)
-    
-    // Send file using sendFile (requires absolute path)
-    res.sendFile(absolutePath, (err) => {
-      if (err) {
-        console.error(`Error sending file for order ${order.orderNumber}:`, err)
-        if (!res.headersSent) {
-          res.status(500).json({ 
-            error: 'Failed to send file',
-            message: err.message,
-          })
-        }
-      }
-    })
-  } catch (error: any) {
+    console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${resolvedPath}`)
+    res.download(resolvedPath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(resolvedPath)}`)
+  } catch (error) {
     console.error('Error downloading foaie de zahar photo:', error)
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Failed to download foaie de zahar photo',
-        message: error.message || 'Unknown error occurred',
-      })
-    }
+    res.status(500).json({ error: 'Failed to download foaie de zahar photo' })
   }
 }
 
@@ -529,7 +393,7 @@ export const listUploadsFiles = async (req: Request, res: Response) => {
     }
     
     // Filter for foaie-de-zahar files
-    const foaieDeZaharFiles = files.filter((f: string) => f.toLowerCase().includes('foaie-de-zahar'))
+    const foaieDeZaharFiles = files.filter(f => f.toLowerCase().includes('foaie-de-zahar'))
     
     res.json({
       uploadDir: UPLOAD_DIR,
@@ -540,108 +404,6 @@ export const listUploadsFiles = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error listing uploads files:', error)
     res.status(500).json({ error: 'Failed to list uploads files' })
-  }
-}
-
-export const deleteAllOrders = async (req: Request, res: Response) => {
-  try {
-    const fs = require('fs').promises
-    const fsSync = require('fs')
-    const path = require('path')
-    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
-    const PDF_DIR = process.env.PDF_DIR || path.join(process.cwd(), 'pdfs')
-
-    console.log('🗑️  Starting deletion of all orders, photos, and files...')
-
-    // Step 1: Get all orders with their photos and PDF paths
-    console.log('📋 Fetching all orders...')
-    const orders = await prisma.order.findMany({
-      include: {
-        photos: true,
-      },
-    })
-
-    console.log(`   Found ${orders.length} orders`)
-
-    // Step 2: Collect all file paths to delete
-    const filesToDelete: string[] = []
-
-    for (const order of orders) {
-      // Add PDF path if exists
-      if (order.pdfPath) {
-        filesToDelete.push(order.pdfPath)
-      }
-
-      // Add photo paths if they exist
-      for (const photo of order.photos) {
-        if (photo.path) {
-          filesToDelete.push(photo.path)
-        }
-      }
-    }
-
-    console.log(`   Total files to delete: ${filesToDelete.length}`)
-
-    // Step 3: Delete files from disk
-    console.log('🗂️  Deleting files from disk...')
-    let deletedCount = 0
-    let failedCount = 0
-
-    for (const filePath of filesToDelete) {
-      try {
-        // Resolve absolute path
-        const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath)
-        
-        try {
-          await fs.access(absolutePath)
-          await fs.unlink(absolutePath)
-          deletedCount++
-        } catch (error: any) {
-          if (error.code === 'ENOENT') {
-            // File not found, skip
-          } else {
-            throw error
-          }
-        }
-      } catch (error) {
-        failedCount++
-        console.error(`   Failed to delete: ${filePath}`, error)
-      }
-    }
-
-    console.log(`   Files deleted: ${deletedCount}, Failed: ${failedCount}`)
-
-    // Step 4: Delete all orders from database (photos will be deleted automatically due to cascade)
-    console.log('🗄️  Deleting orders from database...')
-    const deleteResult = await prisma.order.deleteMany({})
-    console.log(`   Deleted ${deleteResult.count} orders from database`)
-
-    // Step 5: Reset order counter
-    console.log('🔄 Resetting order counter...')
-    await prisma.orderCounter.updateMany({
-      where: {},
-      data: {
-        lastOrder: 0,
-      },
-    })
-    console.log('   Order counter reset to 0')
-
-    res.json({
-      success: true,
-      message: 'All orders deleted successfully',
-      summary: {
-        ordersDeleted: orders.length,
-        filesDeleted: deletedCount,
-        filesFailed: failedCount,
-        orderCounterReset: true,
-      },
-    })
-  } catch (error) {
-    console.error('Error deleting orders:', error)
-    res.status(500).json({
-      error: 'Failed to delete orders',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    })
   }
 }
 

@@ -2,10 +2,30 @@ import axios from 'axios'
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import api from '../services/api'
-import { getAbsoluteImageUrl } from '../utils/imageUrl'
 
-// Use centralized function
-const getAbsoluteUrl = getAbsoluteImageUrl
+// Helper function to convert relative URL to absolute using the same baseURL as axios
+const getAbsoluteUrl = (relativeUrl: string): string => {
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl
+  }
+
+  // Prefer the axios baseURL so production always matches the backend host
+  const baseFromApi = api.defaults.baseURL
+  const backendURL = baseFromApi
+    ? baseFromApi.replace(/\/api$/, '').replace(/\/$/, '')
+    : window.location.origin.replace(/\/$/, '')
+
+  const url = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`
+  const fullURL = `${backendURL}${url}`
+
+  console.log(`getAbsoluteUrl: ${relativeUrl} -> ${fullURL}`, {
+    baseFromApi,
+    backendURL,
+    relativeUrl,
+  })
+
+  return fullURL
+}
 
 function PhotoUpload() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -429,19 +449,17 @@ function PhotoUpload() {
                 console.log(`Rendering photo ${index + 1}:`, photo)
                 // Use photo URL as key to ensure proper re-rendering
                 const photoKey = photo.substring(photo.lastIndexOf('/') + 1) || `photo-${index}`
-                // Ensure photo URL is absolute (handle both absolute and relative URLs)
-                const photoUrl = getAbsoluteUrl(photo)
                 return (
                   <div key={photoKey} className="relative">
                     <img
-                      src={photoUrl}
+                      src={getAbsoluteUrl(photo)}
                       alt={`Poza ${index + 1}`}
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-700"
                       onLoad={() => {
                         console.log(`✅ Image ${index + 1} loaded successfully:`, photo)
                       }}
                       onError={(e) => {
-                        console.error(`❌ Image ${index + 1} failed to load:`, photo, e)
+                        console.error(`❌ Image ${index + 1} failed to load:`, photo, 'Full URL:', getAbsoluteUrl(photo), e)
                         // Show error indicator
                         const target = e.target as HTMLImageElement
                         target.style.border = '2px solid red'
