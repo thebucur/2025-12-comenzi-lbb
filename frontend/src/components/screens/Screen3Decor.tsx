@@ -34,6 +34,8 @@ function Screen3Decor() {
   const foaieDeZaharInputRef = useRef<HTMLInputElement | null>(null)
   // Track deleted photos to prevent polling from re-adding them
   const deletedPhotosRef = useRef<Set<string>>(new Set())
+  // Track failed image URLs to prevent re-adding them
+  const failedImageUrlsRef = useRef<Set<string>>(new Set())
 
   // Use centralized function
   const getAbsoluteUrl = getAbsoluteImageUrl
@@ -57,10 +59,12 @@ function Screen3Decor() {
           // Convert relative URLs to absolute URLs
           const absolutePhotoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
           
-          // Filter out deleted photos
-          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => !deletedPhotosRef.current.has(url))
+          // Filter out deleted photos and failed images
+          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => 
+            !deletedPhotosRef.current.has(url) && !failedImageUrlsRef.current.has(url)
+          )
           
-          // Update order with new photos (merge with existing, but respect deleted photos)
+          // Update order with new photos (merge with existing, but respect deleted photos and failed images)
           const existingPhotos = order.photos || []
           const newPhotos = filteredPhotoUrls.filter((url: string) => !existingPhotos.includes(url))
           
@@ -70,11 +74,12 @@ function Screen3Decor() {
               photos: [...existingPhotos, ...newPhotos]
             })
           } else {
-            // Sync with backend - remove photos that were deleted locally but still exist in backend
+            // Sync with backend - remove photos that were deleted locally, failed to load, or don't exist in backend
             const photosToKeep = existingPhotos.filter((url: string) => 
-              filteredPhotoUrls.includes(url) || deletedPhotosRef.current.has(url)
+              filteredPhotoUrls.includes(url) || deletedPhotosRef.current.has(url) || failedImageUrlsRef.current.has(url)
             )
             if (photosToKeep.length !== existingPhotos.length) {
+              console.log(`Removing ${existingPhotos.length - photosToKeep.length} photos that are no longer valid`)
               updateOrder({ photos: photosToKeep })
             }
           }
@@ -760,9 +765,26 @@ function Screen3Decor() {
                       alt={`Poza ${index + 1}`}
                       className="w-full h-40 object-cover"
                       onError={(e) => {
-                        console.error('Error loading image:', photo, 'Absolute URL:', photoUrl)
+                        console.error('❌ Error loading image:', photo, 'Absolute URL:', photoUrl)
                         const target = e.target as HTMLImageElement
+                        // Mark this URL as failed to prevent polling from re-adding it
+                        failedImageUrlsRef.current.add(photo)
+                        // Show error indicator instead of hiding
                         target.style.display = 'none'
+                        // Try to remove from order if it keeps failing
+                        const failedPhotoIndex = order.photos.findIndex(p => p === photo)
+                        if (failedPhotoIndex >= 0) {
+                          console.warn(`Removing failed image from order: ${photo}`)
+                          const newPhotos = order.photos.filter((_, i) => i !== failedPhotoIndex)
+                          updateOrder({ photos: newPhotos })
+                        }
+                      }}
+                      onLoad={() => {
+                        // If image loads successfully, remove from failed list (in case it was retried)
+                        if (failedImageUrlsRef.current.has(photo)) {
+                          console.log(`✅ Image loaded successfully after previous failure: ${photo}`)
+                          failedImageUrlsRef.current.delete(photo)
+                        }
                       }}
                     />
                   </div>

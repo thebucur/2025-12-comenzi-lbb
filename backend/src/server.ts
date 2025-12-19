@@ -130,8 +130,31 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+// Serve uploaded files with CORS headers
+app.use('/uploads', (req, res, next) => {
+  // Set CORS headers for image requests
+  const origin = req.headers.origin
+  if (origin) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return origin === allowed
+      } else if (allowed instanceof RegExp) {
+        return allowed.test(origin)
+      }
+      return false
+    })
+    
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+    }
+  }
+  
+  // Set cache headers for images
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  
+  next()
+}, express.static(path.join(process.cwd(), 'uploads')))
 
 // Routes
 app.use('/api/orders', ordersRoutes)
