@@ -33,6 +33,8 @@ function Screen3Decor() {
   const foaieDeZaharInputRef = useRef<HTMLInputElement | null>(null)
   // Track deleted photos to prevent polling from re-adding them
   const deletedPhotosRef = useRef<Set<string>>(new Set())
+  // Track deleted foaie de zahar to prevent polling from re-adding it
+  const deletedFoaieDeZaharRef = useRef<Set<string>>(new Set())
 
   // Helper function to convert relative URL to absolute
   const getAbsoluteUrl = (relativeUrl: string): string => {
@@ -63,6 +65,19 @@ function Screen3Decor() {
     return `${backendURL}${url}`
   }
 
+  // Helper function to normalize URLs for comparison (extract just the path part)
+  const normalizeUrlForComparison = (url: string): string => {
+    try {
+      // Extract the path part after /uploads/ to compare consistently
+      const urlObj = new URL(url, window.location.origin)
+      return urlObj.pathname
+    } catch {
+      // Fallback: extract filename from URL
+      const match = url.match(/\/uploads\/([^/?]+)/)
+      return match ? match[1] : url
+    }
+  }
+
   // Poll for photos and foaie de zahar by session ID
   const startPhotoPolling = (sessionId: string) => {
     // Clear any existing interval
@@ -82,12 +97,28 @@ function Screen3Decor() {
           // Convert relative URLs to absolute URLs
           const absolutePhotoUrls = photos.map((photo: { url: string }) => getAbsoluteUrl(photo.url))
           
-          // Filter out deleted photos
-          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => !deletedPhotosRef.current.has(url))
+          // Normalize deleted photos set for comparison
+          const deletedPhotoPaths = new Set(
+            Array.from(deletedPhotosRef.current).map(normalizeUrlForComparison)
+          )
+          
+          // Filter out deleted photos by comparing normalized paths
+          const filteredPhotoUrls = absolutePhotoUrls.filter((url: string) => {
+            const normalizedPath = normalizeUrlForComparison(url)
+            return !deletedPhotoPaths.has(normalizedPath)
+          })
           
           // Update order with new photos (merge with existing, but respect deleted photos)
           const existingPhotos = order.photos || []
-          const newPhotos = filteredPhotoUrls.filter((url: string) => !existingPhotos.includes(url))
+          
+          // Normalize existing photos for comparison
+          const existingPhotoPaths = new Set(existingPhotos.map(normalizeUrlForComparison))
+          
+          // Find truly new photos (not in existing and not deleted)
+          const newPhotos = filteredPhotoUrls.filter((url: string) => {
+            const normalizedPath = normalizeUrlForComparison(url)
+            return !existingPhotoPaths.has(normalizedPath)
+          })
           
           if (newPhotos.length > 0) {
             console.log(`📸 Found ${newPhotos.length} new photos for session ${sessionId}`)
@@ -95,11 +126,15 @@ function Screen3Decor() {
               photos: [...existingPhotos, ...newPhotos]
             })
           } else {
-            // Sync with backend - remove photos that were deleted locally but still exist in backend
-            const photosToKeep = existingPhotos.filter((url: string) => 
-              filteredPhotoUrls.includes(url) || deletedPhotosRef.current.has(url)
-            )
+            // Sync with backend - remove photos that were deleted locally or no longer exist in backend
+            const filteredPhotoPaths = new Set(filteredPhotoUrls.map(normalizeUrlForComparison))
+            const photosToKeep = existingPhotos.filter((url: string) => {
+              const normalizedPath = normalizeUrlForComparison(url)
+              // Keep photo if it exists in backend AND is not deleted
+              return filteredPhotoPaths.has(normalizedPath) && !deletedPhotoPaths.has(normalizedPath)
+            })
             if (photosToKeep.length !== existingPhotos.length) {
+              console.log(`🔄 Syncing photos: removed ${existingPhotos.length - photosToKeep.length} deleted photos`)
               updateOrder({ photos: photosToKeep })
             }
           }
@@ -108,22 +143,54 @@ function Screen3Decor() {
         // Handle foaie de zahar
         if (foaieDeZahar && foaieDeZahar.url) {
           const absoluteFoaieDeZaharUrl = getAbsoluteUrl(foaieDeZahar.url)
+          const normalizedFoaieDeZaharPath = normalizeUrlForComparison(absoluteFoaieDeZaharUrl)
+          
+          // Check if this foaie de zahar was deleted
+          const normalizedDeletedPaths = new Set(
+            Array.from(deletedFoaieDeZaharRef.current).map(normalizeUrlForComparison)
+          )
+          
+          const isDeleted = normalizedDeletedPaths.has(normalizedFoaieDeZaharPath)
           
           console.log(`📄 Polling found foaie de zahar for session ${sessionId}:`, {
             relativeUrl: foaieDeZahar.url,
             absoluteUrl: absoluteFoaieDeZaharUrl,
+            normalizedPath: normalizedFoaieDeZaharPath,
             currentFoaieDeZahar: order.foaieDeZaharPhoto,
             isDifferent: order.foaieDeZaharPhoto !== absoluteFoaieDeZaharUrl,
+            isDeleted,
           })
           
-          // Only update if it's different from current
-          if (order.foaieDeZaharPhoto !== absoluteFoaieDeZaharUrl) {
+          // Only update if it's different from current AND not deleted
+          if (!isDeleted && order.foaieDeZaharPhoto !== absoluteFoaieDeZaharUrl) {
             console.log(`📄 Updating foaie de zahar in order context`)
             updateOrder({
               foaieDeZaharPhoto: absoluteFoaieDeZaharUrl
             })
+          } else if (isDeleted && order.foaieDeZaharPhoto) {
+            // If it was deleted but still in state, remove it
+            console.log(`📄 Removing deleted foaie de zahar from state`)
+            updateOrder({
+              foaieDeZaharPhoto: null
+            })
           }
         } else {
+          // If backend has no foaie de zahar but we have one in state, check if it was deleted
+          // If not deleted, keep it (might be a temporary backend issue)
+          if (order.foaieDeZaharPhoto) {
+            const normalizedCurrentPath = normalizeUrlForComparison(order.foaieDeZaharPhoto)
+            const normalizedDeletedPaths = new Set(
+              Array.from(deletedFoaieDeZaharRef.current).map(normalizeUrlForComparison)
+            )
+            if (normalizedDeletedPaths.has(normalizedCurrentPath)) {
+              // It was deleted, remove it from state
+              console.log(`📄 Removing deleted foaie de zahar (not in backend)`)
+              updateOrder({
+                foaieDeZaharPhoto: null
+              })
+            }
+          }
+          
           // Debug: log when foaie de zahar is not found
           console.log(`📄 No foaie de zahar found in polling response for session ${sessionId}`, {
             responseData: response.data,
@@ -144,6 +211,13 @@ function Screen3Decor() {
       if (existingSessionId) {
         console.log(`Starting/restarting polling for session: ${existingSessionId}`)
         startPhotoPolling(existingSessionId)
+      } else {
+        // Stop polling if session ID was removed
+        if (photoPollIntervalRef.current) {
+          clearInterval(photoPollIntervalRef.current)
+          photoPollIntervalRef.current = null
+          console.log('Stopped photo polling - session ID cleared')
+        }
       }
     }
     
@@ -161,12 +235,30 @@ function Screen3Decor() {
       checkAndStartPolling()
     }
     
+    // Listen for session cleared event (when order is reset)
+    const handleUploadSessionCleared = () => {
+      console.log('Upload session cleared event received - stopping polling')
+      if (photoPollIntervalRef.current) {
+        clearInterval(photoPollIntervalRef.current)
+        photoPollIntervalRef.current = null
+      }
+      // Clear deleted photos refs
+      deletedPhotosRef.current.clear()
+      deletedFoaieDeZaharRef.current.clear()
+    }
+    
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('uploadSessionChanged', handleUploadSessionChanged as EventListener)
+    window.addEventListener('uploadSessionCleared', handleUploadSessionCleared)
     
     return () => {
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('uploadSessionChanged', handleUploadSessionChanged as EventListener)
+      window.removeEventListener('uploadSessionCleared', handleUploadSessionCleared)
+      // Cleanup polling on unmount
+      if (photoPollIntervalRef.current) {
+        clearInterval(photoPollIntervalRef.current)
+      }
     }
   }, []) // Run once on mount
 
@@ -690,7 +782,18 @@ function Screen3Decor() {
                 className="w-32 h-32 object-cover rounded-lg border-2 border-yellow-500/50"
               />
               <button
-                onClick={() => updateOrder({ foaieDeZaharPhoto: null })}
+                onClick={() => {
+                  const foaieDeZaharToDelete = order.foaieDeZaharPhoto
+                  // Mark foaie de zahar as deleted to prevent polling from re-adding it
+                  if (foaieDeZaharToDelete) {
+                    deletedFoaieDeZaharRef.current.add(foaieDeZaharToDelete)
+                    console.log(`🗑️ Deleted foaie de zahar: ${foaieDeZaharToDelete}`, {
+                      normalized: normalizeUrlForComparison(foaieDeZaharToDelete),
+                      deletedSetSize: deletedFoaieDeZaharRef.current.size
+                    })
+                  }
+                  updateOrder({ foaieDeZaharPhoto: null })
+                }}
                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg hover:scale-110 transition-all"
               >
                 ✕
@@ -786,7 +889,12 @@ function Screen3Decor() {
                       const photoToDelete = order.photos[index]
                       // Mark photo as deleted to prevent polling from re-adding it
                       if (photoToDelete) {
+                        // Store both the original URL and normalized path for reliable comparison
                         deletedPhotosRef.current.add(photoToDelete)
+                        console.log(`🗑️ Deleted photo: ${photoToDelete}`, {
+                          normalized: normalizeUrlForComparison(photoToDelete),
+                          deletedSetSize: deletedPhotosRef.current.size
+                        })
                       }
                       const newPhotos = order.photos.filter((_, i) => i !== index)
                       updateOrder({ photos: newPhotos })

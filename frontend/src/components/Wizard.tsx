@@ -17,8 +17,9 @@ function Wizard({ onLogout }: WizardProps) {
   const initialStep = parseInt(searchParams.get('step') || '1')
   const [currentStep, setCurrentStep] = useState(initialStep)
   const isEditingFromReview = searchParams.get('edit') === '1'
-  const { validateStep, order } = useOrder()
+  const { validateStep, order, resetOrder, updateOrder } = useOrder()
   const username = localStorage.getItem('authToken')
+  const [showResetModal, setShowResetModal] = useState(false)
 
   useEffect(() => {
     const stepParam = searchParams.get('step')
@@ -97,6 +98,33 @@ function Wizard({ onLogout }: WizardProps) {
     // TODO: Implement functionality
   }
 
+  const handleResetOrder = () => {
+    setShowResetModal(true)
+  }
+
+  const handleConfirmReset = () => {
+    // Clear the upload session ID to stop photo polling
+    localStorage.removeItem('currentUploadSession')
+    
+    // Dispatch event to signal session cleared (so Screen3Decor can stop polling)
+    window.dispatchEvent(new CustomEvent('uploadSessionCleared'))
+    
+    // Explicitly clear photos first, then reset the order
+    updateOrder({ photos: [], foaieDeZaharPhoto: null })
+    
+    // Reset the order (clears all order data)
+    resetOrder()
+    
+    // Navigate back to step 1
+    setCurrentStep(1)
+    setSearchParams({ step: '1' })
+    setShowResetModal(false)
+  }
+
+  const handleCancelReset = () => {
+    setShowResetModal(false)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary">
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
@@ -156,6 +184,16 @@ function Wizard({ onLogout }: WizardProps) {
                 >
                   Logout
                 </button>
+                <button
+                  type="button"
+                  onClick={handleResetOrder}
+                  className="w-12 h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50 ml-2"
+                  title="Reluare comandă"
+                >
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
               </div>
             )}
           </div>
@@ -193,6 +231,35 @@ function Wizard({ onLogout }: WizardProps) {
           </div>
         </div>
       </div>
+
+      {/* Reset Order Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card max-w-md w-full p-8 animate-float">
+            <h3 className="text-2xl font-bold text-gradient mb-6 text-center">
+              Reluare comandă
+            </h3>
+            <p className="text-center text-secondary/70 mb-6">
+              Doriți să reluați comanda?
+            </p>
+            
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={handleConfirmReset}
+                className="btn-active px-8 py-6 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                DA
+              </button>
+              <button
+                onClick={handleCancelReset}
+                className="btn-neumorphic px-8 py-6 rounded-2xl font-bold text-xl text-secondary hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                NU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
