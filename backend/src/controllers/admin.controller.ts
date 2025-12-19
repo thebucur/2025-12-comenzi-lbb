@@ -480,3 +480,83 @@ export const fixFoaieDeZaharFlags = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fix foaie de zahar flags' })
   }
 }
+
+export const deleteOrders = async (req: Request, res: Response) => {
+  try {
+    const { orderIds } = req.body
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: 'orderIds must be a non-empty array' })
+    }
+
+    const fs = require('fs')
+    const path = require('path')
+    const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
+    const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
+    const PDF_DIR = process.env.PDF_DIR || path.join(STORAGE_BASE, 'pdfs')
+
+    // Step 1: Fetch orders with photos
+    const orders = await prisma.order.findMany({
+      where: {
+        id: { in: orderIds },
+      },
+      include: {
+        photos: true,
+      },
+    })
+
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'No orders found with the provided IDs' })
+    }
+
+    // Step 2: Collect all file paths to delete
+    const filesToDelete: string[] = []
+
+    for (const order of orders) {
+      // Add PDF path if exists
+      if (order.pdfPath) {
+        filesToDelete.push(order.pdfPath)
+      }
+
+      // Add photo paths if they exist
+      for (const photo of order.photos) {
+        if (photo.path) {
+          filesToDelete.push(photo.path)
+        }
+      }
+    }
+
+    // Step 3: Delete files from disk
+    let deletedCount = 0
+    let failedCount = 0
+
+    for (const filePath of filesToDelete) {
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath)
+          deletedCount++
+        }
+      } catch (error) {
+        failedCount++
+        console.error(`Failed to delete file: ${filePath}`, error)
+      }
+    }
+
+    // Step 4: Delete orders from database (photos will be deleted automatically due to cascade)
+    const deleteResult = await prisma.order.deleteMany({
+      where: {
+        id: { in: orderIds },
+      },
+    })
+
+    res.json({
+      success: true,
+      deletedOrders: deleteResult.count,
+      deletedFiles: deletedCount,
+      failedFiles: failedCount,
+    })
+  } catch (error) {
+    console.error('Error deleting orders:', error)
+    res.status(500).json({ error: 'Failed to delete orders' })
+  }
+}

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
@@ -489,7 +489,11 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTimer, setDeleteTimer] = useState(5)
+  const deleteTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [userFormData, setUserFormData] = useState({
     username: '',
@@ -777,6 +781,78 @@ function AdminDashboard() {
     }
   }
 
+  // Bulk delete orders
+  const handleBulkDeleteOrders = () => {
+    if (selectedOrders.size === 0) {
+      alert('Selectați cel puțin o comandă pentru ștergere')
+      return
+    }
+
+    setDeleteTimer(5)
+    setShowDeleteConfirm(true)
+  }
+
+  // Timer effect for delete confirmation
+  useEffect(() => {
+    if (showDeleteConfirm && deleteTimer > 0) {
+      deleteTimerRef.current = setInterval(() => {
+        setDeleteTimer((prev) => {
+          if (prev <= 1) {
+            if (deleteTimerRef.current) {
+              clearInterval(deleteTimerRef.current)
+            }
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      if (deleteTimerRef.current) {
+        clearInterval(deleteTimerRef.current)
+        deleteTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (deleteTimerRef.current) {
+        clearInterval(deleteTimerRef.current)
+      }
+    }
+  }, [showDeleteConfirm, deleteTimer])
+
+  const confirmDeleteOrders = async () => {
+    if (deleteTimer > 0) return // Prevent clicking before timer completes
+    
+    setShowDeleteConfirm(false)
+    if (deleteTimerRef.current) {
+      clearInterval(deleteTimerRef.current)
+      deleteTimerRef.current = null
+    }
+    const orderCount = selectedOrders.size
+    setIsDeleting(true)
+
+    try {
+      const orderIds = Array.from(selectedOrders)
+      await api.delete('/admin/orders', {
+        data: { orderIds },
+      })
+
+      // Refresh orders list
+      await fetchOrders()
+      
+      // Clear selections
+      setSelectedOrders(new Set())
+      
+      alert(`${orderCount} comandă${orderCount > 1 ? 'e' : ''} ${orderCount > 1 ? 'au fost șterse' : 'a fost ștearsă'} cu succes`)
+    } catch (error: any) {
+      console.error('Error deleting orders:', error)
+      const errorMessage = error.response?.data?.error || 'Eroare la ștergerea comenzilor'
+      alert(errorMessage)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
 
   if (loading) {
     return (
@@ -860,13 +936,32 @@ function AdminDashboard() {
                       : 'Selectați comenzi pentru descărcare'}
                   </p>
                 </div>
-                <button
-                  onClick={handleBulkDownloadPDFs}
-                  disabled={selectedOrders.size === 0 || isDownloading}
-                  className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isDownloading ? 'Se creează arhiva...' : 'DESCARCA PDF'}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleBulkDownloadPDFs}
+                    disabled={selectedOrders.size === 0 || isDownloading}
+                    className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDownloading ? 'Se creează arhiva...' : 'DESCARCA PDF'}
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteOrders}
+                    disabled={selectedOrders.size === 0 || isDeleting}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    title="Șterge comenzile selectate"
+                  >
+                    {isDeleting ? (
+                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -987,7 +1082,7 @@ function AdminDashboard() {
             </div>
 
             {/* Loading Overlay */}
-            {isDownloading && (
+            {(isDownloading || isDeleting) && (
               <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50">
                 <div className="glass-card p-8 animate-float">
                   <div className="text-center">
@@ -997,7 +1092,9 @@ function AdminDashboard() {
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </div>
-                    <p className="text-2xl font-bold text-gradient">Se creează arhiva PDF...</p>
+                    <p className="text-2xl font-bold text-gradient">
+                      {isDownloading ? 'Se creează arhiva PDF...' : 'Se șterg comenzile...'}
+                    </p>
                     <p className="text-secondary/60 mt-2">Vă rugăm să așteptați</p>
                   </div>
                 </div>
@@ -1177,6 +1274,58 @@ function AdminDashboard() {
                   className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
                 >
                   ✕ Anulează
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="glass-card max-w-md w-full p-8 animate-float">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/20 mb-4">
+                  <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h3 className="text-3xl font-bold text-gradient mb-4">
+                  Confirmați ștergerea
+                </h3>
+                <p className="text-secondary/80 text-lg">
+                  Sigur doriți să ștergeți <span className="font-bold text-secondary">{selectedOrders.size}</span> comandă{selectedOrders.size > 1 ? 'e' : ''}?
+                </p>
+                <p className="text-secondary/60 text-sm mt-2">
+                  Această acțiune nu poate fi anulată și va șterge toate fotografiile și PDF-urile asociate.
+                </p>
+                {deleteTimer > 0 && (
+                  <div className="mt-4">
+                    <p className="text-secondary/60 text-sm">
+                      Butonul va fi activat în <span className="font-bold text-accent-purple text-lg">{deleteTimer}</span> secund{deleteTimer > 1 ? 'e' : 'ă'}...
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-4 mt-8">
+                <button
+                  onClick={confirmDeleteOrders}
+                  disabled={deleteTimer > 0}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {deleteTimer > 0 ? `Șterge (${deleteTimer}s)` : 'Șterge'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false)
+                    if (deleteTimerRef.current) {
+                      clearInterval(deleteTimerRef.current)
+                      deleteTimerRef.current = null
+                    }
+                  }}
+                  className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
+                >
+                  Anulează
                 </button>
               </div>
             </div>
