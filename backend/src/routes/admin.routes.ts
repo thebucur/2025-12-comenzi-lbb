@@ -8,8 +8,7 @@ import {
   deleteUser,
   downloadFoaieDeZahar,
   fixFoaieDeZaharFlags,
-  listUploadsFiles,
-  deleteAllOrders
+  listUploadsFiles
 } from '../controllers/admin.controller'
 
 const router = Router()
@@ -17,8 +16,6 @@ const router = Router()
 // Protect all admin routes with authentication
 router.use(authenticate)
 
-// IMPORTANT: /orders/all must come BEFORE /orders/:id to avoid route conflict
-router.delete('/orders/all', deleteAllOrders) // Temporary endpoint to delete all orders
 router.get('/orders/:id', getOrderDetails)
 router.get('/orders/:id/foaie-de-zahar', downloadFoaieDeZahar)
 router.get('/uploads/files', listUploadsFiles)
