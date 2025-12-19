@@ -360,6 +360,15 @@ export const downloadFoaieDeZahar = async (req: Request, res: Response) => {
     }
 
     // Send file
+    if (!resolvedPath) {
+      return res.status(404).json({ 
+        error: 'Photo file not found on disk',
+        path: filePath,
+        url: foaieDeZaharPhoto.url,
+        uploadDir: UPLOAD_DIR,
+      })
+    }
+
     console.log(`Sending foaie de zahar file for order ${order.orderNumber}: ${resolvedPath}`)
     res.download(resolvedPath, `foaie-de-zahar-order-${order.orderNumber}${path.extname(resolvedPath)}`)
   } catch (error) {
