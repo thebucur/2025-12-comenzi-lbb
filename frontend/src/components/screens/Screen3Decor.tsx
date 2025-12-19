@@ -36,6 +36,8 @@ function Screen3Decor() {
   const deletedPhotosRef = useRef<Set<string>>(new Set())
   // Track failed image URLs to prevent re-adding them
   const failedImageUrlsRef = useRef<Set<string>>(new Set())
+  // Track failed images for UI display
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
 
   // Use centralized function
   const getAbsoluteUrl = getAbsoluteImageUrl
@@ -757,36 +759,55 @@ function Screen3Decor() {
               {order.photos.map((photo, index) => {
                 // Ensure photo URL is absolute (handle both absolute and relative URLs from old orders)
                 const photoUrl = getAbsoluteUrl(photo)
+                const isFailed = failedImages.has(photo)
+                
                 return (
-                <div key={index} className="relative group">
-                  <div className="shadow-neumorphic rounded-2xl overflow-hidden">
-                    <img
-                      src={photoUrl}
-                      alt={`Poza ${index + 1}`}
-                      className="w-full h-40 object-cover"
-                      onError={(e) => {
-                        console.error('❌ Error loading image:', photo, 'Absolute URL:', photoUrl)
-                        const target = e.target as HTMLImageElement
-                        // Mark this URL as failed to prevent polling from re-adding it
-                        failedImageUrlsRef.current.add(photo)
-                        // Show error indicator instead of hiding
-                        target.style.display = 'none'
-                        // Try to remove from order if it keeps failing
-                        const failedPhotoIndex = order.photos.findIndex(p => p === photo)
-                        if (failedPhotoIndex >= 0) {
-                          console.warn(`Removing failed image from order: ${photo}`)
-                          const newPhotos = order.photos.filter((_, i) => i !== failedPhotoIndex)
-                          updateOrder({ photos: newPhotos })
-                        }
-                      }}
-                      onLoad={() => {
-                        // If image loads successfully, remove from failed list (in case it was retried)
-                        if (failedImageUrlsRef.current.has(photo)) {
-                          console.log(`✅ Image loaded successfully after previous failure: ${photo}`)
-                          failedImageUrlsRef.current.delete(photo)
-                        }
-                      }}
-                    />
+                <div key={`${photo}-${index}`} className="relative group">
+                  <div className="shadow-neumorphic rounded-2xl overflow-hidden bg-gray-800 min-h-[160px] flex items-center justify-center relative">
+                    {!isFailed ? (
+                      <img
+                        src={photoUrl}
+                        alt={`Poza ${index + 1}`}
+                        className="w-full h-40 object-cover"
+                        onError={(e) => {
+                          console.error('❌ Error loading image:', photo, 'Absolute URL:', photoUrl)
+                          // Mark this URL as failed to prevent polling from re-adding it
+                          failedImageUrlsRef.current.add(photo)
+                          setFailedImages(prev => new Set(prev).add(photo))
+                          // Remove from order after a short delay
+                          setTimeout(() => {
+                            const failedPhotoIndex = order.photos.findIndex(p => p === photo)
+                            if (failedPhotoIndex >= 0) {
+                              console.warn(`Removing failed image from order: ${photo}`)
+                              const newPhotos = order.photos.filter((_, i) => i !== failedPhotoIndex)
+                              updateOrder({ photos: newPhotos })
+                              setFailedImages(prev => {
+                                const next = new Set(prev)
+                                next.delete(photo)
+                                return next
+                              })
+                            }
+                          }, 2000)
+                        }}
+                        onLoad={() => {
+                          // If image loads successfully, remove from failed list (in case it was retried)
+                          if (failedImageUrlsRef.current.has(photo)) {
+                            console.log(`✅ Image loaded successfully after previous failure: ${photo}`)
+                            failedImageUrlsRef.current.delete(photo)
+                            setFailedImages(prev => {
+                              const next = new Set(prev)
+                              next.delete(photo)
+                              return next
+                            })
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center p-4 text-gray-400">
+                        <p className="text-sm">❌ Imagine indisponibilă</p>
+                        <p className="text-xs mt-1">Se elimină...</p>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => {

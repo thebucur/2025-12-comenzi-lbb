@@ -237,28 +237,67 @@ export const getPhotosBySessionId = async (req: Request, res: Response) => {
     const { sessionId } = req.params
     const pendingPhotos = getPhotosBySession(sessionId)
     
-    // Return photos with absolute URLs
-    const photos = pendingPhotos.map(photo => ({
-      url: photo.url,
-      filename: photo.filename,
-    }))
+    // Verify files exist before returning URLs (important for Railway's ephemeral filesystem)
+    const verifiedPhotos = []
+    for (const photo of pendingPhotos) {
+      try {
+        // Check if file exists on disk
+        const fileExists = await fs.access(photo.path).then(() => true).catch(() => false)
+        if (fileExists) {
+          verifiedPhotos.push({
+            url: photo.url,
+            filename: photo.filename,
+          })
+        } else {
+          console.warn(`Photo file not found on disk, skipping: ${photo.path} (URL: ${photo.url})`)
+          // Remove from pending photos since file doesn't exist
+          const sessionPhotos = pendingPhotosBySession.get(sessionId) || []
+          const updatedPhotos = sessionPhotos.filter(p => p.path !== photo.path)
+          if (updatedPhotos.length === 0) {
+            pendingPhotosBySession.delete(sessionId)
+          } else {
+            pendingPhotosBySession.set(sessionId, updatedPhotos)
+          }
+        }
+      } catch (error) {
+        console.error(`Error verifying photo file ${photo.path}:`, error)
+      }
+    }
     
-    // Also check for foaie de zahar
+    // Also check for foaie de zahar and verify it exists
     const pendingFoaieDeZahar = pendingFoaieDeZaharBySession.get(sessionId)
-    const foaieDeZahar = pendingFoaieDeZahar ? {
-      url: pendingFoaieDeZahar.url,
-      filename: pendingFoaieDeZahar.filename,
-    } : null
+    let foaieDeZahar = null
+    
+    if (pendingFoaieDeZahar) {
+      try {
+        const fileExists = await fs.access(pendingFoaieDeZahar.path).then(() => true).catch(() => false)
+        if (fileExists) {
+          foaieDeZahar = {
+            url: pendingFoaieDeZahar.url,
+            filename: pendingFoaieDeZahar.filename,
+          }
+        } else {
+          console.warn(`Foaie de zahar file not found on disk, skipping: ${pendingFoaieDeZahar.path} (URL: ${pendingFoaieDeZahar.url})`)
+          // Remove from pending since file doesn't exist
+          pendingFoaieDeZaharBySession.delete(sessionId)
+        }
+      } catch (error) {
+        console.error(`Error verifying foaie de zahar file ${pendingFoaieDeZahar.path}:`, error)
+        pendingFoaieDeZaharBySession.delete(sessionId)
+      }
+    }
     
     console.log(`Getting photos for session ${sessionId}:`, {
-      photosCount: photos.length,
+      pendingCount: pendingPhotos.length,
+      verifiedCount: verifiedPhotos.length,
       hasFoaieDeZahar: !!foaieDeZahar,
       foaieDeZaharUrl: foaieDeZahar?.url,
+      removedCount: pendingPhotos.length - verifiedPhotos.length,
     })
     
     res.json({ 
-      photos, 
-      count: photos.length,
+      photos: verifiedPhotos, 
+      count: verifiedPhotos.length,
       foaieDeZahar 
     })
   } catch (error) {
