@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
+import prisma from './lib/prisma'
 import ordersRoutes from './routes/orders.routes'
 import uploadRoutes from './routes/upload.routes'
 import reportsRoutes from './routes/reports.routes'
@@ -195,9 +196,56 @@ app.get('/', (req, res) => {
   })
 })
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' })
+// Health check with database status
+app.get('/health', async (req, res) => {
+  const healthStatus: any = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      percentage: Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100),
+    },
+  }
+
+  // Check database connection
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    healthStatus.database = { status: 'connected', error: null }
+  } catch (error) {
+    healthStatus.database = { 
+      status: 'disconnected', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }
+    healthStatus.status = 'degraded'
+    return res.status(503).json(healthStatus)
+  }
+
+  res.json(healthStatus)
+})
+
+// Database-specific health check
+app.get('/health/db', async (req, res) => {
+  try {
+    const startTime = Date.now()
+    await prisma.$queryRaw`SELECT 1`
+    const responseTime = Date.now() - startTime
+    
+    res.json({
+      status: 'ok',
+      responseTime: `${responseTime}ms`,
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+    })
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+    })
+  }
 })
 
 // 404 handler - must be after all routes

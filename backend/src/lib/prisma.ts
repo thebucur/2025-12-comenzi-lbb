@@ -21,6 +21,22 @@ if (urlWithTimeout && urlWithTimeout !== databaseUrl) {
   process.env.DATABASE_URL = urlWithTimeout
 }
 
+// Connection pool settings for Railway
+// Note: These are set via DATABASE_URL query parameters instead of client options
+// Example: postgresql://user:pass@host:5432/db?connection_limit=5&pool_timeout=10
+const connectionPoolUrl = databaseUrl?.includes('connection_limit')
+  ? databaseUrl
+  : urlWithTimeout?.includes('?')
+  ? `${urlWithTimeout}&connection_limit=5&pool_timeout=10`
+  : urlWithTimeout
+  ? `${urlWithTimeout}?connection_limit=5&pool_timeout=10`
+  : undefined
+
+if (connectionPoolUrl && connectionPoolUrl !== databaseUrl) {
+  process.env.DATABASE_URL = connectionPoolUrl
+  console.log('✅ Database connection pool configured: connection_limit=5, pool_timeout=10s')
+}
+
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
