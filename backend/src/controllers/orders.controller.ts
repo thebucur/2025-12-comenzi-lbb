@@ -119,6 +119,16 @@ export const createOrder = async (req: Request, res: Response) => {
       console.log(`Reserved order number: ${nextOrderNumber}`)
 
       // Prepare order data for creation
+      const createdByUsername = orderData.createdByUsername ? String(orderData.createdByUsername).trim() : null
+      console.log('[createOrder] Setting createdByUsername:', createdByUsername)
+      console.log('[createOrder] Raw orderData.createdByUsername:', orderData.createdByUsername)
+      
+      // Warn if createdByUsername is missing (but don't fail - for backward compatibility)
+      if (!createdByUsername || createdByUsername === '') {
+        console.warn('[createOrder] WARNING: createdByUsername is missing or empty! Order will not appear in user history.')
+        console.warn('[createOrder] Order data keys:', Object.keys(orderData))
+      }
+      
       const preparedData = {
         orderNumber: nextOrderNumber,
         deliveryMethod: String(orderData.deliveryMethod),
@@ -142,7 +152,7 @@ export const createOrder = async (req: Request, res: Response) => {
         decorType: orderData.decorType ? String(orderData.decorType) : null,
         decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
         observations: orderData.observations ? String(orderData.observations) : null,
-        createdByUsername: orderData.createdByUsername ? String(orderData.createdByUsername) : null,
+        createdByUsername: createdByUsername,
       }
 
       // Create order inside the same transaction so the reserved number is consumed exactly once
@@ -375,7 +385,11 @@ export const getUserOrders = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' })
     }
 
-    const username = authHeader.substring(7) // Remove 'Bearer ' prefix
+    const username = authHeader.substring(7).trim() // Remove 'Bearer ' prefix and trim whitespace
+    
+    // Log for debugging (especially useful in production/Railway)
+    console.log('[getUserOrders] Request from username:', username)
+    console.log('[getUserOrders] Authorization header:', authHeader ? 'present' : 'missing')
     
     // Calculate the cutoff date: today - 1 day
     // Orders are visible until delivery date + 1 day
@@ -385,6 +399,56 @@ export const getUserOrders = async (req: Request, res: Response) => {
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - 1)
     cutoffDate.setHours(0, 0, 0, 0) // Start of the day
+
+    // First, let's check what orders exist for this user (for debugging)
+    const allUserOrders = await prisma.order.findMany({
+      where: {
+        createdByUsername: username,
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        createdByUsername: true,
+        pickupDate: true,
+        createdAt: true,
+      },
+    })
+    
+    console.log(`[getUserOrders] Found ${allUserOrders.length} total orders for username "${username}"`)
+    if (allUserOrders.length > 0) {
+      console.log(`[getUserOrders] Sample orders:`, allUserOrders.slice(0, 3).map(o => ({
+        orderNumber: o.orderNumber,
+        createdByUsername: o.createdByUsername,
+        pickupDate: o.pickupDate,
+      })))
+    }
+    
+    // Also check for orders with null createdByUsername (for debugging)
+    const ordersWithNullUsername = await prisma.order.count({
+      where: {
+        createdByUsername: null,
+        pickupDate: {
+          gte: cutoffDate,
+        },
+      },
+    })
+    if (ordersWithNullUsername > 0) {
+      console.log(`[getUserOrders] WARNING: Found ${ordersWithNullUsername} orders with null createdByUsername in date range`)
+    }
+    
+    // Get sample usernames from recent orders (for debugging)
+    const sampleUsernames = await prisma.order.findMany({
+      where: {
+        createdByUsername: { not: null },
+        pickupDate: { gte: cutoffDate },
+      },
+      select: {
+        createdByUsername: true,
+      },
+      distinct: ['createdByUsername'],
+      take: 5,
+    })
+    console.log(`[getUserOrders] Sample usernames in database:`, sampleUsernames.map(o => o.createdByUsername))
 
     const orders = await prisma.order.findMany({
       where: {
@@ -413,6 +477,8 @@ export const getUserOrders = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
     })
 
+    console.log(`[getUserOrders] Returning ${orders.length} orders after date filter (cutoff: ${cutoffDate.toISOString()})`)
+    
     res.json(orders)
   } catch (error) {
     console.error('Error fetching user orders:', error)

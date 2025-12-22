@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "cd backend && npm install && npx prisma generate --schema=./prisma/schema.prisma && npx tsc"
+    "buildCommand": "cd backend && SKIP_SUPABASE_POSTINSTALL=true npm install && npx prisma generate --schema=./prisma/schema.prisma && npx tsc"
   },
   "deploy": {
     "startCommand": "cd backend && node scripts/wait-for-db.js && npx prisma db push && node dist/server.js",
