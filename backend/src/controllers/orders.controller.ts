@@ -367,4 +367,57 @@ export const getNextOrderNumber = async (req: Request, res: Response) => {
   }
 }
 
+export const getUserOrders = async (req: Request, res: Response) => {
+  try {
+    // Get username from auth token (stored in Authorization header)
+    const authHeader = req.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    const username = authHeader.substring(7) // Remove 'Bearer ' prefix
+    
+    // Calculate the cutoff date: today - 1 day
+    // Orders are visible until delivery date + 1 day
+    // So if pickupDate is yesterday, it's visible until today (yesterday + 1 day = today)
+    // If pickupDate is today, it's visible until tomorrow (today + 1 day = tomorrow)
+    // So we need: pickupDate >= (today - 1 day)
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - 1)
+    cutoffDate.setHours(0, 0, 0, 0) // Start of the day
+
+    const orders = await prisma.order.findMany({
+      where: {
+        createdByUsername: username,
+        pickupDate: {
+          gte: cutoffDate, // Only orders with pickupDate >= (today - 1 day)
+        },
+      },
+      include: { 
+        photos: {
+          select: {
+            id: true,
+            url: true,
+            path: true,
+            isFoaieDeZahar: true,
+            createdAt: true,
+          },
+        },
+        pickedUpBy: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    res.json(orders)
+  } catch (error) {
+    console.error('Error fetching user orders:', error)
+    res.status(500).json({ error: 'Failed to fetch user orders' })
+  }
+}
+
 

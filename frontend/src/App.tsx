@@ -7,6 +7,8 @@ import AdminLogin from './components/AdminLogin'
 import AdminDashboard from './components/admin/AdminDashboard'
 import AdminOrderView from './components/admin/OrderView'
 import PhotoUpload from './components/PhotoUpload'
+import UserOrdersView from './components/UserOrdersView'
+import UserOrderDetails from './components/UserOrderDetails'
 
 function App() {
   const [, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
@@ -73,6 +75,14 @@ function App() {
           <Route
             path="/"
             element={requireAuth(<Wizard onLogout={handleLogout} />)}
+          />
+          <Route
+            path="/my-orders"
+            element={requireAuth(<UserOrdersView />)}
+          />
+          <Route
+            path="/my-orders/:id"
+            element={requireAuth(<UserOrderDetails />)}
           />
           <Route
             path="/admin"

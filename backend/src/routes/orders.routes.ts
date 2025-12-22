@@ -1,14 +1,16 @@
 import { Router } from 'express'
-import { createOrder, getOrder, listOrders, getNextOrderNumber } from '../controllers/orders.controller'
+import { createOrder, getOrder, listOrders, getNextOrderNumber, getUserOrders } from '../controllers/orders.controller'
 import { generatePDF } from '../services/pdf.service'
 import { sendOrderEmail } from '../services/email.service'
 import prisma from '../lib/prisma'
 import fs from 'fs'
+import { authenticate } from '../middleware/auth.middleware'
 
 const router = Router()
 
 router.post('/', createOrder)
 router.get('/next-number', getNextOrderNumber)
+router.get('/my-orders', authenticate, getUserOrders)
 router.get('/:id', getOrder)
 router.get('/', listOrders)
 

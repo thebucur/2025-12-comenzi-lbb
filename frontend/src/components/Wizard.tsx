@@ -144,38 +144,193 @@ function Wizard({ onLogout }: WizardProps) {
         </div>
 
         <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mt-12 gap-4">
-          <button
-            onClick={handlePrevious}
-            disabled={currentStep === 1}
-            className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
-              currentStep === 1
-                ? 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
-                : 'btn-neumorphic text-secondary hover:scale-105'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            ÎNAPOI
-          </button>
+          {/* Desktop Layout */}
+          <div className="hidden md:flex justify-between items-center mt-12 gap-4">
+            <button
+              onClick={handlePrevious}
+              disabled={currentStep === 1}
+              className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
+                currentStep === 1
+                  ? 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                  : 'btn-neumorphic text-secondary hover:scale-105'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              ÎNAPOI
+            </button>
 
-          <div className="flex items-center gap-3 justify-center flex-1">
-            {!isEditingFromReview && (
+            <div className="flex items-center gap-3 justify-center flex-1">
+              {!isEditingFromReview && (
+                <button
+                  type="button"
+                  onClick={handleTrimiteInventar}
+                  className="w-12 h-12 rounded-full bg-purple-100/90 hover:bg-purple-200/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-purple-200/50"
+                  title="Trimite inventar"
+                >
+                  <svg className="w-6 h-6 text-secondary/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </button>
+              )}
+              
+              {username && (
+                <div className="flex items-center gap-2 text-secondary/60 text-xs whitespace-nowrap">
+                  <span>Logged in as {username}</span>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="underline hover:text-secondary transition-colors cursor-pointer"
+                  >
+                    Logout
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetOrder}
+                    className="w-12 h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50 ml-2"
+                    title="Reluare comandă"
+                  >
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/my-orders')}
+                    className="px-4 py-2 rounded-xl bg-primary/50 hover:bg-primary/70 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-secondary/20 ml-2"
+                    title="Istoric comenzi"
+                  >
+                    ISTORIC COMENZI
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {isEditingFromReview && currentStep !== 4 ? (
               <button
-                type="button"
-                onClick={handleTrimiteInventar}
-                className="w-12 h-12 rounded-full bg-purple-100/90 hover:bg-purple-200/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-purple-200/50"
-                title="Trimite inventar"
+                onClick={handleFinishEdit}
+                disabled={!validateStep(currentStep)}
+                className={`px-12 py-5 rounded-2xl font-bold text-2xl transition-all duration-300 ${
+                  validateStep(currentStep)
+                    ? 'btn-active hover:scale-105 shadow-glow-purple'
+                    : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                }`}
               >
-                <svg className="w-6 h-6 text-secondary/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                GATA!
+              </button>
+            ) : currentStep < 4 ? (
+              <button
+                onClick={handleNext}
+                disabled={!validateStep(currentStep)}
+                className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
+                  validateStep(currentStep)
+                    ? 'btn-active hover:scale-105'
+                    : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                }`}
+              >
+                URMĂTORUL
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
+            ) : (
+              <div></div>
             )}
-            
+          </div>
+
+          {/* Mobile Layout */}
+          <div className="md:hidden mt-12 space-y-4">
+            {/* Row 1: Previous and Next buttons */}
+            <div className="flex justify-between items-center gap-4">
+              <button
+                onClick={handlePrevious}
+                disabled={currentStep === 1}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-base transition-all duration-300 flex-1 ${
+                  currentStep === 1
+                    ? 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                    : 'btn-neumorphic text-secondary hover:scale-105'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                ÎNAPOI
+              </button>
+
+              {isEditingFromReview && currentStep !== 4 ? (
+                <button
+                  onClick={handleFinishEdit}
+                  disabled={!validateStep(currentStep)}
+                  className={`px-6 py-3 rounded-2xl font-bold text-base transition-all duration-300 flex-1 ${
+                    validateStep(currentStep)
+                      ? 'btn-active hover:scale-105 shadow-glow-purple'
+                      : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                  }`}
+                >
+                  GATA!
+                </button>
+              ) : currentStep < 4 ? (
+                <button
+                  onClick={handleNext}
+                  disabled={!validateStep(currentStep)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-base transition-all duration-300 flex-1 ${
+                    validateStep(currentStep)
+                      ? 'btn-active hover:scale-105'
+                      : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
+                  }`}
+                >
+                  URMĂTORUL
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              ) : (
+                <div className="flex-1"></div>
+              )}
+            </div>
+
+            {/* Row 2: Inventory, Delete, History buttons */}
             {username && (
-              <div className="flex items-center gap-2 text-secondary/60 text-xs whitespace-nowrap">
+              <div className="flex items-center justify-center gap-3">
+                {!isEditingFromReview && (
+                  <button
+                    type="button"
+                    onClick={handleTrimiteInventar}
+                    className="w-12 h-12 rounded-full bg-purple-100/90 hover:bg-purple-200/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-purple-200/50"
+                    title="Trimite inventar"
+                  >
+                    <svg className="w-6 h-6 text-secondary/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </button>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={handleResetOrder}
+                  className="w-12 h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50"
+                  title="Reluare comandă"
+                >
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => navigate('/my-orders')}
+                  className="px-4 py-2 rounded-xl bg-primary/50 hover:bg-primary/70 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-secondary/20"
+                  title="Istoric comenzi"
+                >
+                  ISTORIC
+                </button>
+              </div>
+            )}
+
+            {/* Row 3: Logout */}
+            {username && (
+              <div className="flex items-center justify-center gap-2 text-secondary/60 text-xs">
                 <span>Logged in as {username}</span>
                 <button
                   type="button"
@@ -184,50 +339,8 @@ function Wizard({ onLogout }: WizardProps) {
                 >
                   Logout
                 </button>
-                <button
-                  type="button"
-                  onClick={handleResetOrder}
-                  className="w-12 h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50 ml-2"
-                  title="Reluare comandă"
-                >
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
               </div>
             )}
-          </div>
-
-          {isEditingFromReview && currentStep !== 4 ? (
-            <button
-              onClick={handleFinishEdit}
-              disabled={!validateStep(currentStep)}
-              className={`px-12 py-5 rounded-2xl font-bold text-2xl transition-all duration-300 ${
-                validateStep(currentStep)
-                  ? 'btn-active hover:scale-105 shadow-glow-purple'
-                  : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
-              }`}
-            >
-              GATA!
-            </button>
-          ) : currentStep < 4 ? (
-            <button
-              onClick={handleNext}
-              disabled={!validateStep(currentStep)}
-              className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
-                validateStep(currentStep)
-                  ? 'btn-active hover:scale-105'
-                  : 'bg-gray-300 text-gray-400 cursor-not-allowed shadow-neumorphic-inset'
-              }`}
-            >
-              URMĂTORUL
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ) : (
-            <div></div>
-          )}
           </div>
         </div>
       </div>
