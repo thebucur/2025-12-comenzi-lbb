@@ -166,7 +166,7 @@ function UserOrdersView() {
                         return (
                           <tr 
                             key={order.id} 
-                            className="border-b border-primary/30 hover:bg-primary/30 transition-colors cursor-pointer active:bg-primary/40"
+                            className="border-b border-primary/30 hover:bg-accent-pink/25 transition-colors duration-150 cursor-pointer active:bg-accent-pink/40"
                             onClick={() => navigate(`/my-orders/${order.id}`)}
                           >
                             <td className="px-3 py-3 font-bold text-accent-purple text-xs sm:text-sm">#{order.orderNumber}</td>

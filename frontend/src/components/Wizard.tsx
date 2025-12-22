@@ -176,19 +176,11 @@ function Wizard({ onLogout }: WizardProps) {
               )}
               
               {username && (
-                <div className="flex items-center gap-2 text-secondary/60 text-xs whitespace-nowrap">
-                  <span>Logged in as {username}</span>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="underline hover:text-secondary transition-colors cursor-pointer"
-                  >
-                    Logout
-                  </button>
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={handleResetOrder}
-                    className="w-12 h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50 ml-2"
+                    className="w-12 h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50"
                     title="Reluare comandă"
                   >
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -198,7 +190,7 @@ function Wizard({ onLogout }: WizardProps) {
                   <button
                     type="button"
                     onClick={() => navigate('/my-orders')}
-                    className="px-4 py-2 rounded-xl bg-primary/50 hover:bg-primary/70 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-secondary/20 ml-2"
+                    className="px-4 py-2 rounded-xl bg-primary/50 hover:bg-primary/70 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-secondary/20"
                     title="Istoric comenzi"
                   >
                     ISTORIC COMENZI
@@ -238,6 +230,20 @@ function Wizard({ onLogout }: WizardProps) {
               <div></div>
             )}
           </div>
+
+          {/* Desktop Logout Row */}
+          {username && (
+            <div className="hidden md:flex items-center justify-center gap-2 mt-4 text-secondary/60 text-xs">
+              <span>Logged in as {username}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="underline hover:text-secondary transition-colors cursor-pointer"
+              >
+                Logout
+              </button>
+            </div>
+          )}
 
           {/* Mobile Layout */}
           <div className="md:hidden mt-12 space-y-4">
