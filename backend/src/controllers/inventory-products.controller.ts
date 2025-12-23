@@ -1,11 +1,12 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
+import * as fs from 'fs'
 
 // Get all categories with their products
 export const getAllCategories = async (req: Request, res: Response) => {
   try {
     // #region agent log
-    const fs = require('fs'); fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:6',message:'getAllCategories called',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})+'\n');
+    fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:7',message:'getAllCategories called',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})+'\n');
     // #endregion
     const categories = await prisma.inventoryCategory.findMany({
       include: {
