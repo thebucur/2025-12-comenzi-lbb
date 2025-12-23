@@ -1,9 +1,10 @@
 import axios from 'axios'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
 import { getInventoriesByDate, getInventoryPDFUrl } from '../../services/inventory.api'
+import { getDateRecencyClass } from '../../utils/dateRecency'
 
 interface Photo {
   id: string
@@ -1033,10 +1034,10 @@ function AdminDashboard() {
                         <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '16%' }}>Detalii</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-primary/25 border-y border-primary/30">
                       {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
-                        <>
-                          <tr key={`date-${dateKey}`} className="bg-primary/20">
+                        <Fragment key={dateKey}>
+                          <tr className="bg-transparent">
                             <td colSpan={9} className="px-4 py-3 text-left text-xl font-bold text-secondary">
                               {dateKey}
                             </td>
@@ -1049,16 +1050,18 @@ function AdminDashboard() {
                             const deliveryDate = order.pickupDate 
                               ? new Date(order.pickupDate).toLocaleDateString('ro-RO')
                               : '-'
+                            const deliveryDateClass = getDateRecencyClass(order.pickupDate)
                             
                             const createdDate = order.createdAt 
                               ? new Date(order.createdAt).toLocaleDateString('ro-RO')
                               : '-'
+                            const createdDateClass = getDateRecencyClass(order.createdAt)
                             
                             // Check if any photo has isFoaieDeZahar set to true (explicitly check for true)
                             const hasFoaieDeZahar = order.photos?.some(photo => photo.isFoaieDeZahar === true) || false
                             
                             return (
-                              <tr key={order.id} className="border-b border-primary/30 hover:bg-primary/30 transition-colors">
+                              <tr key={order.id} className="hover:bg-primary/30 transition-colors">
                                 <td className="px-2 py-2 font-bold text-accent-purple text-xs">#{order.orderNumber}</td>
                                 <td className="px-2 py-2 text-secondary text-xs">{order.clientName}</td>
                                 <td className="px-2 py-2 text-secondary text-xs">07{order.phoneNumber}</td>
@@ -1071,8 +1074,8 @@ function AdminDashboard() {
                                     {deliveryText}
                                   </span>
                                 </td>
-                                <td className="px-2 py-2 text-secondary text-xs">{deliveryDate}</td>
-                                <td className="px-2 py-2 text-secondary text-xs">{createdDate}</td>
+                                <td className={`px-2 py-2 text-secondary text-xs ${deliveryDateClass}`}>{deliveryDate}</td>
+                                <td className={`px-2 py-2 text-secondary text-xs ${createdDateClass}`}>{createdDate}</td>
                                 <td className="px-2 py-2 text-secondary text-xs">{order.createdByUsername || order.staffName || '-'}</td>
                                 <td className="px-2 py-2">
                                   <input
@@ -1104,7 +1107,7 @@ function AdminDashboard() {
                               </tr>
                             )
                           })}
-                        </>
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>

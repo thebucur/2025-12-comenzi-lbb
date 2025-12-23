@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import { getDateRecencyClass } from '../utils/dateRecency'
 
 interface Photo {
   id: string
@@ -137,10 +138,10 @@ function UserOrdersView() {
                     <th className="px-3 py-3 text-left font-bold text-secondary text-xs sm:text-sm">Preluat de</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-primary/25 border-y border-primary/30">
                   {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
-                    <>
-                      <tr key={`date-${dateKey}`} className="bg-primary/20">
+                    <Fragment key={dateKey}>
+                      <tr className="bg-transparent">
                         <td colSpan={5} className="px-4 py-3 text-left text-base sm:text-xl font-bold text-secondary">
                           {dateKey}
                         </td>
@@ -158,26 +159,28 @@ function UserOrdersView() {
                         const deliveryDate = order.pickupDate 
                           ? formatDateWithoutYear(order.pickupDate)
                           : '-'
+                        const deliveryDateClass = getDateRecencyClass(order.pickupDate)
                         
                         const createdDate = order.createdAt 
                           ? formatDateWithoutYear(order.createdAt)
                           : '-'
+                        const createdDateClass = getDateRecencyClass(order.createdAt)
                         
                         return (
                           <tr 
                             key={order.id} 
-                            className="border-b border-primary/30 hover:bg-accent-pink/25 transition-colors duration-150 cursor-pointer active:bg-accent-pink/40"
+                            className="hover:bg-accent-pink/25 transition-colors duration-150 cursor-pointer active:bg-accent-pink/40"
                             onClick={() => navigate(`/my-orders/${order.id}`)}
                           >
                             <td className="px-3 py-3 font-bold text-accent-purple text-xs sm:text-sm">#{order.orderNumber}</td>
                             <td className="px-2 py-3 font-bold text-secondary text-xs sm:text-sm">{order.clientName}</td>
-                            <td className="px-3 py-3 text-secondary text-xs sm:text-sm">{createdDate}</td>
-                            <td className="px-3 py-3 text-secondary text-xs sm:text-sm">{deliveryDate}</td>
+                            <td className={`px-3 py-3 text-secondary text-xs sm:text-sm ${createdDateClass}`}>{createdDate}</td>
+                            <td className={`px-3 py-3 text-secondary text-xs sm:text-sm ${deliveryDateClass}`}>{deliveryDate}</td>
                             <td className="px-3 py-3 text-secondary text-xs sm:text-sm">{order.staffName || '-'}</td>
                           </tr>
                         )
                       })}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

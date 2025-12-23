@@ -5,12 +5,14 @@ import { createWriteStream, existsSync } from 'fs'
 import path from 'path'
 import https from 'https'
 import sharp from 'sharp'
+import crypto from 'crypto'
 
 // Use Railway persistent volume for production, local directory for development
 // Railway volume should be mounted at /app/storage
 const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
 const PDF_DIR = process.env.PDF_DIR || path.join(STORAGE_BASE, 'pdfs')
 const FONTS_DIR = process.env.FONTS_DIR || path.join(STORAGE_BASE, 'fonts')
+const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 // Helper function to replace Romanian diacritics with non-diacritic letters
 const removeDiacritics = (text: string | null | undefined): string => {
@@ -27,6 +29,23 @@ const removeDiacritics = (text: string | null | undefined): string => {
     .replace(/Î/g, 'I')
     .replace(/Ș/g, 'S')
     .replace(/Ț/g, 'T')
+}
+
+const getDateHighlightColor = (dateInput?: string | Date | null): string | null => {
+  if (!dateInput) return null
+
+  const parsed = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  if (isNaN(parsed.getTime())) return null
+
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const targetStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+
+  const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
+
+  if (diffDays === 1) return '#ffff00' // yellow for yesterday
+  if (diffDays >= 2) return '#ef4444' // red for two days ago or older
+  return null
 }
 
 // Helper function to download file
@@ -56,6 +75,24 @@ const downloadFile = (url: string, dest: string): Promise<void> => {
       reject(err)
     })
   })
+}
+
+// Helper function to generate a unique filename by appending an incremental number if needed
+const getUniqueFilename = async (baseFilename: string, directory: string): Promise<string> => {
+  const baseName = path.parse(baseFilename).name
+  const ext = path.parse(baseFilename).ext
+  let counter = 1
+  let filename = baseFilename
+  let filepath = path.join(directory, filename)
+  
+  // Check if file exists, and if so, increment counter
+  while (existsSync(filepath)) {
+    filename = `${baseName}-${counter}${ext}`
+    filepath = path.join(directory, filename)
+    counter++
+  }
+  
+  return filename
 }
 
 // Ensure Roboto fonts are available
@@ -189,8 +226,10 @@ export const generatePDF = async (orderId: string): Promise<string> => {
 
   // Slightly tighter margins to keep everything on one page
   const doc = new PDFDocument({ margin: 40 })
-  const filename = `order-${order.orderNumber}.pdf`
+  const baseFilename = `order-${order.orderNumber}.pdf`
+  const filename = await getUniqueFilename(baseFilename, PDF_DIR)
   const filepath = path.join(PDF_DIR, filename)
+  console.log(`PDF filename selected (order): base=${baseFilename}, final=${filename}, dir=${PDF_DIR}`)
   const stream = createWriteStream(filepath)
   doc.pipe(stream)
 
@@ -235,9 +274,14 @@ export const generatePDF = async (orderId: string): Promise<string> => {
   const textColor = '#000000'
 
   // Helper function to add a field with bold label
-  const addField = (label: string, value: string | null | undefined) => {
+  const addField = (
+    label: string,
+    value: string | null | undefined,
+    options?: { highlightColor?: string }
+  ) => {
     if (value === null || value === undefined || value === '') return
     
+    const { highlightColor } = options || {}
     const cleanLabel = removeDiacritics(label)
     const cleanValue = removeDiacritics(value)
 
@@ -246,46 +290,67 @@ export const generatePDF = async (orderId: string): Promise<string> => {
 
     const x = margins.left
     const y = doc.y
-    doc.fillColor(labelColor)
+
+    const isRedHighlight = highlightColor?.toLowerCase() === '#ef4444'
+    const labelColorForHighlight = highlightColor ? (isRedHighlight ? '#ffffff' : labelColor) : labelColor
+    const valueColorForHighlight = highlightColor ? (isRedHighlight ? '#ffffff' : textColor) : textColor
+    const valueFontForHighlight = highlightColor ? fontBold : fontRegular
+
+    if (highlightColor) {
+      const labelText = `${cleanLabel}: ${cleanValue}`
+      const textHeight = doc.font(fontRegular).fontSize(12).heightOfString(labelText, {
+        width: leftColumnWidth,
+      })
+      const padding = 4
+
+      doc.save()
+      doc.rect(x - padding, y - padding, leftColumnWidth + padding * 2, textHeight + padding * 2)
+      doc.fillAndStroke(highlightColor, highlightColor)
+      doc.restore()
+    }
+
+    doc.fillColor(labelColorForHighlight)
     doc.font(fontBold).fontSize(12).text(`${cleanLabel}: `, x, y, {
       continued: true,
       width: leftColumnWidth,
     })
-    doc.fillColor(textColor)
-    doc.font(fontRegular).fontSize(12).text(cleanValue, {
+    doc.fillColor(valueColorForHighlight)
+    doc.font(valueFontForHighlight).fontSize(12).text(cleanValue, {
       width: leftColumnWidth,
     })
-    doc.moveDown(0.2) // add a small spacer for readability
+    doc.moveDown(0.3) // add a small spacer for readability
   }
 
   // Header
-  doc.font(fontBold).fontSize(20).text(removeDiacritics(`Comanda #${order.orderNumber}`), { align: 'center' })
-  doc.moveDown(0.5)
+  doc.font(fontBold).fontSize(18).text(removeDiacritics(`Comanda #${order.orderNumber}`), { align: 'center' })
+  doc.moveDown(0.6)
 
   const columnStartY = doc.y
 
   // Order Details
-  doc.font(fontBold).fontSize(14).text(removeDiacritics('Detalii comanda:'), margins.left, doc.y, {
+  doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii comanda:'), margins.left, doc.y, {
     underline: true,
     width: leftColumnWidth,
   })
-  doc.moveDown(0.3)
+  doc.moveDown(0.4)
   addField('Client', order.clientName)
   addField('Telefon', `07${order.phoneNumber}`)
   addField('Metodă', order.deliveryMethod === 'ridicare' ? 'Ridicare' : 'Livrare')
   addField('Locație', order.location || undefined)
   addField('Adresă', order.address || undefined)
   addField('Preia comanda', order.staffName)
-  addField('Data', new Date(order.pickupDate).toLocaleDateString('ro-RO'))
+  const pickupDateValue = order.pickupDate ? new Date(order.pickupDate).toLocaleDateString('ro-RO') : undefined
+  const pickupDateHighlight = getDateHighlightColor(order.pickupDate)
+  addField('Data', pickupDateValue, pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined)
   if (order.advance) addField('Avans', `${order.advance} RON`)
   doc.moveDown()
 
   // Cake Details
-  doc.font(fontBold).fontSize(14).text(removeDiacritics('Detalii tort:'), margins.left, doc.y, {
+  doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii tort:'), margins.left, doc.y, {
     underline: true,
     width: leftColumnWidth,
   })
-  doc.moveDown(0.3)
+  doc.moveDown(0.4)
   if (order.noCake) {
     addField('Tort', 'NU ARE TORT')
   } else {
@@ -330,21 +395,21 @@ export const generatePDF = async (orderId: string): Promise<string> => {
       width: leftColumnWidth,
     })
     doc.fillColor(textColor)
-    doc.font(fontRegular).fontSize(12).text(cleanValue, {
-      width: leftColumnWidth,
-    })
-    doc.moveDown(0.2)
-  }
-  
-  doc.moveDown(0.4)
-
-  // Decor Details - Only show if not noCake
-  if (!order.noCake) {
-    doc.font(fontBold).fontSize(14).text(removeDiacritics('Detalii decor:'), margins.left, doc.y, {
-      underline: true,
+    doc.font(fontBold).fontSize(12).text(cleanValue, {
       width: leftColumnWidth,
     })
     doc.moveDown(0.3)
+  }
+  
+  doc.moveDown(0.5)
+
+  // Decor Details - Only show if not noCake
+  if (!order.noCake) {
+    doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii decor:'), margins.left, doc.y, {
+      underline: true,
+      width: leftColumnWidth,
+    })
+    doc.moveDown(0.4)
     addField('Îmbrăcat în', order.coating)
     if (order.colors.length > 0) {
       addField('Culori', order.colors.join(', '))
@@ -352,7 +417,7 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     addField('Tip decor', order.decorType)
     addField('Detalii', order.decorDetails || undefined)
     addField('Observații', order.observations || undefined)
-    doc.moveDown(0.4)
+    doc.moveDown(0.5)
   }
 
   // Photos (only regular photos, exclude foaie de zahar)
@@ -363,7 +428,7 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     const photoLabel = removeDiacritics('Poze:')
     const photoHeadingHeight = doc
       .font(fontBold)
-      .fontSize(14)
+      .fontSize(13)
       .heightOfString(photoLabel, { width: rightColumnWidth })
 
     // Ensure we always start the photo column aligned with the first section
@@ -374,7 +439,7 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     const cellHeight = Math.max((availableHeight - photoGap * (maxPhotos - 1)) / maxPhotos, 28)
     const imageMaxHeight = cellHeight
 
-    doc.font(fontBold).fontSize(14).text(photoLabel, photoColumnX, startY, {
+    doc.font(fontBold).fontSize(13).text(photoLabel, photoColumnX, startY, {
       underline: true,
       width: rightColumnWidth,
     })
@@ -417,14 +482,14 @@ export const generatePDF = async (orderId: string): Promise<string> => {
           })
         } catch (error) {
           console.error(`Error embedding image ${resolvedPath}:`, error)
-          doc.font(fontRegular).fontSize(10).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
+          doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
             width: rightColumnWidth,
             align: 'center',
           })
         }
       } else {
         console.log(`Image path not found, showing URL: ${photo.url}`)
-        doc.font(fontRegular).fontSize(10).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
+        doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
           width: rightColumnWidth,
           align: 'center',
         })
@@ -496,7 +561,7 @@ const INVENTORY_CATEGORIES = [
   {
     id: 'produse-bucata',
     name: 'PRODUSE LA BUCATA',
-    units: ['buc.', 'g.', 'tava'],
+    units: ['buc.', 'g.', 'tv'],
     defaultUnit: 'buc.',
     products: [
       'Amandina',
@@ -533,8 +598,8 @@ const INVENTORY_CATEGORIES = [
   {
     id: 'produse-kg',
     name: 'PRODUSE KG',
-    units: ['tava', 'platou', 'rand'],
-    defaultUnit: 'tava',
+    units: ['tv', 'plt', 'rand'],
+    defaultUnit: 'tv',
     products: [
       'Saratele',
       'Placinta cu mere dulce',
@@ -600,8 +665,8 @@ const INVENTORY_CATEGORIES = [
   {
     id: 'patiserie',
     name: 'PATISERIE',
-    units: ['tava', 'platou'],
-    defaultUnit: 'tava',
+    units: ['tv', 'plt'],
+    defaultUnit: 'tv',
     products: [
       'Pateuri cu branza',
       'Strudele cu mere',
@@ -629,8 +694,8 @@ const INVENTORY_CATEGORIES = [
   {
     id: 'post',
     name: 'POST',
-    units: ['tava', 'platou', 'rand'],
-    defaultUnit: 'tava',
+    units: ['tv', 'plt', 'rand'],
+    defaultUnit: 'tv',
     products: [
       'Minciunele',
       'Placinta cu dovleac',
@@ -644,9 +709,155 @@ const INVENTORY_CATEGORIES = [
   },
 ]
 
+// Calculate hash of the PDF generation function code
+// This hash will change whenever the generation logic changes
+const getPDFGenerationCodeHash = async (): Promise<string> => {
+  try {
+    // Read the current file content to get the actual function code
+    const filePath = path.join(__dirname, 'pdf.service.ts')
+    const fileContent = await fs.readFile(filePath, 'utf-8')
+    
+    // Extract the generateInventoryPDF function code
+    // Find the function start and end
+    const functionStart = fileContent.indexOf('export const generateInventoryPDF')
+    if (functionStart === -1) {
+      // Fallback: use a hash of the entire file
+      return crypto.createHash('sha256').update(fileContent).digest('hex').substring(0, 16)
+    }
+    
+    // Find the matching closing brace for the function
+    let braceCount = 0
+    let inFunction = false
+    let functionEnd = functionStart
+    
+    for (let i = functionStart; i < fileContent.length; i++) {
+      const char = fileContent[i]
+      if (char === '{') {
+        braceCount++
+        inFunction = true
+      } else if (char === '}') {
+        braceCount--
+        if (inFunction && braceCount === 0) {
+          functionEnd = i + 1
+          break
+        }
+      }
+    }
+    
+    // Extract function code
+    const functionCode = fileContent.substring(functionStart, functionEnd)
+    
+    // Return hash of the function code
+    return crypto.createHash('sha256').update(functionCode).digest('hex').substring(0, 16)
+  } catch (error) {
+    console.error('Error calculating PDF generation code hash:', error)
+    // Fallback: return a hash based on current timestamp and function signature
+    // This ensures version increments even if file reading fails
+    const fallbackCode = 'generateInventoryPDF' + Date.now().toString()
+    return crypto.createHash('sha256').update(fallbackCode).digest('hex').substring(0, 16)
+  }
+}
+
+// Check if PDF generation code has changed and increment version if needed
+const checkAndUpdatePDFGenerationVersion = async (inventoryId: string): Promise<boolean> => {
+  try {
+    const currentHash = await getPDFGenerationCodeHash()
+    
+    // Get or create the hash storage in GlobalConfig
+    const configKey = 'pdf_generation_code_hash'
+    const existingConfig = await prisma.globalConfig.findUnique({
+      where: {
+        category_key: {
+          category: 'system',
+          key: configKey,
+        },
+      },
+    })
+    
+    const lastHash = existingConfig ? (existingConfig.value as any)?.hash : null
+    
+    // If hash changed, increment version for this inventory
+    if (lastHash && lastHash !== currentHash) {
+      console.log(`PDF generation code changed (hash: ${lastHash} -> ${currentHash}), incrementing version`)
+      
+      // Get current inventory with version
+      const currentInventory = await prisma.inventory.findUnique({
+        where: { id: inventoryId },
+      }) as any
+      
+      if (currentInventory) {
+        const newVersion = (currentInventory.version || 1) + 1
+        
+        await (prisma.inventory.update as any)({
+          where: { id: inventoryId },
+          data: { version: newVersion },
+        })
+      }
+      
+      // Update the stored hash
+      if (existingConfig) {
+        await prisma.globalConfig.update({
+          where: { id: existingConfig.id },
+          data: { value: { hash: currentHash } },
+        })
+      } else {
+        await prisma.globalConfig.create({
+          data: {
+            category: 'system',
+            key: configKey,
+            value: { hash: currentHash },
+          },
+        })
+      }
+      
+      return true // Version was incremented
+    } else if (!lastHash) {
+      // First time - store the hash
+      await prisma.globalConfig.upsert({
+        where: {
+          category_key: {
+            category: 'system',
+            key: configKey,
+          },
+        },
+        create: {
+          category: 'system',
+          key: configKey,
+          value: { hash: currentHash },
+        },
+        update: {
+          value: { hash: currentHash },
+        },
+      })
+    }
+    
+    return false // Version was not incremented
+  } catch (error) {
+    console.error('Error checking PDF generation version:', error)
+    // Don't fail PDF generation if version check fails
+    return false
+  }
+}
+
 export const generateInventoryPDF = async (inventory: any): Promise<string> => {
   try {
     console.log(`Starting inventory PDF generation for ${inventory.username} on ${inventory.date}`)
+    
+    // Check if PDF generation code changed and increment version if needed
+    await checkAndUpdatePDFGenerationVersion(inventory.id)
+    
+    // Reload inventory to get updated version
+    const updatedInventory = await prisma.inventory.findUnique({
+      where: { id: inventory.id },
+      include: { entries: true },
+    })
+    
+    if (!updatedInventory) {
+      throw new Error('Inventory not found after version check')
+    }
+    
+    // Use updated inventory for PDF generation
+    inventory = updatedInventory
 
     // Ensure PDF directory exists
     await fs.mkdir(PDF_DIR, { recursive: true })
@@ -662,8 +873,15 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
     })
     
     const dateStr = new Date(inventory.date).toISOString().split('T')[0]
-    const filename = `inventory-${inventory.username}-${dateStr}.pdf`
+    const baseFilename = `inventory-${inventory.username}-${dateStr}.pdf`
+    const filename = await getUniqueFilename(baseFilename, PDF_DIR)
     const filepath = path.join(PDF_DIR, filename)
+    console.log(`PDF filename selected (inventory): base=${baseFilename}, final=${filename}, dir=${PDF_DIR}`)
+
+    // Derive display version directly from the filename so it always matches the file suffix
+    // base file (no suffix) => version 1, "-1" => version 2, "-2" => version 3, etc.
+    const filenameVersionMatch = filename.match(/-(\d+)\.pdf$/)
+    const displayVersion = filenameVersionMatch ? parseInt(filenameVersionMatch[1], 10) + 1 : 1
     const stream = createWriteStream(filepath)
     doc.pipe(stream)
 
@@ -718,13 +936,30 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
       return `${day}.${month}`
     }
     
-    // Header - Title
+    // Convert unit abbreviations for PDF display
+    const formatUnit = (unit: string): string => {
+      if (unit === 'tava') return 'tv'
+      if (unit === 'platou') return 'plt'
+      return unit
+    }
+    
+    // Header - Title (left) and Version (right)
     const inventoryDate = new Date(inventory.date)
     const titleDate = `${inventoryDate.getDate()}.${(inventoryDate.getMonth() + 1).toString().padStart(2, '0')}`
     const headerText = removeDiacritics(`INVENTAR ${inventory.username.toUpperCase()} ${titleDate}`)
+    // Use the version derived from the filename to keep the label in sync with the generated file name
+    const versionText = `version v${displayVersion}`
     
+    // Draw title on the left
     doc.font(fontBold).fontSize(titleFontSize)
-    doc.text(headerText, margins, margins, { align: 'left', width: availableWidth })
+    doc.text(headerText, margins, margins, { align: 'left', width: availableWidth - 50, continued: false })
+    
+    // Draw version in the top right corner (much smaller font)
+    const versionFontSize = 6
+    doc.font(fontRegular).fontSize(versionFontSize)
+    const versionWidth = doc.widthOfString(versionText)
+    doc.text(versionText, pageWidth - margins - versionWidth, margins, { align: 'right' })
+    
     doc.moveDown(0.3)
     
     // Column headers (INV / NEC) for each of the 3 columns
@@ -747,6 +982,46 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
     doc.moveDown(0.3)
     
     const contentStartY = doc.y
+    
+    // Draw vertical lines between columns for visual separation
+    const lineColor = '#b3b3b3' // darker grey for column separators to stay visible over row highlights
+    const lineStartY = contentStartY
+    const lineEndY = pageHeight - margins
+    
+    doc.save()
+    doc.strokeColor(lineColor)
+    doc.lineWidth(0.5)
+    
+    // Draw lines for each of the 3 main columns
+    for (let col = 0; col < 3; col++) {
+      const columnX = margins + col * (columnWidth + columnGap)
+      
+      // Line between product name and INV
+      const invLineX = columnX + productNameWidth
+      doc.moveTo(invLineX, lineStartY)
+      doc.lineTo(invLineX, lineEndY)
+      doc.stroke()
+      
+      // Line between INV and NEC
+      const necLineX = columnX + productNameWidth + invWidth
+      doc.moveTo(necLineX, lineStartY)
+      doc.lineTo(necLineX, lineEndY)
+      doc.stroke()
+    }
+    
+    // Line between main column 0 and column 1
+    const mainLine1X = margins + columnWidth
+    doc.moveTo(mainLine1X, lineStartY)
+    doc.lineTo(mainLine1X, lineEndY)
+    doc.stroke()
+    
+    // Line between main column 1 and column 2
+    const mainLine2X = margins + columnWidth + columnGap + columnWidth
+    doc.moveTo(mainLine2X, lineStartY)
+    doc.lineTo(mainLine2X, lineEndY)
+    doc.stroke()
+    
+    doc.restore()
     
     // Create a map of submitted entries by category and product name
     const submittedEntriesMap = new Map<string, Map<string, any>>()
@@ -771,41 +1046,60 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
       productName: string, 
       invText: string, 
       necText: string,
-      showProductName: boolean = true
+      showProductName: boolean = true,
+      rowIndex: number = 0,
+      dateHighlight?: string | null
     ) => {
+      // Draw date highlight if specified
+      if (dateHighlight) {
+        doc.save()
+        doc.rect(columnX + productNameWidth, rowY, invWidth, lineHeight)
+        doc.fillAndStroke(dateHighlight, dateHighlight)
+        doc.restore()
+      }
+      
+      // Calculate vertical centering offset
+      // Center text vertically within the lineHeight cell
+      const textVerticalOffset = (lineHeight - fontSize) / 2
+      const textY = rowY + textVerticalOffset
+      
       // Product name
       if (showProductName && productName) {
         doc.font(fontRegular).fontSize(fontSize)
         doc.fillColor(textColor)
-        doc.text(productName, columnX, rowY, { 
+        doc.text(productName, columnX, textY, { 
           width: productNameWidth,
           lineBreak: false
         })
       }
       
-      // INV column
-      doc.font(fontRegular).fontSize(fontSize)
-      doc.fillColor(textColor)
-      doc.text(invText, columnX + productNameWidth, rowY, {
+      // INV column - centered to match header
+      const isRedHighlight = dateHighlight?.toLowerCase() === '#ef4444'
+      const invTextColor = dateHighlight ? (isRedHighlight ? '#FFFFFF' : textColor) : textColor
+      const invFont = dateHighlight ? fontBold : fontRegular
+      doc.font(invFont).fontSize(fontSize)
+      doc.fillColor(invTextColor)
+      doc.text(invText, columnX + productNameWidth, textY, {
         width: invWidth,
-        align: 'left',
+        align: 'center',
         lineBreak: false
       })
       
-      // NEC column
+      // NEC column - centered to match header
       doc.font(fontBold).fontSize(fontSize)
       doc.fillColor(textColor)
-      doc.text(necText, columnX + productNameWidth + invWidth, rowY, {
+      doc.text(necText, columnX + productNameWidth + invWidth, textY, {
         width: necWidth,
-        align: 'left',
+        align: 'center',
         lineBreak: false
       })
     }
     
-    // Track column positions
+    // Track column positions and row indices
     let currentColumn = 0
     let columnX = margins
     let columnY = contentStartY
+    let rowIndex = 0 // Track row index for zebra striping (resets per column)
     
     // Render all categories, flowing across columns
     for (const category of categories) {
@@ -816,6 +1110,7 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
         currentColumn++
         columnX = margins + currentColumn * (columnWidth + columnGap)
         columnY = contentStartY
+        rowIndex = 0 // Reset row index when moving to new column
       }
       
       // Category header in RED
@@ -837,6 +1132,7 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
           currentColumn++
           columnX = margins + currentColumn * (columnWidth + columnGap)
           columnY = contentStartY
+          rowIndex = 0 // Reset row index when moving to new column
         }
         
         if (submittedEntry) {
@@ -856,23 +1152,26 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
                 currentColumn++
                 columnX = margins + currentColumn * (columnWidth + columnGap)
                 columnY = contentStartY
+                rowIndex = 0 // Reset row index when moving to new column
                 isFirstRow = true // Show product name again in new column
               }
               
               const hasInventar = dataEntry.quantity && dataEntry.quantity > 0
               const hasNecesar = dataEntry.requiredQuantity && dataEntry.requiredQuantity > 0
               
-              // Build INV text
+              // Build INV text and get date highlight
               let invText = ''
+              let dateHighlight: string | null = null
               if (hasInventar) {
                 const dateShort = formatDateShort(dataEntry.receptionDate)
-                invText = `${dateShort}  ${dataEntry.unit} ${dataEntry.quantity}`
+                invText = `${dateShort}  ${dataEntry.quantity} ${formatUnit(dataEntry.unit)}`
+                dateHighlight = getDateHighlightColor(dataEntry.receptionDate)
               }
               
               // Build NEC text
               let necText = ''
               if (hasNecesar) {
-                necText = `${dataEntry.requiredUnit} ${dataEntry.requiredQuantity}`
+                necText = `${dataEntry.requiredQuantity} ${formatUnit(dataEntry.requiredUnit)}`
               }
               
               drawRow(
@@ -881,21 +1180,26 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
                 cleanProductName, 
                 invText, 
                 necText, 
-                isFirstRow
+                isFirstRow,
+                rowIndex,
+                dateHighlight
               )
               
               columnY += lineHeight
+              rowIndex++ // Increment row index for zebra striping
               isFirstRow = false
             }
           } else {
             // Product exists but has no data - show with empty values
-            drawRow(columnX, columnY, cleanProductName, '', '', true)
+            drawRow(columnX, columnY, cleanProductName, '', '', true, rowIndex)
             columnY += lineHeight
+            rowIndex++ // Increment row index for zebra striping
           }
         } else {
           // Product not submitted - show with empty values
-          drawRow(columnX, columnY, cleanProductName, '', '', true)
+          drawRow(columnX, columnY, cleanProductName, '', '', true, rowIndex)
           columnY += lineHeight
+          rowIndex++ // Increment row index for zebra striping
         }
       }
       
@@ -920,23 +1224,26 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
                   currentColumn++
                   columnX = margins + currentColumn * (columnWidth + columnGap)
                   columnY = contentStartY
+                  rowIndex = 0 // Reset row index when moving to new column
                   isFirstRow = true
                 }
                 
                 const hasInventar = dataEntry.quantity && dataEntry.quantity > 0
                 const hasNecesar = dataEntry.requiredQuantity && dataEntry.requiredQuantity > 0
                 
-                // Build INV text
+                // Build INV text and get date highlight
                 let invText = ''
+                let dateHighlight: string | null = null
                 if (hasInventar) {
                   const dateShort = formatDateShort(dataEntry.receptionDate)
-                  invText = `${dateShort}  ${dataEntry.unit} ${dataEntry.quantity}`
+                  invText = `${dateShort}  ${dataEntry.quantity} ${formatUnit(dataEntry.unit)}`
+                  dateHighlight = getDateHighlightColor(dataEntry.receptionDate)
                 }
                 
                 // Build NEC text
                 let necText = ''
                 if (hasNecesar) {
-                  necText = `${dataEntry.requiredUnit} ${dataEntry.requiredQuantity}`
+                  necText = `${dataEntry.requiredQuantity} ${formatUnit(dataEntry.requiredUnit)}`
                 }
                 
                 drawRow(
@@ -945,10 +1252,13 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
                   cleanProductName, 
                   invText, 
                   necText, 
-                  isFirstRow
+                  isFirstRow,
+                  rowIndex,
+                  dateHighlight
                 )
                 
                 columnY += lineHeight
+                rowIndex++ // Increment row index for zebra striping
                 isFirstRow = false
               }
             }

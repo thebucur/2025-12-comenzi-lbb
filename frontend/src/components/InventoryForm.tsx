@@ -5,7 +5,6 @@ import {
   getTodayInventory, 
   submitInventory, 
   saveInventoryDraft,
-  ProductEntry,
   InventoryEntryData 
 } from '../services/inventory.api'
 import api from '../services/api'
@@ -69,7 +68,7 @@ function InventoryForm() {
     try {
       setAutoSaving(true)
       const validEntries = productEntries.filter(e => 
-        e.entries.some(entry => entry.quantity > 0 || entry.requiredQuantity > 0)
+        e.entries.some(entry => (entry.quantity && entry.quantity > 0) || (entry.requiredQuantity && entry.requiredQuantity > 0))
       )
       
       if (validEntries.length > 0) {
@@ -172,10 +171,6 @@ function InventoryForm() {
     )
   }
 
-  const getProductById = (id: string): ProductFormData | undefined => {
-    return productEntries.find(e => e.id === id)
-  }
-
   const addProductEntry = (category: string, productName: string, unit: string, isCustom = false, afterIndex?: number) => {
     const existing = getProductEntry(category, productName)
     if (existing) {
@@ -274,7 +269,10 @@ function InventoryForm() {
   const adjustDate = (currentDate: string, days: number): string => {
     const date = new Date(currentDate)
     date.setDate(date.getDate() + days)
-    return date.toISOString().split('T')[0]
+    const adjustedDateStr = date.toISOString().split('T')[0]
+    const todayStr = new Date().toISOString().split('T')[0]
+    // Don't allow dates in the future
+    return adjustedDateStr > todayStr ? todayStr : adjustedDateStr
   }
 
   const formatDateShort = (dateString: string): string => {
@@ -326,16 +324,20 @@ function InventoryForm() {
 
     setSubmitting(true)
     try {
-      // Filter out entries with no quantity
+      // Filter to include entries with quantity > 0 OR requiredQuantity > 0
+      // This ensures necesar-only items are saved
       const validEntries = productEntries
         .map(e => ({
           ...e,
-          entries: e.entries.filter(entry => entry.quantity > 0)
+          entries: e.entries.filter(entry => 
+            (entry.quantity && entry.quantity > 0) || 
+            (entry.requiredQuantity && entry.requiredQuantity > 0)
+          )
         }))
         .filter(e => e.entries.length > 0)
 
       if (validEntries.length === 0) {
-        alert('Please add at least one product with quantity')
+        alert('Please add at least one product with inventory quantity or necesar quantity')
         setSubmitting(false)
         return
       }
@@ -377,22 +379,24 @@ function InventoryForm() {
       <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-pink/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
 
       <div className="container mx-auto px-4 py-8 relative z-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={() => navigate('/')}
-            className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300"
-          >
-            ← ÎNAPOI
-          </button>
+        {/* Title - centered */}
+        <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gradient">
             INVENTAR/NECESAR {username} - {today}
           </h1>
-          <div className="w-24"></div>
         </div>
 
-        {/* Categories - All expanded by default */}
+        {/* Categories with back button aligned */}
         <div className="space-y-6 max-w-7xl mx-auto">
+          {/* Back button - aligned with cards */}
+          <div className="mb-6">
+            <button
+              onClick={() => navigate('/')}
+              className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300"
+            >
+              ← ÎNAPOI
+            </button>
+          </div>
           {INVENTORY_CATEGORIES.map(category => {
             const categoryProducts = productEntries.filter(e => e.category === category.name)
             
@@ -437,21 +441,25 @@ function InventoryForm() {
                         )}
                         
                         <div className="relative" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
-                        {product.entries.map((entry, entryIndex) => {
-                          // Ensure entry has required fields
-                          const receptionDate = entry.receptionDate || new Date().toISOString().split('T')[0]
-                          const unit = entry.unit || category.defaultUnit
-                          const quantity = entry.quantity || 0
-                          const requiredUnit = entry.requiredUnit || category.defaultUnit
-                          const requiredQuantity = entry.requiredQuantity || 0
+                          {product.entries.map((entry, entryIndex) => {
+                            // Ensure entry has required fields
+                            const receptionDate = entry.receptionDate || new Date().toISOString().split('T')[0]
+                            const unit = entry.unit || category.defaultUnit
+                            const quantity = entry.quantity || 0
+                            const requiredUnit = entry.requiredUnit || category.defaultUnit
+                            const requiredQuantity = entry.requiredQuantity || 0
 
-                          return (
-                            <div key={`${productId}-${entryIndex}`} className="bg-white/80 rounded-xl relative" style={{ padding: '8px 12px' }}>
-                              {/* Grid layout for perfect alignment */}
-                              <div className="grid items-center" style={{ 
-                                gridTemplateColumns: '1fr 150px 154px 28px 180px',
-                                gap: '8px'
-                              }}>
+                            return (
+                              <div
+                                key={`${productId}-${entryIndex}`}
+                                className="rounded-xl relative"
+                                style={{ padding: '8px 12px' }}
+                              >
+                                {/* Grid layout for perfect alignment */}
+                                <div className="grid items-center" style={{ 
+                                  gridTemplateColumns: '1fr 150px 154px 28px 180px',
+                                  gap: '8px'
+                                }}>
                                 {/* Product name column */}
                                 <div className="min-w-0">
                                   {entryIndex === 0 && (
@@ -496,6 +504,7 @@ function InventoryForm() {
                                       'receptionDate',
                                       e.target.value
                                     )}
+                                    max={new Date().toISOString().split('T')[0]}
                                     className="hidden"
                                     id={`date-${product.category}-${product.productName}-${entryIndex}`}
                                   />
@@ -677,7 +686,7 @@ function InventoryForm() {
               disabled={submitting}
               className="btn-active px-12 py-4 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 shadow-glow-purple"
             >
-              {submitting ? 'SUBMITTING...' : 'SUBMIT INVENTORY'}
+              {submitting ? 'SE TRIMITE...' : 'TRIMITE INVENTAR'}
             </button>
           </div>
         </div>
