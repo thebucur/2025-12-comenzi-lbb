@@ -55,13 +55,22 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
   const fetchCategories = async () => {
     try {
       setLoading(true)
+      console.log('Fetching inventory products categories...')
       const response = await api.get('/inventory-products/categories')
+      console.log('Categories loaded:', response.data)
       // Categories are already sorted by displayOrder from backend
-      setCategories(response.data)
+      setCategories(response.data || [])
       // Keep categories collapsed by default - don't expand all
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching categories:', error)
-      alert('Eroare la încărcarea categoriilor')
+      const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
+      console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: errorMessage,
+      })
+      alert(`Eroare la încărcarea categoriilor: ${errorMessage}`)
+      setCategories([]) // Set empty array on error
     } finally {
       setLoading(false)
     }

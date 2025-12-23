@@ -627,10 +627,19 @@ function AdminDashboard() {
     
     setLoadingInventory(true)
     try {
+      console.log('Fetching inventory data for date:', selectedInventoryDate)
       const data = await getInventoriesByDate(selectedInventoryDate)
+      console.log('Inventory data loaded:', data)
       setInventoryData(data)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching inventory data:', error)
+      const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
+      console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: errorMessage,
+      })
+      alert(`Eroare la încărcarea inventarului: ${errorMessage}`)
       setInventoryData(null)
     } finally {
       setLoadingInventory(false)
