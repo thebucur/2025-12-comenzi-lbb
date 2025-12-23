@@ -40,6 +40,7 @@ function InventoryForm() {
   const [showEditConfirmation, setShowEditConfirmation] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [isSavingAndClosing, setIsSavingAndClosing] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const initialLoadRef = useRef(true)
   const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
@@ -118,26 +119,14 @@ function InventoryForm() {
     if (!bottomBar) return
 
     let animationFrameId: number | null = null
-    let rootElement: HTMLElement | null = null
     let checkScrollPosition: (() => void) | null = null
     let retryTimeout: NodeJS.Timeout | null = null
     let setupAttempts = 0
-    const maxSetupAttempts = 10
-
-    // Function to find the scrollable element
-    const findScrollableElement = (): HTMLElement | null => {
-      // Try to find #root first (our custom scrollable container)
-      const root = document.getElementById('root')
-      if (root) {
-        return root
-      }
-      
-      // Fallback to document.documentElement (standard scrollable element)
-      return document.documentElement
-    }
+    const maxSetupAttempts = 20
 
     const setupScrollListener = () => {
-      rootElement = findScrollableElement()
+      // Try to find #root element
+      const rootElement = document.getElementById('root')
       
       if (!rootElement) {
         setupAttempts++
@@ -156,23 +145,10 @@ function InventoryForm() {
         animationFrameId = requestAnimationFrame(() => {
           if (!bottomBar) return
 
-          // Get scroll position from scrollable element, with fallbacks
-          let scrollTop = 0
-          let scrollHeight = 0
-          let clientHeight = 0
-
-          if (rootElement) {
-            scrollTop = rootElement.scrollTop || 0
-            scrollHeight = rootElement.scrollHeight || 0
-            clientHeight = rootElement.clientHeight || 0
-          }
-
-          // Fallback to window/document if rootElement doesn't have scroll properties
-          if (scrollHeight === 0 || clientHeight === 0) {
-            scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0
-            scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0
-            clientHeight = window.innerHeight || document.documentElement.clientHeight || 0
-          }
+          // Get scroll position from #root element
+          const scrollTop = rootElement.scrollTop
+          const scrollHeight = rootElement.scrollHeight
+          const clientHeight = rootElement.clientHeight
           
           // Consider "near bottom" if within 300px of the bottom
           const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
@@ -191,41 +167,31 @@ function InventoryForm() {
         })
       }
 
-      // Check on scroll and resize with throttling via requestAnimationFrame
-      if (rootElement) {
-        rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
-      }
-      window.addEventListener('scroll', checkScrollPosition, { passive: true })
+      // Listen for scroll events on the root element
+      rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
       window.addEventListener('resize', checkScrollPosition, { passive: true })
       
-      // For touch events, listen on window for better mobile support
-      window.addEventListener('touchmove', checkScrollPosition, { passive: true })
-      window.addEventListener('touchend', checkScrollPosition, { passive: true })
-      
-      // Initial check after a small delay
+      // Initial check
       setTimeout(() => {
         if (checkScrollPosition) checkScrollPosition()
-      }, 100)
+      }, 200)
+
+      // Cleanup function
+      return () => {
+        rootElement.removeEventListener('scroll', checkScrollPosition!)
+        window.removeEventListener('resize', checkScrollPosition!)
+      }
     }
 
-    // Start setup with a small delay to ensure DOM is ready
-    const initTimeout = setTimeout(setupScrollListener, 50)
+    // Start setup
+    const cleanup = setupScrollListener()
 
     return () => {
-      if (initTimeout) clearTimeout(initTimeout)
       if (retryTimeout) clearTimeout(retryTimeout)
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
-      if (checkScrollPosition) {
-        if (rootElement) {
-          rootElement.removeEventListener('scroll', checkScrollPosition)
-        }
-        window.removeEventListener('scroll', checkScrollPosition)
-        window.removeEventListener('resize', checkScrollPosition)
-        window.removeEventListener('touchmove', checkScrollPosition)
-        window.removeEventListener('touchend', checkScrollPosition)
-      }
+      if (cleanup) cleanup()
     }
   }, [])
 
@@ -596,6 +562,7 @@ function InventoryForm() {
 
   // Function to save and close (save draft and navigate to home)
   const handleSaveAndClose = async () => {
+    setIsSavingAndClosing(true)
     try {
       // Save draft first
       const validEntries = productEntries.filter(e => 
@@ -612,6 +579,8 @@ function InventoryForm() {
       console.error('Failed to save draft:', error)
       // Still navigate even if save fails
       navigate('/')
+    } finally {
+      setIsSavingAndClosing(false)
     }
   }
 
@@ -1220,9 +1189,20 @@ function InventoryForm() {
               </button>
               <button
                 onClick={handleSaveAndClose}
-                className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+                disabled={isSavingAndClosing}
+                className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                SALVEAZĂ ȘI ÎNCHIDE
+                {isSavingAndClosing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    SE SALVEAZĂ...
+                  </>
+                ) : (
+                  'SALVEAZĂ ȘI ÎNCHIDE'
+                )}
               </button>
             </div>
           </div>,
