@@ -56,8 +56,14 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
     try {
       setLoading(true)
       console.log('Fetching inventory products categories...')
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryProductsManager.tsx:58',message:'fetchCategories called',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
+      // #endregion
       const response = await api.get('/inventory-products/categories')
       console.log('Categories loaded:', response.data)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryProductsManager.tsx:65',message:'Categories fetched successfully',data:{categoriesCount:response.data?.length,hasData:!!response.data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
+      // #endregion
       // Categories are already sorted by displayOrder from backend
       setCategories(response.data || [])
       // Keep categories collapsed by default - don't expand all
@@ -69,6 +75,9 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
         statusText: error.response?.statusText,
         message: errorMessage,
       })
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryProductsManager.tsx:80',message:'Error fetching categories',data:{errorMessage,status:error.response?.status,statusText:error.response?.statusText},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D,E'})}).catch(()=>{});
+      // #endregion
       alert(`Eroare la încărcarea categoriilor: ${errorMessage}`)
       setCategories([]) // Set empty array on error
     } finally {
@@ -290,6 +299,9 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
   }
 
   if (loading) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryProductsManager.tsx:292',message:'Rendering loading state',data:{loading,categoriesLength:categories.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'NEW-F'})}).catch(()=>{});
+    // #endregion
     return (
       <div className="card-neumorphic text-center py-12">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple mb-4 animate-float">
@@ -302,6 +314,10 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
       </div>
     )
   }
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryProductsManager.tsx:306',message:'Rendering main content',data:{categoriesLength:categories.length,loading},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'NEW-F'})}).catch(()=>{});
+  // #endregion
 
   return (
     <div className="space-y-6">

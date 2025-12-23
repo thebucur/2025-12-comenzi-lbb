@@ -4,6 +4,9 @@ import prisma from '../lib/prisma'
 // Get all categories with their products
 export const getAllCategories = async (req: Request, res: Response) => {
   try {
+    // #region agent log
+    const fs = require('fs'); fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:6',message:'getAllCategories called',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})+'\n');
+    // #endregion
     const categories = await prisma.inventoryCategory.findMany({
       include: {
         products: {
@@ -12,9 +15,15 @@ export const getAllCategories = async (req: Request, res: Response) => {
       },
       orderBy: { displayOrder: 'asc' },
     })
+    // #region agent log
+    fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:17',message:'Categories fetched from DB',data:{categoriesCount:categories.length,firstCategory:categories[0]?.name,firstCategoryProductsCount:categories[0]?.products?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})+'\n');
+    // #endregion
     res.json(categories)
   } catch (error) {
     console.error('Error fetching categories:', error)
+    // #region agent log
+    fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:23',message:'Error fetching categories',data:{errorMessage:(error as any)?.message,errorCode:(error as any)?.code},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})+'\n');
+    // #endregion
     res.status(500).json({ error: 'Failed to fetch categories' })
   }
 }
