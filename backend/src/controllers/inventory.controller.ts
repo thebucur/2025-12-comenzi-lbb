@@ -3,13 +3,10 @@ import prisma from '../lib/prisma'
 import { generateInventoryPDF } from '../services/pdf.service'
 import path from 'path'
 import fs from 'fs'
+import { normalizeDateBucharest, getBucharestToday } from '../utils/date'
 
-// Helper function to normalize date to start of day (removes time component)
-const normalizeDate = (date: Date): Date => {
-  const normalized = new Date(date)
-  normalized.setHours(0, 0, 0, 0)
-  return normalized
-}
+// Helper function to normalize date to start of day in Bucharest timezone
+const normalizeDate = normalizeDateBucharest
 
 // Get user's inventory for today
 export const getTodayInventory = async (req: Request, res: Response) => {
@@ -19,7 +16,7 @@ export const getTodayInventory = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    const today = normalizeDate(new Date())
+    const today = getBucharestToday()
 
     const inventory = await prisma.inventory.findUnique({
       where: {
@@ -56,7 +53,7 @@ export const saveInventory = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid inventory data' })
     }
 
-    const today = normalizeDate(new Date())
+    const today = getBucharestToday()
 
     // Check if inventory already exists for today
     const existingInventory = await prisma.inventory.findUnique({
@@ -142,7 +139,7 @@ export const submitInventory = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid inventory data' })
     }
 
-    const today = normalizeDate(new Date())
+    const today = getBucharestToday()
 
     // Save or update inventory first
     const existingInventory = await prisma.inventory.findUnique({
