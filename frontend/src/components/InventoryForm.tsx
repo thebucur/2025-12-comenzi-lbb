@@ -117,67 +117,115 @@ function InventoryForm() {
     const bottomBar = bottomBarRef.current
     if (!bottomBar) return
 
-    // Get the scrollable root element
-    const rootElement = document.getElementById('root')
-    if (!rootElement) return
-
     let animationFrameId: number | null = null
+    let rootElement: HTMLElement | null = null
+    let checkScrollPosition: (() => void) | null = null
+    let retryTimeout: NodeJS.Timeout | null = null
+    let setupAttempts = 0
+    const maxSetupAttempts = 10
 
-    const checkScrollPosition = () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId)
+    // Function to find the scrollable element
+    const findScrollableElement = (): HTMLElement | null => {
+      // Try to find #root first (our custom scrollable container)
+      const root = document.getElementById('root')
+      if (root) {
+        return root
       }
-
-      animationFrameId = requestAnimationFrame(() => {
-        if (!bottomBar || !rootElement) return
-
-        // Get scroll position from #root element
-        const scrollTop = rootElement.scrollTop
-        const scrollHeight = rootElement.scrollHeight
-        const clientHeight = rootElement.clientHeight
-        
-        // Consider "near bottom" if within 300px of the bottom
-        const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
-        const nearBottom = distanceFromBottom < 300
-
-        console.log('Scroll position:', {
-          scrollTop,
-          scrollHeight,
-          clientHeight,
-          distanceFromBottom,
-          nearBottom
-        })
-
-        if (nearBottom) {
-          // Move down to reveal submit button
-          const barHeight = bottomBar.offsetHeight || 100
-          bottomBar.style.transform = `translate3d(0, ${barHeight}px, 0)`
-          bottomBar.style.transition = 'transform 0.3s ease-out'
-        } else {
-          // Keep at bottom
-          bottomBar.style.transform = 'translate3d(0, 0, 0)'
-          bottomBar.style.transition = 'transform 0.3s ease-out'
-        }
-      })
+      
+      // Fallback to document.documentElement (standard scrollable element)
+      return document.documentElement
     }
 
-    // Check on scroll and resize with throttling via requestAnimationFrame
-    rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
-    window.addEventListener('resize', checkScrollPosition, { passive: true })
-    rootElement.addEventListener('touchmove', checkScrollPosition, { passive: true })
-    rootElement.addEventListener('touchend', checkScrollPosition, { passive: true })
-    
-    // Initial check
-    setTimeout(checkScrollPosition, 100)
+    const setupScrollListener = () => {
+      rootElement = findScrollableElement()
+      
+      if (!rootElement) {
+        setupAttempts++
+        if (setupAttempts < maxSetupAttempts) {
+          // Retry after a short delay
+          retryTimeout = setTimeout(setupScrollListener, 100)
+        }
+        return
+      }
+
+      checkScrollPosition = () => {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId)
+        }
+
+        animationFrameId = requestAnimationFrame(() => {
+          if (!bottomBar) return
+
+          // Get scroll position from scrollable element, with fallbacks
+          let scrollTop = 0
+          let scrollHeight = 0
+          let clientHeight = 0
+
+          if (rootElement) {
+            scrollTop = rootElement.scrollTop || 0
+            scrollHeight = rootElement.scrollHeight || 0
+            clientHeight = rootElement.clientHeight || 0
+          }
+
+          // Fallback to window/document if rootElement doesn't have scroll properties
+          if (scrollHeight === 0 || clientHeight === 0) {
+            scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0
+            scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0
+            clientHeight = window.innerHeight || document.documentElement.clientHeight || 0
+          }
+          
+          // Consider "near bottom" if within 300px of the bottom
+          const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
+          const nearBottom = distanceFromBottom < 300
+
+          if (nearBottom) {
+            // Move down to reveal submit button
+            const barHeight = bottomBar.offsetHeight || 100
+            bottomBar.style.transform = `translate3d(0, ${barHeight}px, 0)`
+            bottomBar.style.transition = 'transform 0.3s ease-out'
+          } else {
+            // Keep at bottom
+            bottomBar.style.transform = 'translate3d(0, 0, 0)'
+            bottomBar.style.transition = 'transform 0.3s ease-out'
+          }
+        })
+      }
+
+      // Check on scroll and resize with throttling via requestAnimationFrame
+      if (rootElement) {
+        rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
+      }
+      window.addEventListener('scroll', checkScrollPosition, { passive: true })
+      window.addEventListener('resize', checkScrollPosition, { passive: true })
+      
+      // For touch events, listen on window for better mobile support
+      window.addEventListener('touchmove', checkScrollPosition, { passive: true })
+      window.addEventListener('touchend', checkScrollPosition, { passive: true })
+      
+      // Initial check after a small delay
+      setTimeout(() => {
+        if (checkScrollPosition) checkScrollPosition()
+      }, 100)
+    }
+
+    // Start setup with a small delay to ensure DOM is ready
+    const initTimeout = setTimeout(setupScrollListener, 50)
 
     return () => {
+      if (initTimeout) clearTimeout(initTimeout)
+      if (retryTimeout) clearTimeout(retryTimeout)
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
-      rootElement.removeEventListener('scroll', checkScrollPosition)
-      window.removeEventListener('resize', checkScrollPosition)
-      rootElement.removeEventListener('touchmove', checkScrollPosition)
-      rootElement.removeEventListener('touchend', checkScrollPosition)
+      if (checkScrollPosition) {
+        if (rootElement) {
+          rootElement.removeEventListener('scroll', checkScrollPosition)
+        }
+        window.removeEventListener('scroll', checkScrollPosition)
+        window.removeEventListener('resize', checkScrollPosition)
+        window.removeEventListener('touchmove', checkScrollPosition)
+        window.removeEventListener('touchend', checkScrollPosition)
+      }
     }
   }, [])
 
