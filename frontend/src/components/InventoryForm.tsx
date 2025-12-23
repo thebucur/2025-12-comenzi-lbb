@@ -27,9 +27,6 @@ interface InventoryCategory {
 }
 
 function InventoryForm() {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:29',message:'InventoryForm component mounted',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'NEW-F'})}).catch(()=>{});
-  // #endregion
   const navigate = useNavigate()
   const username = localStorage.getItem('authToken') || 'Unknown'
   const today = new Date().toLocaleDateString('ro-RO')
@@ -47,31 +44,19 @@ function InventoryForm() {
 
   // Load categories from API
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:46',message:'useEffect loadCategories mount',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'NEW-F'})}).catch(()=>{});
-    // #endregion
     loadCategories()
   }, [])
 
   // Load today's inventory after categories are loaded
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:52',message:'useEffect categories changed',data:{categoriesLength:categories.length,willLoadInventory:categories.length>0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (categories.length > 0) {
       loadTodayInventory()
     }
   }, [categories])
 
   const loadCategories = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:57',message:'loadCategories called',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C'})}).catch(()=>{});
-    // #endregion
     try {
       const response = await api.get('/inventory-products/categories/public')
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:62',message:'API response received',data:{dataLength:response.data?.length,hasData:!!response.data,firstCategory:response.data?.[0]?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
       // Transform API response to match expected format
       const transformedCategories: InventoryCategory[] = response.data.map((cat: any) => ({
         id: cat.id,
@@ -82,15 +67,9 @@ function InventoryForm() {
         products: cat.products.map((p: any) => p.name).sort()
       })).sort((a: InventoryCategory, b: InventoryCategory) => a.displayOrder - b.displayOrder)
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:76',message:'Categories transformed',data:{categoriesCount:transformedCategories.length,firstCategoryName:transformedCategories[0]?.name,firstCategoryProductsCount:transformedCategories[0]?.products.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       setCategories(transformedCategories)
     } catch (error) {
       console.error('Error loading categories from API, using fallback:', error)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:83',message:'API error, using fallback',data:{errorMessage:(error as any)?.message,errorStatus:(error as any)?.response?.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C'})}).catch(()=>{});
-      // #endregion
       // Fallback to hardcoded categories if API fails
       const fallbackCategories: InventoryCategory[] = INVENTORY_CATEGORIES.map((cat, index) => ({
         id: cat.id,
@@ -175,17 +154,11 @@ function InventoryForm() {
   }
 
   const loadTodayInventory = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:156',message:'loadTodayInventory called',data:{categoriesCount:categories.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
       const response = await getTodayInventory()
       
       // Always start with all default products
       const allDefaultProducts = createAllDefaultProducts()
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:166',message:'Default products created',data:{defaultProductsCount:allDefaultProducts.length,hasInventory:!!response.inventory},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       if (response.inventory) {
         setHasExistingSubmission(true)
@@ -230,16 +203,10 @@ function InventoryForm() {
       }
     } catch (error) {
       console.error('Failed to load inventory:', error)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:204',message:'Error loading inventory',data:{errorMessage:(error as any)?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C'})}).catch(()=>{});
-      // #endregion
       // On error, still show all default products
       const allDefaultProducts = createAllDefaultProducts()
       setProductEntries(allDefaultProducts)
     } finally {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:213',message:'Setting loading to false',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       setLoading(false)
     }
   }
@@ -445,9 +412,6 @@ function InventoryForm() {
 
 
   if (loading) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3e25296d-1414-4285-9b4c-42a255040713',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InventoryForm.tsx:419',message:'Rendering loading state',data:{loading,categoriesLength:categories.length,productEntriesLength:productEntries.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'NEW-F'})}).catch(()=>{});
-    // #endregion
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary flex items-center justify-center">
         <div className="text-2xl font-bold text-secondary">Loading...</div>

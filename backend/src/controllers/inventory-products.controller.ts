@@ -1,17 +1,9 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
-import * as fs from 'fs'
 
 // Get all categories with their products
 export const getAllCategories = async (req: Request, res: Response) => {
-  // #region agent log
-  console.log('getAllCategories ENTRY - writing log...');
-  fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:6',message:'getAllCategories ENTRY',data:{url:req.url,method:req.method},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E,G'})+'\n');
-  // #endregion
   try {
-    // #region agent log
-    fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:12',message:'getAllCategories in try block',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})+'\n');
-    // #endregion
     const categories = await prisma.inventoryCategory.findMany({
       include: {
         products: {
@@ -20,15 +12,9 @@ export const getAllCategories = async (req: Request, res: Response) => {
       },
       orderBy: { displayOrder: 'asc' },
     })
-    // #region agent log
-    fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:17',message:'Categories fetched from DB',data:{categoriesCount:categories.length,firstCategory:categories[0]?.name,firstCategoryProductsCount:categories[0]?.products?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})+'\n');
-    // #endregion
     res.json(categories)
   } catch (error) {
     console.error('Error fetching categories:', error)
-    // #region agent log
-    fs.appendFileSync('d:\\Dropbox\\CURSOR\\2025 12 COMENZI LBB\\.cursor\\debug.log', JSON.stringify({location:'inventory-products.controller.ts:23',message:'Error fetching categories',data:{errorMessage:(error as any)?.message,errorCode:(error as any)?.code},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})+'\n');
-    // #endregion
     res.status(500).json({ error: 'Failed to fetch categories' })
   }
 }
