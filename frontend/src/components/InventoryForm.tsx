@@ -168,15 +168,27 @@ function InventoryForm() {
         const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
         const nearBottom = distanceFromBottom < 300
 
+        // Debug logging - remove after testing
+        console.log('Bottom bar scroll check:', {
+          scrollTop,
+          scrollHeight,
+          clientHeight,
+          distanceFromBottom,
+          nearBottom,
+          barHeight: bottomBar.offsetHeight
+        })
+
         if (nearBottom) {
           // Move down to reveal submit button
           const barHeight = bottomBar.offsetHeight || 100
           bottomBar.style.transform = `translate3d(0, ${barHeight}px, 0)`
           bottomBar.style.transition = 'transform 0.3s ease-out'
+          console.log('Retracting bar, moving down by', barHeight)
         } else {
           // Keep at bottom
           bottomBar.style.transform = 'translate3d(0, 0, 0)'
           bottomBar.style.transition = 'transform 0.3s ease-out'
+          console.log('Keeping bar at bottom')
         }
       })
     }
