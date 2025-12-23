@@ -141,7 +141,7 @@ function Screen1Ridicare() {
       {/* Staff Grid */}
       <div className="card-neumorphic">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-secondary">👤 Cine preia comanda</h3>
+          <h3 className="text-xl font-bold text-secondary">👤 Preluată de</h3>
           <button
             onClick={() => setShowStaffSettings(true)}
             className="btn-neumorphic px-4 py-2 rounded-xl text-secondary hover:text-accent-purple transition-all hover:scale-105"

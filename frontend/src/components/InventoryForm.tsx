@@ -324,9 +324,23 @@ function InventoryForm() {
   const formatDateShort = (dateString: string): string => {
     const date = new Date(dateString)
     const day = date.getDate()
-    const monthNames = ['IAN', 'FEB', 'MAR', 'APR', 'MAI', 'IUN', 'IUL', 'AUG', 'SEP', 'OCT', 'NOI', 'DEC']
-    const month = monthNames[date.getMonth()]
-    return `${day} ${month}`
+    const month = date.getMonth() + 1 // Month is 0-indexed, so add 1
+    return `${day}.${month.toString().padStart(2, '0')}`
+  }
+
+  // Get background color for date based on how old it is (matches PDF color coding)
+  const getDateBackgroundColor = (dateString: string): string | null => {
+    const MS_PER_DAY = 1000 * 60 * 60 * 24
+    const parsed = new Date(dateString)
+    const today = new Date()
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const targetStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    
+    const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
+    
+    if (diffDays === 1) return '#ffff00' // yellow for yesterday
+    if (diffDays >= 2) return '#ef4444' // red for two days ago or older
+    return null // no color for today or future dates
   }
 
   // Function to download PDF
@@ -438,7 +452,7 @@ function InventoryForm() {
           <div className="mb-6">
             <button
               onClick={() => navigate('/')}
-              className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300"
+              className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all duration-300"
             >
               ← ÎNAPOI
             </button>
@@ -452,8 +466,8 @@ function InventoryForm() {
                   <h3 className="text-xl font-bold text-secondary">
                     {category.name}
                   </h3>
-                  {/* Headers for Date, INVENTAR and NECESAR aligned with category header */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Headers for Date, INVENTAR and NECESAR aligned with category header - hidden on mobile */}
+                  <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                     {/* Spacer for Date column */}
                     <div style={{ width: '150px' }}></div>
                     {/* INVENTAR header */}
@@ -486,7 +500,206 @@ function InventoryForm() {
                           <div className="border-t border-secondary/20 my-2"></div>
                         )}
                         
-                        <div className="relative" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
+                        {/* Mobile: Product name and NECESAR wrapper */}
+                        <div className="md:hidden">
+                          {/* Product name - only once */}
+                          <div className="mb-2">
+                            {product.isCustomProduct ? (
+                              <input
+                                type="text"
+                                value={product.productName}
+                                onChange={(e) => updateProductName(productId, e.target.value)}
+                                placeholder="Nume produs"
+                                className="w-full px-3 py-2 rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-base font-bold text-secondary bg-white"
+                              />
+                            ) : (
+                              <h4 className="font-bold text-secondary text-lg">
+                                {product.productName}
+                              </h4>
+                            )}
+                          </div>
+
+                          {/* All inventory rows */}
+                          {product.entries.map((entry, entryIndex) => {
+                            // Ensure entry has required fields
+                            const receptionDate = entry.receptionDate || new Date().toISOString().split('T')[0]
+                            const unit = entry.unit || category.defaultUnit
+                            const quantity = entry.quantity || 0
+
+                            return (
+                              <div
+                                key={`${productId}-${entryIndex}`}
+                                className="mb-2"
+                              >
+                                {/* Single row: Date, Unit, Quantity, Add/Remove button */}
+                                <div className="flex items-center gap-1.5 w-full">
+                                  {/* Date controls */}
+                                  <button
+                                    onClick={() => updateProductEntry(
+                                      product.category,
+                                      product.productName,
+                                      entryIndex,
+                                      'receptionDate',
+                                      adjustDate(receptionDate, -1)
+                                    )}
+                                    className="rounded-lg bg-primary/50 hover:bg-primary flex items-center justify-center text-secondary font-bold transition-colors flex-shrink-0 text-base"
+                                    style={{ width: '36px', height: '40px' }}
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="date"
+                                    value={receptionDate}
+                                    onChange={(e) => updateProductEntry(
+                                      product.category,
+                                      product.productName,
+                                      entryIndex,
+                                      'receptionDate',
+                                      e.target.value
+                                    )}
+                                    max={new Date().toISOString().split('T')[0]}
+                                    className="hidden"
+                                    id={`date-mobile-${product.category}-${product.productName}-${entryIndex}`}
+                                  />
+                                  <label
+                                    htmlFor={`date-mobile-${product.category}-${product.productName}-${entryIndex}`}
+                                    className="rounded-lg border-2 border-secondary/20 hover:border-secondary/50 cursor-pointer text-xs font-bold text-center flex-shrink-0"
+                                    style={{ 
+                                      width: '60px', 
+                                      height: '40px', 
+                                      padding: '6px 4px', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center',
+                                      backgroundColor: getDateBackgroundColor(receptionDate) || 'white',
+                                      color: getDateBackgroundColor(receptionDate) === '#ef4444' ? 'white' : '#2B2D42'
+                                    }}
+                                  >
+                                    {formatDateShort(receptionDate)}
+                                  </label>
+                                  <button
+                                    onClick={() => updateProductEntry(
+                                      product.category,
+                                      product.productName,
+                                      entryIndex,
+                                      'receptionDate',
+                                      adjustDate(receptionDate, 1)
+                                    )}
+                                    className="rounded-lg bg-primary/50 hover:bg-primary flex items-center justify-center text-secondary font-bold transition-colors flex-shrink-0 text-base"
+                                    style={{ width: '36px', height: '40px' }}
+                                  >
+                                    +
+                                  </button>
+
+                                  {/* Quantity input */}
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={quantity || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value.replace(/[^0-9,]/g, '')
+                                      const numValue = parseFloat(value.replace(',', '.')) || 0
+                                      updateProductEntry(
+                                        product.category,
+                                        product.productName,
+                                        entryIndex,
+                                        'quantity',
+                                        numValue
+                                      )
+                                    }}
+                                    placeholder="0"
+                                    className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-sm font-bold bg-white flex-1 min-w-0"
+                                    style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
+                                  />
+
+                                  {/* Unit dropdown */}
+                                  <select
+                                    value={unit}
+                                    onChange={(e) => updateProductEntry(
+                                      product.category,
+                                      product.productName,
+                                      entryIndex,
+                                      'unit',
+                                      e.target.value
+                                    )}
+                                    className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-sm font-bold bg-white flex-1 min-w-0"
+                                    style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
+                                  >
+                                    {category.units.map(unitOption => (
+                                      <option key={unitOption} value={unitOption}>{unitOption}</option>
+                                    ))}
+                                  </select>
+
+                                  {/* Add/Remove button */}
+                                  {entryIndex === 0 ? (
+                                    <button
+                                      onClick={() => addProductEntry(product.category, product.productName, category.defaultUnit, false, entryIndex)}
+                                      className="rounded-lg bg-accent-purple/50 hover:bg-accent-purple/70 flex items-center justify-center text-secondary font-bold transition-colors flex-shrink-0 text-lg"
+                                      style={{ width: '40px', height: '40px' }}
+                                      title="Adaugă un nou rând"
+                                    >
+                                      +
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => removeProductEntry(product.category, product.productName, entryIndex)}
+                                      className="rounded-lg bg-rose-500/80 hover:bg-rose-600 flex items-center justify-center text-white transition-colors flex-shrink-0 text-lg font-bold"
+                                      style={{ width: '40px', height: '40px' }}
+                                      title="Șterge acest rând"
+                                    >
+                                      ×
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+
+                          {/* NECESAR row - after all inventory rows, only for first entry data */}
+                          {product.entries.length > 0 && (
+                            <div className="flex items-center gap-2 rounded-lg bg-blue-100/60 p-2">
+                              <span className="text-xs text-secondary font-bold flex-shrink-0" style={{ width: '70px' }}>Necesar:</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={product.entries[0].requiredQuantity || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/[^0-9,]/g, '')
+                                  const numValue = parseFloat(value.replace(',', '.')) || 0
+                                  updateProductEntry(
+                                    product.category,
+                                    product.productName,
+                                    0,
+                                    'requiredQuantity',
+                                    numValue
+                                  )
+                                }}
+                                placeholder="0"
+                                className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-sm font-bold bg-white flex-1 min-w-0"
+                                style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
+                              />
+                              <select
+                                value={product.entries[0].requiredUnit || category.defaultUnit}
+                                onChange={(e) => updateProductEntry(
+                                  product.category,
+                                  product.productName,
+                                  0,
+                                  'requiredUnit',
+                                  e.target.value
+                                )}
+                                className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-sm font-bold bg-white flex-1 min-w-0"
+                                style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
+                              >
+                                {category.units.map(unitOption => (
+                                  <option key={unitOption} value={unitOption}>{unitOption}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Desktop layout */}
+                        <div className="relative hidden md:block" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
                           {product.entries.map((entry, entryIndex) => {
                             // Ensure entry has required fields
                             const receptionDate = entry.receptionDate || new Date().toISOString().split('T')[0]
@@ -501,8 +714,8 @@ function InventoryForm() {
                                 className="rounded-xl relative"
                                 style={{ padding: '8px 12px' }}
                               >
-                                {/* Grid layout for perfect alignment */}
-                                <div className="grid items-center" style={{ 
+                                {/* Desktop Grid layout for perfect alignment */}
+                                <div className="hidden md:grid items-center" style={{ 
                                   gridTemplateColumns: '1fr 150px 154px 28px 180px',
                                   gap: '8px'
                                 }}>
@@ -556,8 +769,17 @@ function InventoryForm() {
                                   />
                                   <label
                                     htmlFor={`date-${product.category}-${product.productName}-${entryIndex}`}
-                                    className="rounded-lg border-2 border-secondary/20 hover:border-secondary/50 cursor-pointer text-xs font-medium text-secondary text-center bg-white"
-                                    style={{ width: '70px', height: '28px', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    className="rounded-lg border-2 border-secondary/20 hover:border-secondary/50 cursor-pointer text-xs font-medium text-center"
+                                    style={{ 
+                                      width: '55px', 
+                                      height: '28px', 
+                                      padding: '4px 6px', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center',
+                                      backgroundColor: getDateBackgroundColor(receptionDate) || 'white',
+                                      color: getDateBackgroundColor(receptionDate) === '#ef4444' ? 'white' : '#2B2D42'
+                                    }}
                                   >
                                     {formatDateShort(receptionDate)}
                                   </label>
@@ -578,22 +800,6 @@ function InventoryForm() {
 
                                 {/* INVENTAR column */}
                                 <div className="flex items-center" style={{ gap: '4px' }}>
-                                  <select
-                                    value={unit}
-                                    onChange={(e) => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'unit',
-                                      e.target.value
-                                    )}
-                                    className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
-                                    style={{ width: '70px', height: '28px', padding: '4px 8px' }}
-                                  >
-                                    {category.units.map(unitOption => (
-                                      <option key={unitOption} value={unitOption}>{unitOption}</option>
-                                    ))}
-                                  </select>
                                   <input
                                     type="text"
                                     inputMode="decimal"
@@ -611,8 +817,24 @@ function InventoryForm() {
                                     }}
                                     placeholder="0"
                                     className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-xs bg-white"
-                                    style={{ width: '64px', height: '28px', padding: '4px 8px' }}
+                                    style={{ width: '48px', height: '28px', padding: '4px 6px' }}
                                   />
+                                  <select
+                                    value={unit}
+                                    onChange={(e) => updateProductEntry(
+                                      product.category,
+                                      product.productName,
+                                      entryIndex,
+                                      'unit',
+                                      e.target.value
+                                    )}
+                                    className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
+                                    style={{ width: '70px', height: '28px', padding: '4px 8px' }}
+                                  >
+                                    {category.units.map(unitOption => (
+                                      <option key={unitOption} value={unitOption}>{unitOption}</option>
+                                    ))}
+                                  </select>
                                 </div>
 
                                 {/* Button column */}
@@ -641,22 +863,6 @@ function InventoryForm() {
                                 {/* NECESAR column - only show on first row */}
                                 {entryIndex === 0 ? (
                                   <div className="flex items-center rounded-lg bg-blue-100/60" style={{ padding: '4px 8px', gap: '4px' }}>
-                                    <select
-                                      value={requiredUnit}
-                                      onChange={(e) => updateProductEntry(
-                                        product.category,
-                                        product.productName,
-                                        entryIndex,
-                                        'requiredUnit',
-                                        e.target.value
-                                      )}
-                                      className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
-                                      style={{ width: '70px', height: '28px', padding: '4px 8px' }}
-                                    >
-                                      {category.units.map(unitOption => (
-                                        <option key={unitOption} value={unitOption}>{unitOption}</option>
-                                      ))}
-                                    </select>
                                     <input
                                       type="text"
                                       inputMode="decimal"
@@ -674,16 +880,32 @@ function InventoryForm() {
                                       }}
                                       placeholder="0"
                                       className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-xs bg-white"
-                                      style={{ width: '64px', height: '28px', padding: '4px 8px' }}
+                                      style={{ width: '48px', height: '28px', padding: '4px 6px' }}
                                     />
+                                    <select
+                                      value={requiredUnit}
+                                      onChange={(e) => updateProductEntry(
+                                        product.category,
+                                        product.productName,
+                                        entryIndex,
+                                        'requiredUnit',
+                                        e.target.value
+                                      )}
+                                      className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
+                                      style={{ width: '70px', height: '28px', padding: '4px 8px' }}
+                                    >
+                                      {category.units.map(unitOption => (
+                                        <option key={unitOption} value={unitOption}>{unitOption}</option>
+                                      ))}
+                                    </select>
                                   </div>
                                 ) : (
                                   <div></div>
                                 )}
+                                </div>
                               </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
                         </div>
                       </div>
                     )
@@ -696,7 +918,7 @@ function InventoryForm() {
                         const newProductName = ''
                         addProductEntry(category.name, newProductName, category.defaultUnit, true)
                       }}
-                      className="w-full px-4 py-3 rounded-xl bg-accent-purple/20 hover:bg-accent-purple/30 border-2 border-dashed border-secondary/30 transition-all duration-300 font-bold text-secondary"
+                      className="w-full px-4 py-3 rounded-xl bg-accent-purple/20 hover:bg-accent-purple/30 border-2 border-dashed border-secondary/30 transition-all duration-300 font-bold text-sm text-secondary"
                     >
                       + ADAUGA PRODUS
                     </button>
@@ -712,7 +934,7 @@ function InventoryForm() {
           {/* Auto-save status */}
           <div className="text-center mb-4">
             {autoSaving ? (
-              <div className="text-sm text-secondary/60 flex items-center justify-center gap-2">
+              <div className="text-sm text-secondary/60 font-bold flex items-center justify-center gap-2">
                 <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -720,7 +942,7 @@ function InventoryForm() {
                 Se salvează...
               </div>
             ) : lastSaved ? (
-              <div className="text-sm text-secondary/60">
+              <div className="text-sm text-secondary/60 font-bold">
                 ✓ Salvat automat la {lastSaved.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             ) : null}
@@ -730,7 +952,7 @@ function InventoryForm() {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="btn-active px-12 py-4 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 shadow-glow-purple"
+              className="btn-active px-6 md:px-12 py-3 md:py-4 rounded-2xl font-bold text-base md:text-xl hover:scale-105 transition-all duration-300 shadow-glow-purple w-full md:w-auto"
             >
               {submitting ? 'SE TRIMITE...' : 'TRIMITE INVENTAR'}
             </button>

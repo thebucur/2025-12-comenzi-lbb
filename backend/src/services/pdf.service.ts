@@ -925,15 +925,12 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
     const headerFontSize = 7
     const lineHeight = 12  // Row height
     
-    // Month abbreviations for date formatting
-    const monthAbbr = ['IAN', 'FEB', 'MAR', 'APR', 'MAI', 'IUN', 'IUL', 'AUG', 'SEP', 'OCT', 'NOI', 'DEC']
-    
-    // Format date as "DD.MMM" (e.g., "12.DEC")
+    // Format date as "DD.MM" (e.g., "22.12")
     const formatDateShort = (dateStr: string): string => {
       const date = new Date(dateStr)
       const day = date.getDate()
-      const month = monthAbbr[date.getMonth()]
-      return `${day}.${month}`
+      const month = date.getMonth() + 1 // Month is 0-indexed, so add 1
+      return `${day}.${month.toString().padStart(2, '0')}`
     }
     
     // Convert unit abbreviations for PDF display

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useEffect, useState, useRef, Fragment } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
 import { getInventoriesByDate } from '../../services/inventory.api'
@@ -515,7 +515,13 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
 
 function AdminDashboard() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts'>('orders')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabFromUrl = searchParams.get('tab') as 'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | null
+  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts'>(
+    tabFromUrl && ['orders', 'users', 'globalConfig', 'inventory', 'inventoryProducts'].includes(tabFromUrl) 
+      ? tabFromUrl 
+      : 'orders'
+  )
   const [orders, setOrders] = useState<Order[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
@@ -543,6 +549,14 @@ function AdminDashboard() {
     window.dispatchEvent(new Event('adminAuthChange'))
     navigate('/admin')
   }
+
+  // Update activeTab when URL parameter changes
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab') as 'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | null
+    if (tabFromUrl && ['orders', 'users', 'globalConfig', 'inventory', 'inventoryProducts'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     fetchOrders()
@@ -1410,7 +1424,9 @@ function AdminDashboard() {
                   Inventare pentru {new Date(selectedInventoryDate).toLocaleDateString('ro-RO')}
                 </h3>
                 <div className="space-y-3">
-                  {inventoryData.users.map((userStatus: any) => (
+                  {inventoryData.users
+                    .filter((userStatus: any) => userStatus.username !== 'admin')
+                    .map((userStatus: any) => (
                     <div
                       key={userStatus.userId}
                       className={`p-4 rounded-xl flex items-center justify-between ${

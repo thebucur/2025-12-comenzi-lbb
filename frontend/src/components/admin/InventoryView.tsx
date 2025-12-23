@@ -13,7 +13,7 @@ function InventoryView() {
 
   useEffect(() => {
     if (!id) {
-      navigate('/admin/dashboard')
+      navigate('/admin/dashboard?tab=inventory')
       return
     }
 
@@ -53,7 +53,7 @@ function InventoryView() {
       } catch (error) {
         console.error('Error loading inventory:', error)
         alert('Eroare la încărcarea inventarului')
-        navigate('/admin/dashboard')
+        navigate('/admin/dashboard?tab=inventory')
       } finally {
         setLoading(false)
       }
@@ -73,13 +73,12 @@ function InventoryView() {
     })
   }
 
-  // Format date as "DD.MMM" (e.g., "12.DEC")
+  // Format date as "DD.MM" (e.g., "22.12")
   const formatDateShort = (dateStr: string): string => {
     const date = new Date(dateStr)
     const day = date.getDate()
-    const monthAbbr = ['IAN', 'FEB', 'MAR', 'APR', 'MAI', 'IUN', 'IUL', 'AUG', 'SEP', 'OCT', 'NOI', 'DEC']
-    const month = monthAbbr[date.getMonth()]
-    return `${day}.${month}`
+    const month = date.getMonth() + 1 // Month is 0-indexed, so add 1
+    return `${day}.${month.toString().padStart(2, '0')}`
   }
 
   // Format unit abbreviations
@@ -152,7 +151,7 @@ function InventoryView() {
         <div className="text-center">
           <p className="text-2xl font-bold text-secondary">Inventarul nu a fost găsit</p>
           <button
-            onClick={() => navigate('/admin/dashboard')}
+            onClick={() => navigate('/admin/dashboard?tab=inventory')}
             className="btn-active px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all mt-4"
           >
             ← Înapoi la Dashboard
@@ -173,7 +172,7 @@ function InventoryView() {
             Inventar - {inventory.username} - {new Date(inventory.date).toLocaleDateString('ro-RO')}
           </h1>
           <button
-            onClick={() => navigate('/admin/dashboard')}
+            onClick={() => navigate('/admin/dashboard?tab=inventory')}
             className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all"
           >
             ← Înapoi
@@ -242,6 +241,11 @@ function InventoryView() {
                         ? submittedEntry.entries 
                         : []
                       
+                      // Check if product has any data (quantity > 0 or requiredQuantity > 0)
+                      const hasData = productEntries.some((e: any) => 
+                        (e.quantity && e.quantity > 0) || (e.requiredQuantity && e.requiredQuantity > 0)
+                      )
+                      
                       // Filter entries based on hideEmptyFields
                       const entriesToShow = hideEmptyFields
                         ? productEntries.filter((e: any) => 
@@ -288,10 +292,10 @@ function InventoryView() {
                                 key={entryIdx}
                                 className="grid grid-cols-[40%_32%_28%] gap-2 py-1 text-sm hover:bg-primary/10"
                                 style={{ 
-                                  borderBottom: '0.3px solid #d3d3d3'
+                                  borderBottom: entryIdx === entriesToShow.length - 1 ? '0.3px solid #d3d3d3' : 'none'
                                 }}
                               >
-                                <div className="text-secondary font-medium">
+                                <div className={`${hasData ? 'font-bold text-secondary' : 'font-medium text-secondary/50'}`}>
                                   {showProductName ? productName : ''}
                                 </div>
                                 <div 
@@ -319,6 +323,12 @@ function InventoryView() {
                       if (category.products.includes(productName)) return null // Already shown above
                       
                       const productEntries = Array.isArray(entry.entries) ? entry.entries : []
+                      
+                      // Check if product has any data (quantity > 0 or requiredQuantity > 0)
+                      const hasData = productEntries.some((e: any) => 
+                        (e.quantity && e.quantity > 0) || (e.requiredQuantity && e.requiredQuantity > 0)
+                      )
+                      
                       const entriesToShow = hideEmptyFields
                         ? productEntries.filter((e: any) => 
                             (e.quantity && e.quantity > 0) || (e.requiredQuantity && e.requiredQuantity > 0)
@@ -362,10 +372,10 @@ function InventoryView() {
                                 key={entryIdx}
                                 className="grid grid-cols-[40%_32%_28%] gap-2 py-1 text-sm hover:bg-primary/10"
                                 style={{ 
-                                  borderBottom: '0.3px solid #d3d3d3'
+                                  borderBottom: entryIdx === entriesToShow.length - 1 ? '0.3px solid #d3d3d3' : 'none'
                                 }}
                               >
-                                <div className="text-secondary font-medium">
+                                <div className={`${hasData ? 'font-bold text-secondary' : 'font-medium text-secondary/50'}`}>
                                   {showProductName ? productName : ''}
                                 </div>
                                 <div 

@@ -300,48 +300,46 @@ function Wizard({ onLogout }: WizardProps) {
 
             {/* Row 2: Inventory, Delete, History buttons */}
             {username && (
-              <div className="bg-gray-800 rounded-xl p-4" style={{ backgroundColor: '#1f2937' }}>
-                <div className="flex items-center justify-center gap-2 sm:gap-3">
-                  {!isEditingFromReview && (
-                    <button
-                      type="button"
-                      onClick={handleTrimiteInventar}
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100/90 hover:bg-purple-200/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-purple-200/50"
-                      title="Trimite inventar"
-                    >
-                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-secondary/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </button>
-                  )}
-                  
+              <div className="flex items-center justify-center gap-2 sm:gap-3">
+                {!isEditingFromReview && (
                   <button
                     type="button"
-                    onClick={handleResetOrder}
-                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50"
-                    title="Reluare comandă"
+                    onClick={handleTrimiteInventar}
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100/90 hover:bg-purple-200/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-purple-200/50"
+                    title="Trimite inventar"
                   >
-                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-secondary/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => navigate('/my-orders')}
-                    className="px-3 py-2 rounded-xl bg-primary/50 hover:bg-primary/70 text-secondary font-bold text-xs sm:text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-secondary/20 whitespace-nowrap"
-                    title="Istoric comenzi"
-                  >
-                    ISTORIC
-                  </button>
-                </div>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={handleResetOrder}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-rose-500/90 hover:bg-rose-600/90 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-rose-400/50"
+                  title="Reluare comandă"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => navigate('/my-orders')}
+                  className="px-3 py-2 rounded-xl bg-primary/50 hover:bg-primary/70 text-secondary font-bold text-xs sm:text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-secondary/20 whitespace-nowrap"
+                  title="Istoric comenzi"
+                >
+                  ISTORIC COMENZI
+                </button>
               </div>
             )}
 
             {/* Row 3: Footer */}
             {username && (
               <div className="text-center text-secondary/60 text-xs pt-2">
-                <span>Logged in as admin. </span>
+                <span>Logged in as {username}</span>
                 <button
                   type="button"
                   onClick={handleLogout}
