@@ -45,6 +45,7 @@
     transition: all 0.3s;
   }
 
+
   /* Active/Selected State */
   .btn-active {
     background: linear-gradient(to right, #A855F7, #D946EF);

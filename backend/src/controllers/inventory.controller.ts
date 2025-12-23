@@ -272,6 +272,29 @@ export const getInventoriesByDate = async (req: Request, res: Response) => {
   }
 }
 
+// Get inventory by ID (admin)
+export const getInventoryById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+
+    const inventory = await prisma.inventory.findUnique({
+      where: { id },
+      include: {
+        entries: true,
+      },
+    })
+
+    if (!inventory) {
+      return res.status(404).json({ error: 'Inventory not found' })
+    }
+
+    res.json(inventory)
+  } catch (error) {
+    console.error('Error fetching inventory by ID:', error)
+    res.status(500).json({ error: 'Failed to fetch inventory' })
+  }
+}
+
 // Get inventory PDF
 export const getInventoryPDF = async (req: Request, res: Response) => {
   try {

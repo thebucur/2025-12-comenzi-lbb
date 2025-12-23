@@ -5,6 +5,7 @@ import {
   saveInventory,
   submitInventory,
   getInventoriesByDate,
+  getInventoryById,
   getInventoryPDF
 } from '../controllers/inventory.controller'
 
@@ -20,6 +21,7 @@ router.post('/submit', submitInventory)
 
 // Admin routes
 router.get('/admin/by-date', getInventoriesByDate)
+router.get('/:id', getInventoryById)
 router.get('/pdf/:id', getInventoryPDF)
 
 export default router

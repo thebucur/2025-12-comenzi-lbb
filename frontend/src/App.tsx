@@ -6,6 +6,7 @@ import Login from './components/Login'
 import AdminLogin from './components/AdminLogin'
 import AdminDashboard from './components/admin/AdminDashboard'
 import AdminOrderView from './components/admin/OrderView'
+import InventoryView from './components/admin/InventoryView'
 import PhotoUpload from './components/PhotoUpload'
 import UserOrdersView from './components/UserOrdersView'
 import UserOrderDetails from './components/UserOrderDetails'
@@ -95,6 +96,7 @@ function App() {
           />
           <Route path="/admin/dashboard" element={requireAdminAuth(<AdminDashboard />)} />
           <Route path="/admin/orders/:id" element={requireAdminAuth(<AdminOrderView />)} />
+          <Route path="/admin/inventory/:id" element={requireAdminAuth(<InventoryView />)} />
           <Route path="/upload/:sessionId" element={<PhotoUpload />} />
         </Routes>
       </Router>

@@ -306,14 +306,14 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="card-neumorphic flex items-center justify-between">
+      <div className="card-neumorphic flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-secondary mb-2">Produse Inventar</h2>
           <p className="text-secondary/60">Gestionează categoriile și produsele pentru inventar</p>
         </div>
         <button
           onClick={handleCreateCategory}
-          className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all"
+          className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all w-full md:w-auto"
         >
           + Adaugă categorie
         </button>
@@ -334,21 +334,25 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
             return (
               <div key={category.id} data-category-id={category.id} className="card-neumorphic">
                 {/* Category Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <button
-                    onClick={() => toggleCategory(category.id)}
-                    className="flex items-center gap-3 flex-1 text-left hover:scale-102 transition-all"
-                  >
-                    <span className="text-2xl">{isExpanded ? '▼' : '▶'}</span>
-                    <div>
-                      <h3 className="text-2xl font-bold text-gradient">{category.name}</h3>
-                      <p className="text-secondary/60 text-sm">
-                        {category.products.length} produse • Unități: {category.units.join(', ')} • Implicit: {category.defaultUnit}
-                      </p>
-                    </div>
-                  </button>
+                <div className="mb-4">
+                  {/* Title row */}
+                  <div className="flex items-center gap-3 mb-2">
+                    <button
+                      onClick={() => toggleCategory(category.id)}
+                      className="text-2xl hover:scale-110 transition-all"
+                    >
+                      {isExpanded ? '▼' : '▶'}
+                    </button>
+                    <h3 className="text-2xl font-bold text-gradient whitespace-nowrap flex-1">{category.name}</h3>
+                  </div>
                   
-                  <div className="flex gap-2">
+                  {/* Details row */}
+                  <p className="text-secondary/60 text-sm mb-3 ml-9">
+                    {category.products.length} produse • Unități: {category.units.join(', ')} • Implicit: {category.defaultUnit}
+                  </p>
+                  
+                  {/* Buttons row */}
+                  <div className="flex gap-2 ml-9 md:ml-0 md:justify-end">
                     <button
                       onClick={() => handleMoveCategory(category.id, 'up')}
                       disabled={categories.findIndex(c => c.id === category.id) === 0}

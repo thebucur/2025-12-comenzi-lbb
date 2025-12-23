@@ -1,7 +1,37 @@
-import { useEffect, useState, Fragment } from 'react'
+import { useEffect, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { getDateRecencyClass } from '../utils/dateRecency'
+
+// Helper component for date group checkbox with indeterminate state
+function DateGroupCheckbox({ 
+  checked, 
+  indeterminate, 
+  onChange 
+}: { 
+  checked: boolean
+  indeterminate: boolean
+  onChange: () => void
+}) {
+  const checkboxRef = useRef<HTMLInputElement>(null)
+  
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate
+    }
+  }, [indeterminate])
+  
+  return (
+    <input
+      ref={checkboxRef}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      className="w-3 h-3 sm:w-4 sm:h-4 cursor-pointer"
+    />
+  )
+}
 
 interface Photo {
   id: string
@@ -33,6 +63,7 @@ function UserOrdersView() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const username = localStorage.getItem('authToken') || 'Utilizator'
 
   useEffect(() => {
@@ -52,7 +83,7 @@ function UserOrdersView() {
 
   // Group orders by date
   const groupOrdersByDate = (ordersList: Order[]) => {
-    const grouped = new Map<string, Order[]>()
+    const grouped = new Map<string, { dateKey: string, dateKeyMobile: string, orders: Order[] }>()
     
     ordersList.forEach((order) => {
       const date = new Date(order.createdAt)
@@ -62,24 +93,46 @@ function UserOrdersView() {
         day: 'numeric' 
       })
       
+      // Create mobile date format: "DD.MM" (e.g., "22.12")
+      const day = date.getDate()
+      const month = date.getMonth() + 1 // getMonth() returns 0-11
+      const dateKeyMobile = `${day}.${month.toString().padStart(2, '0')}`
+      
       if (!grouped.has(dateKey)) {
-        grouped.set(dateKey, [])
+        grouped.set(dateKey, { dateKey, dateKeyMobile, orders: [] })
       }
-      grouped.get(dateKey)!.push(order)
+      grouped.get(dateKey)!.orders.push(order)
     })
     
     // Sort orders within each group by createdAt descending (latest first)
-    grouped.forEach((groupOrders) => {
-      groupOrders.sort((a, b) => 
+    grouped.forEach((group) => {
+      group.orders.sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
     })
     
     // Convert to array and sort by date descending (latest first)
-    return Array.from(grouped.entries()).sort((a, b) => {
-      const dateA = new Date(a[1][0].createdAt)
-      const dateB = new Date(b[1][0].createdAt)
+    return Array.from(grouped.values()).sort((a, b) => {
+      const dateA = new Date(a.orders[0].createdAt)
+      const dateB = new Date(b.orders[0].createdAt)
       return dateB.getTime() - dateA.getTime()
+    })
+  }
+
+  const handleSelectDateGroup = (dateOrders: Order[]) => {
+    const dateOrderIds = dateOrders.map((o) => o.id)
+    const allSelected = dateOrderIds.every((id) => selectedOrders.has(id))
+    
+    setSelectedOrders((prev) => {
+      const newSet = new Set(prev)
+      if (allSelected) {
+        // Deselect all orders for this date
+        dateOrderIds.forEach((id) => newSet.delete(id))
+      } else {
+        // Select all orders for this date
+        dateOrderIds.forEach((id) => newSet.add(id))
+      }
+      return newSet
     })
   }
 
@@ -136,14 +189,27 @@ function UserOrdersView() {
                     <th className="px-3 py-3 text-left font-bold text-secondary text-xs sm:text-sm">Data comenzii</th>
                     <th className="px-3 py-3 text-left font-bold text-secondary text-xs sm:text-sm">Data livrării</th>
                     <th className="px-3 py-3 text-left font-bold text-secondary text-xs sm:text-sm">Preluat de</th>
+                    <th className="px-3 py-3 text-left font-bold text-secondary text-xs sm:text-sm" style={{ width: '5%' }}></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-primary/25 border-y border-primary/30">
-                  {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
+                  {groupOrdersByDate(orders).map(({ dateKey, dateKeyMobile, orders: dateOrders }) => {
+                    const allDateOrdersSelected = dateOrders.every((o) => selectedOrders.has(o.id))
+                    const someDateOrdersSelected = dateOrders.some((o) => selectedOrders.has(o.id))
+                    
+                    return (
                     <Fragment key={dateKey}>
                       <tr className="bg-transparent">
                         <td colSpan={5} className="px-4 py-3 text-left text-base sm:text-xl font-bold text-secondary">
-                          {dateKey}
+                          <span className="md:hidden">{dateKeyMobile}</span>
+                          <span className="hidden md:inline">{dateKey}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <DateGroupCheckbox
+                            checked={allDateOrdersSelected}
+                            indeterminate={someDateOrdersSelected && !allDateOrdersSelected}
+                            onChange={() => handleSelectDateGroup(dateOrders)}
+                          />
                         </td>
                       </tr>
                       {dateOrders.map((order) => {
@@ -177,11 +243,13 @@ function UserOrdersView() {
                             <td className={`px-3 py-3 text-secondary text-xs sm:text-sm ${createdDateClass}`}>{createdDate}</td>
                             <td className={`px-3 py-3 text-secondary text-xs sm:text-sm ${deliveryDateClass}`}>{deliveryDate}</td>
                             <td className="px-3 py-3 text-secondary text-xs sm:text-sm">{order.staffName || '-'}</td>
+                            <td className="px-3 py-3"></td>
                           </tr>
                         )
                       })}
                     </Fragment>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

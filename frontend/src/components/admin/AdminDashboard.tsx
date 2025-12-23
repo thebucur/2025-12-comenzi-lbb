@@ -7,6 +7,36 @@ import { getInventoriesByDate, getInventoryPDFUrl } from '../../services/invento
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import InventoryProductsManager from './InventoryProductsManager'
 
+// Helper component for date group checkbox with indeterminate state
+function DateGroupCheckbox({ 
+  checked, 
+  indeterminate, 
+  onChange 
+}: { 
+  checked: boolean
+  indeterminate: boolean
+  onChange: () => void
+}) {
+  const checkboxRef = useRef<HTMLInputElement>(null)
+  
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate
+    }
+  }, [indeterminate])
+  
+  return (
+    <input
+      ref={checkboxRef}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      className="w-3 h-3 sm:w-4 sm:h-4 cursor-pointer"
+    />
+  )
+}
+
 interface Photo {
   id: string
   url: string
@@ -708,7 +738,7 @@ function AdminDashboard() {
 
   // Group orders by date
   const groupOrdersByDate = (ordersList: Order[]) => {
-    const grouped = new Map<string, Order[]>()
+    const grouped = new Map<string, { dateKey: string, dateKeyMobile: string, orders: Order[] }>()
     
     ordersList.forEach((order) => {
       const date = new Date(order.createdAt)
@@ -718,23 +748,28 @@ function AdminDashboard() {
         day: 'numeric' 
       })
       
+      // Create mobile date format: "DD.MM" (e.g., "22.12")
+      const day = date.getDate()
+      const month = date.getMonth() + 1 // getMonth() returns 0-11
+      const dateKeyMobile = `${day}.${month.toString().padStart(2, '0')}`
+      
       if (!grouped.has(dateKey)) {
-        grouped.set(dateKey, [])
+        grouped.set(dateKey, { dateKey, dateKeyMobile, orders: [] })
       }
-      grouped.get(dateKey)!.push(order)
+      grouped.get(dateKey)!.orders.push(order)
     })
     
     // Sort orders within each group by createdAt descending (latest first)
-    grouped.forEach((groupOrders) => {
-      groupOrders.sort((a, b) => 
+    grouped.forEach((group) => {
+      group.orders.sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
     })
     
     // Convert to array and sort by date descending (latest first)
-    return Array.from(grouped.entries()).sort((a, b) => {
-      const dateA = new Date(a[1][0].createdAt)
-      const dateB = new Date(b[1][0].createdAt)
+    return Array.from(grouped.values()).sort((a, b) => {
+      const dateA = new Date(a.orders[0].createdAt)
+      const dateB = new Date(b.orders[0].createdAt)
       return dateB.getTime() - dateA.getTime()
     })
   }
@@ -747,6 +782,23 @@ function AdminDashboard() {
         newSet.delete(orderId)
       } else {
         newSet.add(orderId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectDateGroup = (dateOrders: Order[]) => {
+    const dateOrderIds = dateOrders.map((o) => o.id)
+    const allSelected = dateOrderIds.every((id) => selectedOrders.has(id))
+    
+    setSelectedOrders((prev) => {
+      const newSet = new Set(prev)
+      if (allSelected) {
+        // Deselect all orders for this date
+        dateOrderIds.forEach((id) => newSet.delete(id))
+      } else {
+        // Select all orders for this date
+        dateOrderIds.forEach((id) => newSet.add(id))
       }
       return newSet
     })
@@ -907,23 +959,22 @@ function AdminDashboard() {
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
       <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-pink/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
       
-      <div className="container mx-auto px-4 py-8 relative z-10">
-        <div className="flex items-center justify-between mb-12">
-          <h1 className="text-5xl font-bold text-gradient">Panou de administrare</h1>
+      <div className="container mx-auto px-4 pt-4 pb-8 relative z-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-4">
           <button
             onClick={handleAdminLogout}
-            className="btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all duration-300"
+            className="hidden md:flex btn-neumorphic px-4 py-2 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base text-secondary hover:scale-105 transition-all duration-300 ml-auto"
           >
             ← Deconectare
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="card-neumorphic mb-8">
-          <div className="flex flex-wrap gap-4">
+        <div className="bg-gray-400 md:card-neumorphic rounded-xl md:rounded-2xl mb-6 sm:mb-8 p-4 md:p-6">
+          <div className="flex flex-wrap gap-2 sm:gap-4">
             <button
               onClick={() => setActiveTab('orders')}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+              className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'orders'
                   ? 'btn-active scale-105'
                   : 'bg-primary/50 text-secondary hover:scale-102'
@@ -933,7 +984,7 @@ function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('users')}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+              className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'users'
                   ? 'btn-active scale-105'
                   : 'bg-primary/50 text-secondary hover:scale-102'
@@ -943,17 +994,17 @@ function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('globalConfig')}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+              className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'globalConfig'
                   ? 'btn-active scale-105'
                   : 'bg-primary/50 text-secondary hover:scale-102'
               }`}
             >
-              ⚙️ Configurare Globală
+              ⚙️ Config
             </button>
             <button
               onClick={() => setActiveTab('inventory')}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+              className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'inventory'
                   ? 'btn-active scale-105'
                   : 'bg-primary/50 text-secondary hover:scale-102'
@@ -963,13 +1014,13 @@ function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('inventoryProducts')}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+              className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'inventoryProducts'
                   ? 'btn-active scale-105'
                   : 'bg-primary/50 text-secondary hover:scale-102'
               }`}
             >
-              📦 Produse Inventar
+              📦 Produse
             </button>
           </div>
         </div>
@@ -979,36 +1030,36 @@ function AdminDashboard() {
           <div className="space-y-6">
             {/* Download Button */}
             {orders.length > 0 && (
-              <div className="card-neumorphic flex items-center justify-between">
+              <div className="card-neumorphic flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-secondary">Comenzi</h2>
-                  <p className="text-secondary/60">
+                  <h2 className="text-xl sm:text-2xl font-bold text-secondary">Comenzi</h2>
+                  <p className="text-secondary/60 text-sm sm:text-base">
                     {selectedOrders.size > 0 
                       ? `${selectedOrders.size} comandă${selectedOrders.size > 1 ? 'e' : ''} selectată${selectedOrders.size > 1 ? 'e' : ''}`
                       : 'Selectați comenzi pentru descărcare'}
                   </p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                   <button
                     onClick={handleBulkDownloadPDFs}
                     disabled={selectedOrders.size === 0 || isDownloading}
-                    className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-active px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
                   >
-                    {isDownloading ? 'Se creează arhiva...' : 'DESCARCA PDF'}
+                    {isDownloading ? 'Se creează...' : 'DESCARCA PDF'}
                   </button>
                   <button
                     onClick={handleBulkDeleteOrders}
                     disabled={selectedOrders.size === 0 || isDeleting}
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 sm:px-4 sm:py-4 rounded-xl sm:rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     title="Șterge comenzile selectate"
                   >
                     {isDeleting ? (
-                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     )}
@@ -1025,18 +1076,18 @@ function AdminDashboard() {
                   <p className="text-2xl font-bold text-secondary/50">Nu există comenzi</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full text-xs sm:text-sm md:min-w-[800px]">
                     <thead>
                       <tr className="border-b-2 border-primary">
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '5%' }}>Nt.</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '12%' }}>Client</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '10%' }}>Telefon</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '18%' }}>Livrare</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '10%' }}>Livrare pe</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '10%' }}>Preluat pe</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '12%' }}>Locatie</th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '5%' }}>
+                        <th className="px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '5%' }}>Nt.</th>
+                        <th className="hidden md:table-cell px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '12%' }}>Client</th>
+                        <th className="hidden md:table-cell px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '10%' }}>Telefon</th>
+                        <th className="hidden md:table-cell px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '18%' }}>Livrare</th>
+                        <th className="px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '10%' }}>Livrare pe</th>
+                        <th className="hidden md:table-cell px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '10%' }}>Preluat pe</th>
+                        <th className="px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '12%' }}>Locație preluare</th>
+                        <th className="px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '5%' }}>
                           <input
                             type="checkbox"
                             checked={orders.every((o) => selectedOrders.has(o.id)) && orders.length > 0}
@@ -1048,19 +1099,50 @@ function AdminDashboard() {
                                 setSelectedOrders(new Set(orders.map((o) => o.id)))
                               }
                             }}
-                            className="w-4 h-4 cursor-pointer"
+                            className="w-3 h-3 sm:w-4 sm:h-4 cursor-pointer"
                           />
                         </th>
-                        <th className="px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '16%' }}>Detalii</th>
+                        <th className="px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs whitespace-nowrap" style={{ width: '16%' }}>Detalii</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-primary/25 border-y border-primary/30">
-                      {groupOrdersByDate(orders).map(([dateKey, dateOrders]) => (
+                      {groupOrdersByDate(orders).map(({ dateKey, dateKeyMobile, orders: dateOrders }) => {
+                        const allDateOrdersSelected = dateOrders.every((o) => selectedOrders.has(o.id))
+                        const someDateOrdersSelected = dateOrders.some((o) => selectedOrders.has(o.id))
+                        
+                        return (
                         <Fragment key={dateKey}>
-                          <tr className="bg-transparent">
-                            <td colSpan={9} className="px-4 py-3 text-left text-xl font-bold text-secondary">
+                          <tr className="bg-transparent md:hidden">
+                            <td className="px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                            <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                            <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                            <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                            <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-left text-base sm:text-lg font-bold text-secondary">
+                              {dateKeyMobile}
+                            </td>
+                            <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                            <td className="px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                            <td className="px-1 sm:px-2 py-1.5 sm:py-2">
+                              <DateGroupCheckbox
+                                checked={allDateOrdersSelected}
+                                indeterminate={someDateOrdersSelected && !allDateOrdersSelected}
+                                onChange={() => handleSelectDateGroup(dateOrders)}
+                              />
+                            </td>
+                            <td className="px-1 sm:px-2 py-1.5 sm:py-2"></td>
+                          </tr>
+                          <tr className="bg-transparent hidden md:table-row">
+                            <td colSpan={7} className="px-2 sm:px-4 py-2 sm:py-3 text-left text-base sm:text-lg md:text-xl font-bold text-secondary">
                               {dateKey}
                             </td>
+                            <td className="px-1 sm:px-2 py-2 sm:py-3">
+                              <DateGroupCheckbox
+                                checked={allDateOrdersSelected}
+                                indeterminate={someDateOrdersSelected && !allDateOrdersSelected}
+                                onChange={() => handleSelectDateGroup(dateOrders)}
+                              />
+                            </td>
+                            <td colSpan={1}></td>
                           </tr>
                           {dateOrders.map((order) => {
                             const deliveryText = order.deliveryMethod === 'ridicare' 
@@ -1082,11 +1164,11 @@ function AdminDashboard() {
                             
                             return (
                               <tr key={order.id} className="hover:bg-primary/30 transition-colors">
-                                <td className="px-2 py-2 font-bold text-accent-purple text-xs">#{order.orderNumber}</td>
-                                <td className="px-2 py-2 text-secondary text-xs">{order.clientName}</td>
-                                <td className="px-2 py-2 text-secondary text-xs">07{order.phoneNumber}</td>
-                                <td className="px-2 py-2 text-secondary text-xs">
-                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold inline-block ${
+                                <td className="px-1 sm:px-2 py-1.5 sm:py-2 font-bold text-accent-purple text-xs whitespace-nowrap">#{order.orderNumber}</td>
+                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs truncate max-w-[100px] sm:max-w-none">{order.clientName}</td>
+                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap">07{order.phoneNumber}</td>
+                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs">
+                                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-bold inline-block whitespace-nowrap ${
                                     order.deliveryMethod === 'ridicare' 
                                       ? 'bg-green-100 text-green-700' 
                                       : 'bg-blue-100 text-blue-700'
@@ -1094,29 +1176,29 @@ function AdminDashboard() {
                                     {deliveryText}
                                   </span>
                                 </td>
-                                <td className={`px-2 py-2 text-secondary text-xs ${deliveryDateClass}`}>{deliveryDate}</td>
-                                <td className={`px-2 py-2 text-secondary text-xs ${createdDateClass}`}>{createdDate}</td>
-                                <td className="px-2 py-2 text-secondary text-xs">{order.createdByUsername || order.staffName || '-'}</td>
-                                <td className="px-2 py-2">
+                                <td className={`px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${deliveryDateClass}`}>{deliveryDate}</td>
+                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${createdDateClass}">{createdDate}</td>
+                                <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs truncate max-w-[120px] sm:max-w-none">{order.location || '-'}</td>
+                                <td className="px-1 sm:px-2 py-1.5 sm:py-2">
                                   <input
                                     type="checkbox"
                                     checked={selectedOrders.has(order.id)}
                                     onChange={() => handleSelectOrder(order.id)}
-                                    className="w-4 h-4 cursor-pointer"
+                                    className="w-3 h-3 sm:w-4 sm:h-4 cursor-pointer"
                                   />
                                 </td>
-                                <td className="px-2 py-2">
-                                  <div className="flex gap-2 items-center">
+                                <td className="px-1 sm:px-2 py-2">
+                                  <div className="flex gap-1 sm:gap-2 items-center">
                                     <button
                                       onClick={() => navigate(`/admin/orders/${order.id}`)}
-                                      className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all"
+                                      className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all whitespace-nowrap"
                                     >
                                       Vezi
                                     </button>
                                     {hasFoaieDeZahar && (
                                       <button
                                         onClick={() => handleDownloadFoaieDeZahar(order.id, order.orderNumber)}
-                                        className="bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all text-yellow-600"
+                                        className="bg-yellow-500/20 border border-yellow-500/50 px-1.5 py-1 sm:px-2 sm:py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all text-yellow-600"
                                         title="Descarcă foaie de zahar"
                                       >
                                         📄
@@ -1128,7 +1210,8 @@ function AdminDashboard() {
                             )
                           })}
                         </Fragment>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1160,14 +1243,14 @@ function AdminDashboard() {
         {/* Users Tab */}
         {activeTab === 'users' && (
           <div className="space-y-6">
-            <div className="card-neumorphic flex items-center justify-between">
+            <div className="card-neumorphic flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-secondary">Gestionare utilizatori</h2>
-                <p className="text-secondary/60">Administrează utilizatorii platformei</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-secondary">Gestionare utilizatori</h2>
+                <p className="text-secondary/60 text-sm sm:text-base">Administrează utilizatorii platformei</p>
               </div>
               <button
                 onClick={handleCreateUser}
-                className="btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all"
+                className="btn-active px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:scale-105 transition-all w-full sm:w-auto"
               >
                 + Adaugă utilizator
               </button>
@@ -1214,14 +1297,14 @@ function AdminDashboard() {
         {activeTab === 'globalConfig' && (
           <div className="space-y-6">
             <div className="card-neumorphic">
-              <h2 className="text-2xl font-bold text-secondary mb-2">Configurație globală</h2>
-              <p className="text-secondary/60">Gestionează elementele disponibile pentru sortiment și decor</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-secondary mb-2">Configurație globală</h2>
+              <p className="text-secondary/60 text-sm sm:text-base">Gestionează elementele disponibile pentru sortiment și decor</p>
             </div>
 
             <div className="space-y-6">
               {/* Sortiment Section */}
               <div className="card-neumorphic">
-                <h3 className="text-2xl font-bold text-gradient mb-6">🎂 Sortiment</h3>
+                <h3 className="text-xl sm:text-2xl font-bold text-gradient mb-4 sm:mb-6">🎂 Sortiment</h3>
                 <SortimentDecorManager
                   category="sortiment"
                   configs={globalConfigs.filter((c) => c.category === 'sortiment')}
@@ -1256,7 +1339,7 @@ function AdminDashboard() {
 
               {/* Decor Section */}
               <div className="card-neumorphic">
-                <h3 className="text-2xl font-bold text-gradient mb-6">🎨 Decor</h3>
+                <h3 className="text-xl sm:text-2xl font-bold text-gradient mb-4 sm:mb-6">🎨 Decor</h3>
                 <SortimentDecorManager
                   category="decor"
                   configs={globalConfigs.filter((c) => c.category === 'decor')}
@@ -1289,21 +1372,21 @@ function AdminDashboard() {
         {activeTab === 'inventory' && (
           <div className="space-y-6">
             <div className="card-neumorphic">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-secondary mb-2">Inventar</h2>
-                  <p className="text-secondary/60">Vizualizează inventarele trimise de utilizatori</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-secondary mb-2">Inventar</h2>
+                  <p className="text-secondary/60 text-sm sm:text-base">Vizualizează inventarele trimise de utilizatori</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
                   <input
                     type="date"
                     value={selectedInventoryDate}
                     onChange={(e) => setSelectedInventoryDate(e.target.value)}
-                    className="input-neumorphic px-4 py-2 text-secondary"
+                    className="input-neumorphic px-3 py-2 sm:px-4 sm:py-2 text-secondary text-sm sm:text-base flex-1 sm:flex-none"
                   />
                   <button
                     onClick={fetchInventoryData}
-                    className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300"
+                    className="btn-neumorphic px-4 py-2 sm:px-6 sm:py-3 rounded-xl font-bold text-sm sm:text-base text-secondary hover:scale-105 transition-all duration-300"
                   >
                     🔄 Refresh
                   </button>
@@ -1351,14 +1434,12 @@ function AdminDashboard() {
                       </div>
                       {userStatus.hasSubmitted && userStatus.inventory && (
                         <div className="flex items-center gap-2">
-                          <a
-                            href={getInventoryPDFUrl(userStatus.inventory.id)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300 text-sm"
+                          <button
+                            onClick={() => navigate(`/admin/inventory/${userStatus.inventory.id}`)}
+                            className="btn-active px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold hover:scale-105 transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
                           >
-                            📄 View PDF
-                          </a>
+                            VEZI INVENTAR
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1372,6 +1453,7 @@ function AdminDashboard() {
             )}
           </div>
         )}
+
 
         {/* Inventory Products Tab */}
         {activeTab === 'inventoryProducts' && (
@@ -1478,6 +1560,18 @@ function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* Footer */}
+        <div className="md:hidden text-center text-secondary/60 text-xs pt-4 pb-2">
+          <span>Logged in as admin. </span>
+          <button
+            type="button"
+            onClick={handleAdminLogout}
+            className="underline hover:text-secondary transition-colors cursor-pointer"
+          >
+            Logout
+          </button>
+        </div>
 
       </div>
     </div>
