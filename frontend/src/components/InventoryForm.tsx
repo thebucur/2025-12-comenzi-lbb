@@ -119,79 +119,93 @@ function InventoryForm() {
     if (!bottomBar) return
 
     let animationFrameId: number | null = null
-    let checkScrollPosition: (() => void) | null = null
-    let retryTimeout: NodeJS.Timeout | null = null
-    let setupAttempts = 0
-    const maxSetupAttempts = 20
+    let cleanupFunctions: (() => void)[] = []
 
-    const setupScrollListener = () => {
-      // Try to find #root element
+    const getScrollInfo = () => {
+      // Try multiple ways to get scroll information
       const rootElement = document.getElementById('root')
       
-      if (!rootElement) {
-        setupAttempts++
-        if (setupAttempts < maxSetupAttempts) {
-          // Retry after a short delay
-          retryTimeout = setTimeout(setupScrollListener, 100)
+      // Method 1: #root element
+      if (rootElement && rootElement.scrollHeight > rootElement.clientHeight) {
+        return {
+          scrollTop: rootElement.scrollTop,
+          scrollHeight: rootElement.scrollHeight,
+          clientHeight: rootElement.clientHeight,
+          element: rootElement
         }
-        return
       }
-
-      checkScrollPosition = () => {
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId)
-        }
-
-        animationFrameId = requestAnimationFrame(() => {
-          if (!bottomBar) return
-
-          // Get scroll position from #root element
-          const scrollTop = rootElement.scrollTop
-          const scrollHeight = rootElement.scrollHeight
-          const clientHeight = rootElement.clientHeight
-          
-          // Consider "near bottom" if within 300px of the bottom
-          const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
-          const nearBottom = distanceFromBottom < 300
-
-          if (nearBottom) {
-            // Move down to reveal submit button
-            const barHeight = bottomBar.offsetHeight || 100
-            bottomBar.style.transform = `translate3d(0, ${barHeight}px, 0)`
-            bottomBar.style.transition = 'transform 0.3s ease-out'
-          } else {
-            // Keep at bottom
-            bottomBar.style.transform = 'translate3d(0, 0, 0)'
-            bottomBar.style.transition = 'transform 0.3s ease-out'
-          }
-        })
-      }
-
-      // Listen for scroll events on the root element
-      rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
-      window.addEventListener('resize', checkScrollPosition, { passive: true })
       
-      // Initial check
-      setTimeout(() => {
-        if (checkScrollPosition) checkScrollPosition()
-      }, 200)
-
-      // Cleanup function
-      return () => {
-        rootElement.removeEventListener('scroll', checkScrollPosition!)
-        window.removeEventListener('resize', checkScrollPosition!)
+      // Method 2: document.documentElement (html element)
+      if (document.documentElement.scrollHeight > window.innerHeight) {
+        return {
+          scrollTop: document.documentElement.scrollTop || window.pageYOffset,
+          scrollHeight: document.documentElement.scrollHeight,
+          clientHeight: window.innerHeight,
+          element: document.documentElement
+        }
+      }
+      
+      // Method 3: document.body
+      return {
+        scrollTop: document.body.scrollTop || window.pageYOffset,
+        scrollHeight: document.body.scrollHeight || document.documentElement.scrollHeight,
+        clientHeight: window.innerHeight || document.documentElement.clientHeight,
+        element: document.body
       }
     }
 
-    // Start setup
-    const cleanup = setupScrollListener()
-
-    return () => {
-      if (retryTimeout) clearTimeout(retryTimeout)
+    const checkScrollPosition = () => {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
-      if (cleanup) cleanup()
+
+      animationFrameId = requestAnimationFrame(() => {
+        if (!bottomBar) return
+
+        const { scrollTop, scrollHeight, clientHeight } = getScrollInfo()
+        
+        // Consider "near bottom" if within 300px of the bottom
+        const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
+        const nearBottom = distanceFromBottom < 300
+
+        if (nearBottom) {
+          // Move down to reveal submit button
+          const barHeight = bottomBar.offsetHeight || 100
+          bottomBar.style.transform = `translate3d(0, ${barHeight}px, 0)`
+          bottomBar.style.transition = 'transform 0.3s ease-out'
+        } else {
+          // Keep at bottom
+          bottomBar.style.transform = 'translate3d(0, 0, 0)'
+          bottomBar.style.transition = 'transform 0.3s ease-out'
+        }
+      })
+    }
+
+    // Listen for scroll on all possible scrollable elements
+    const rootElement = document.getElementById('root')
+    if (rootElement) {
+      rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
+      cleanupFunctions.push(() => rootElement.removeEventListener('scroll', checkScrollPosition))
+    }
+    
+    window.addEventListener('scroll', checkScrollPosition, { passive: true })
+    window.addEventListener('resize', checkScrollPosition, { passive: true })
+    document.addEventListener('scroll', checkScrollPosition, { passive: true })
+    
+    cleanupFunctions.push(() => {
+      window.removeEventListener('scroll', checkScrollPosition)
+      window.removeEventListener('resize', checkScrollPosition)
+      document.removeEventListener('scroll', checkScrollPosition)
+    })
+    
+    // Initial check
+    setTimeout(checkScrollPosition, 200)
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+      cleanupFunctions.forEach(cleanup => cleanup())
     }
   }, [])
 
@@ -514,8 +528,25 @@ function InventoryForm() {
   const handleNextCategory = () => {
     if (categories.length === 0) return
     
-    // Get the scrollable root element
-    const rootElement = document.getElementById('root') || document.documentElement
+    // Get scroll information from the appropriate element
+    const getScrollElement = () => {
+      const rootElement = document.getElementById('root')
+      if (rootElement && rootElement.scrollHeight > rootElement.clientHeight) {
+        return {
+          element: rootElement,
+          scrollTop: rootElement.scrollTop,
+          scrollTo: (top: number) => rootElement.scrollTo({ top, behavior: 'smooth' })
+        }
+      }
+      // Fallback to window/document
+      return {
+        element: document.documentElement,
+        scrollTop: window.pageYOffset || document.documentElement.scrollTop,
+        scrollTo: (top: number) => window.scrollTo({ top, behavior: 'smooth' })
+      }
+    }
+    
+    const scrollInfo = getScrollElement()
     
     // Find the currently visible category based on scroll position
     let currentVisibleIndex = -1
@@ -543,20 +574,12 @@ function InventoryForm() {
     const categoryElement = categoryRefs.current[nextCategory.id]
     
     if (categoryElement) {
-      // Calculate scroll position using getBoundingClientRect
-      // This works reliably with scrollable containers
+      // Calculate scroll position
       const rect = categoryElement.getBoundingClientRect()
-      const rootRect = rootElement.getBoundingClientRect()
-      const currentScrollTop = rootElement.scrollTop || 0
-      
-      // Calculate absolute position: current scroll + element position relative to root
-      const scrollToPosition = currentScrollTop + rect.top - rootRect.top - 20
+      const scrollToPosition = scrollInfo.scrollTop + rect.top - 20
       
       // Scroll to the calculated position
-      rootElement.scrollTo({
-        top: Math.max(0, scrollToPosition),
-        behavior: 'smooth'
-      })
+      scrollInfo.scrollTo(Math.max(0, scrollToPosition))
     }
   }
 
