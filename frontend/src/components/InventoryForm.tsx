@@ -41,6 +41,7 @@ function InventoryForm() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const initialLoadRef = useRef(true)
+  const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
 
   // Load categories from API
   useEffect(() => {
@@ -424,6 +425,69 @@ function InventoryForm() {
     }
   }
 
+  // Function to scroll to next category
+  const handleNextCategory = () => {
+    if (categories.length === 0) return
+    
+    // Find the currently visible category based on scroll position
+    let currentVisibleIndex = -1
+    const scrollPosition = window.scrollY + 100 // Add offset for better detection
+    
+    for (let i = 0; i < categories.length; i++) {
+      const category = categories[i]
+      const categoryElement = categoryRefs.current[category.id]
+      
+      if (categoryElement) {
+        const elementTop = categoryElement.offsetTop
+        const elementBottom = elementTop + categoryElement.offsetHeight
+        
+        if (scrollPosition >= elementTop && scrollPosition <= elementBottom) {
+          currentVisibleIndex = i
+          break
+        }
+      }
+    }
+    
+    // If no category is currently visible, start from the first one
+    const startIndex = currentVisibleIndex >= 0 ? currentVisibleIndex : -1
+    const nextIndex = (startIndex + 1) % categories.length
+    
+    const nextCategory = categories[nextIndex]
+    const categoryElement = categoryRefs.current[nextCategory.id]
+    
+    if (categoryElement) {
+      // Scroll to category with offset to account for fixed bottom bar
+      const elementPosition = categoryElement.offsetTop
+      const offsetPosition = elementPosition - 20 // Small offset from top
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  // Function to save and close (save draft and navigate to home)
+  const handleSaveAndClose = async () => {
+    try {
+      // Save draft first
+      const validEntries = productEntries.filter(e => 
+        e.entries.some(entry => (entry.quantity && entry.quantity > 0) || (entry.requiredQuantity && entry.requiredQuantity > 0))
+      )
+      
+      if (validEntries.length > 0) {
+        await saveInventoryDraft({ entries: validEntries })
+      }
+      
+      // Navigate to home
+      navigate('/')
+    } catch (error) {
+      console.error('Failed to save draft:', error)
+      // Still navigate even if save fails
+      navigate('/')
+    }
+  }
+
 
   if (loading) {
     return (
@@ -438,7 +502,7 @@ function InventoryForm() {
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
       <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-pink/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-4 py-8 pb-24 md:pb-8 relative z-10">
         {/* Title - centered */}
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gradient">
@@ -457,11 +521,15 @@ function InventoryForm() {
               ← ÎNAPOI
             </button>
           </div>
-          {categories.map(category => {
+          {categories.map((category) => {
             const categoryProducts = productEntries.filter(e => e.category === category.name)
             
             return (
-              <div key={category.id} className="card-neumorphic">
+              <div 
+                key={category.id} 
+                ref={(el) => { categoryRefs.current[category.id] = el }}
+                className="card-neumorphic"
+              >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-secondary">
                     {category.name}
@@ -987,6 +1055,24 @@ function InventoryForm() {
             </div>
           </div>
         )}
+
+        {/* Mobile Floating Bottom Bar */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t-2 border-secondary/20 shadow-lg safe-area-inset-bottom">
+          <div className="container mx-auto px-4 py-3 flex gap-3">
+            <button
+              onClick={handleNextCategory}
+              className="flex-1 px-4 py-3 rounded-xl bg-accent-purple/80 hover:bg-accent-purple text-white font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+            >
+              URMĂTOAREA CATEGORIE
+            </button>
+            <button
+              onClick={handleSaveAndClose}
+              className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+            >
+              SALVEAZĂ ȘI ÎNCHIDE
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
