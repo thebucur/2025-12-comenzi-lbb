@@ -525,10 +525,7 @@ function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
-  const [selectedInventoryDate, setSelectedInventoryDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  )
-  const [inventoryData, setInventoryData] = useState<any>(null)
+  const [inventoryDataByDate, setInventoryDataByDate] = useState<Map<string, any>>(new Map())
   const [loadingInventory, setLoadingInventory] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
@@ -563,7 +560,7 @@ function AdminDashboard() {
     if (activeTab === 'users') fetchUsers()
     if (activeTab === 'globalConfig') fetchGlobalConfigs()
     if (activeTab === 'inventory') fetchInventoryData()
-  }, [activeTab, selectedInventoryDate])
+  }, [activeTab])
 
   const fetchOrders = async () => {
     try {
@@ -667,14 +664,36 @@ function AdminDashboard() {
   }
 
   const fetchInventoryData = async () => {
-    if (!selectedInventoryDate) return
-    
     setLoadingInventory(true)
     try {
-      console.log('Fetching inventory data for date:', selectedInventoryDate)
-      const data = await getInventoriesByDate(selectedInventoryDate)
-      console.log('Inventory data loaded:', data)
-      setInventoryData(data)
+      // Generate array of 5 dates: today and 4 past days
+      const dates: string[] = []
+      for (let i = 0; i < 5; i++) {
+        const date = new Date()
+        date.setDate(date.getDate() - i)
+        dates.push(date.toISOString().split('T')[0])
+      }
+
+      // Fetch inventory data for all dates in parallel
+      const fetchPromises = dates.map(date => 
+        getInventoriesByDate(date)
+          .then(data => ({ date, data, error: false }))
+          .catch(error => {
+            console.error(`Error fetching inventory data for ${date}:`, error)
+            return { date, data: { date, users: [] }, error: false } // Return empty data instead of error flag
+          })
+      )
+
+      const results = await Promise.all(fetchPromises)
+      
+      // Store results in a Map with date as key (always include all dates)
+      const newInventoryDataByDate = new Map<string, any>()
+      results.forEach(result => {
+        newInventoryDataByDate.set(result.date, result.data)
+      })
+      
+      console.log('Inventory data loaded for multiple dates:', newInventoryDataByDate)
+      setInventoryDataByDate(newInventoryDataByDate)
     } catch (error: any) {
       console.error('Error fetching inventory data:', error)
       const errorMessage = error.response?.data?.error || error.message || 'Eroare necunoscută'
@@ -684,7 +703,7 @@ function AdminDashboard() {
         message: errorMessage,
       })
       alert(`Eroare la încărcarea inventarului: ${errorMessage}`)
-      setInventoryData(null)
+      setInventoryDataByDate(new Map())
     } finally {
       setLoadingInventory(false)
     }
@@ -1404,22 +1423,14 @@ function AdminDashboard() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-secondary mb-2">Inventar</h2>
-                  <p className="text-secondary/60 text-sm sm:text-base">Vizualizează inventarele trimise de utilizatori</p>
+                  <p className="text-secondary/60 text-sm sm:text-base">Vizualizează inventarele trimise de utilizatori (ultimele 5 zile)</p>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                  <input
-                    type="date"
-                    value={selectedInventoryDate}
-                    onChange={(e) => setSelectedInventoryDate(e.target.value)}
-                    className="input-neumorphic px-3 py-2 sm:px-4 sm:py-2 text-secondary text-sm sm:text-base flex-1 sm:flex-none"
-                  />
-                  <button
-                    onClick={fetchInventoryData}
-                    className="btn-neumorphic px-4 py-2 sm:px-6 sm:py-3 rounded-xl font-bold text-sm sm:text-base text-secondary hover:scale-105 transition-all duration-300"
-                  >
-                    🔄 Refresh
-                  </button>
-                </div>
+                <button
+                  onClick={fetchInventoryData}
+                  className="btn-neumorphic px-4 py-2 sm:px-6 sm:py-3 rounded-xl font-bold text-sm sm:text-base text-secondary hover:scale-105 transition-all duration-300"
+                >
+                  🔄 Refresh
+                </button>
               </div>
             </div>
 
@@ -1433,53 +1444,71 @@ function AdminDashboard() {
                 </div>
                 <p className="text-secondary/60">Loading inventory data...</p>
               </div>
-            ) : inventoryData && inventoryData.users ? (
-              <div className="card-neumorphic">
-                <h3 className="text-xl font-bold text-secondary mb-4">
-                  Inventare pentru {new Date(selectedInventoryDate).toLocaleDateString('ro-RO')}
-                </h3>
-                <div className="space-y-3">
-                  {inventoryData.users
-                    .filter((userStatus: any) => userStatus.username !== 'admin')
-                    .map((userStatus: any) => (
-                    <div
-                      key={userStatus.userId}
-                      className={`p-4 rounded-xl flex items-center justify-between ${
-                        userStatus.hasSubmitted
-                          ? 'bg-green-100/80 border-2 border-green-300'
-                          : 'bg-rose-100/80 border-2 border-rose-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`text-2xl ${userStatus.hasSubmitted ? 'text-green-600' : 'text-rose-600'}`}>
-                          {userStatus.hasSubmitted ? '✅' : '❌'}
+            ) : inventoryDataByDate.size > 0 ? (
+              <div className="space-y-6">
+                {Array.from(inventoryDataByDate.entries())
+                  .sort(([dateA], [dateB]) => {
+                    // Sort dates in descending order (today first, then yesterday, etc.)
+                    return new Date(dateB).getTime() - new Date(dateA).getTime()
+                  })
+                  .map(([date, inventoryData]) => (
+                    <div key={date} className="card-neumorphic">
+                      <h3 className="text-xl font-bold text-secondary mb-4">
+                        Inventare pentru {new Date(date).toLocaleDateString('ro-RO', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </h3>
+                      {inventoryData.users && inventoryData.users.length > 0 ? (
+                        <div className="space-y-3">
+                          {inventoryData.users
+                            .filter((userStatus: any) => userStatus.username !== 'admin')
+                            .map((userStatus: any) => (
+                            <div
+                              key={userStatus.userId}
+                              className={`p-4 rounded-xl flex items-center justify-between ${
+                                userStatus.hasSubmitted
+                                  ? 'bg-green-100/80 border-2 border-green-300'
+                                  : 'bg-rose-100/80 border-2 border-rose-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`text-2xl ${userStatus.hasSubmitted ? 'text-green-600' : 'text-rose-600'}`}>
+                                  {userStatus.hasSubmitted ? '✅' : '❌'}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-secondary">{userStatus.username}</p>
+                                  <p className="text-sm text-secondary/60">
+                                    {userStatus.hasSubmitted && userStatus.inventory
+                                      ? `Submitted at ${new Date(userStatus.inventory.submittedAt).toLocaleString('ro-RO')}`
+                                      : 'Not submitted'}
+                                  </p>
+                                </div>
+                              </div>
+                              {userStatus.hasSubmitted && userStatus.inventory && (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => navigate(`/admin/inventory/${userStatus.inventory.id}`)}
+                                    className="btn-active px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold hover:scale-105 transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
+                                  >
+                                    VEZI INVENTAR
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                        <div>
-                          <p className="font-bold text-secondary">{userStatus.username}</p>
-                          <p className="text-sm text-secondary/60">
-                            {userStatus.hasSubmitted
-                              ? `Submitted at ${new Date(userStatus.inventory.submittedAt).toLocaleString('ro-RO')}`
-                              : 'Not submitted'}
-                          </p>
-                        </div>
-                      </div>
-                      {userStatus.hasSubmitted && userStatus.inventory && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => navigate(`/admin/inventory/${userStatus.inventory.id}`)}
-                            className="btn-active px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold hover:scale-105 transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
-                          >
-                            VEZI INVENTAR
-                          </button>
-                        </div>
+                      ) : (
+                        <p className="text-secondary/60 text-sm">Nu există inventare pentru această dată</p>
                       )}
                     </div>
                   ))}
-                </div>
               </div>
             ) : (
               <div className="card-neumorphic text-center py-12">
-                <p className="text-secondary/60">No inventory data available for this date</p>
+                <p className="text-secondary/60">Nu există date de inventar disponibile</p>
               </div>
             )}
           </div>
