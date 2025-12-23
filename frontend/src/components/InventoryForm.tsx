@@ -116,8 +116,12 @@ function InventoryForm() {
   // Detect if near bottom of page to retract the bar
   useEffect(() => {
     const bottomBar = bottomBarRef.current
-    if (!bottomBar) return
+    if (!bottomBar) {
+      console.log('Bottom bar ref not found')
+      return
+    }
 
+    console.log('Setting up bottom bar scroll detection')
     let animationFrameId: number | null = null
     let cleanupFunctions: (() => void)[] = []
 
@@ -126,28 +130,43 @@ function InventoryForm() {
       const rootElement = document.getElementById('root')
       
       // Method 1: #root element
-      if (rootElement && rootElement.scrollHeight > rootElement.clientHeight) {
-        return {
-          scrollTop: rootElement.scrollTop,
-          scrollHeight: rootElement.scrollHeight,
-          clientHeight: rootElement.clientHeight,
-          element: rootElement
+      if (rootElement) {
+        const scrollHeight = rootElement.scrollHeight
+        const clientHeight = rootElement.clientHeight
+        const scrollTop = rootElement.scrollTop
+        
+        console.log('Using #root element:', { scrollHeight, clientHeight, scrollTop, isScrollable: scrollHeight > clientHeight })
+        
+        if (scrollHeight > clientHeight) {
+          return {
+            scrollTop,
+            scrollHeight,
+            clientHeight,
+            element: rootElement
+          }
         }
       }
       
       // Method 2: document.documentElement (html element)
-      if (document.documentElement.scrollHeight > window.innerHeight) {
+      const docScrollHeight = document.documentElement.scrollHeight
+      const docClientHeight = window.innerHeight
+      const docScrollTop = document.documentElement.scrollTop || window.pageYOffset || 0
+      
+      console.log('Using document.documentElement:', { docScrollHeight, docClientHeight, docScrollTop })
+      
+      if (docScrollHeight > docClientHeight) {
         return {
-          scrollTop: document.documentElement.scrollTop || window.pageYOffset,
-          scrollHeight: document.documentElement.scrollHeight,
-          clientHeight: window.innerHeight,
+          scrollTop: docScrollTop,
+          scrollHeight: docScrollHeight,
+          clientHeight: docClientHeight,
           element: document.documentElement
         }
       }
       
       // Method 3: document.body
+      console.log('Using document.body fallback')
       return {
-        scrollTop: document.body.scrollTop || window.pageYOffset,
+        scrollTop: document.body.scrollTop || window.pageYOffset || 0,
         scrollHeight: document.body.scrollHeight || document.documentElement.scrollHeight,
         clientHeight: window.innerHeight || document.documentElement.clientHeight,
         element: document.body
@@ -155,20 +174,25 @@ function InventoryForm() {
     }
 
     const checkScrollPosition = () => {
+      console.log('Scroll event fired')
+      
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
 
       animationFrameId = requestAnimationFrame(() => {
-        if (!bottomBar) return
+        if (!bottomBar) {
+          console.log('Bottom bar not found in animation frame')
+          return
+        }
 
-        const { scrollTop, scrollHeight, clientHeight } = getScrollInfo()
+        const scrollInfo = getScrollInfo()
+        const { scrollTop, scrollHeight, clientHeight } = scrollInfo
         
         // Consider "near bottom" if within 300px of the bottom
         const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
         const nearBottom = distanceFromBottom < 300
 
-        // Debug logging - remove after testing
         console.log('Bottom bar scroll check:', {
           scrollTop,
           scrollHeight,
@@ -188,32 +212,49 @@ function InventoryForm() {
           // Keep at bottom
           bottomBar.style.transform = 'translate3d(0, 0, 0)'
           bottomBar.style.transition = 'transform 0.3s ease-out'
-          console.log('Keeping bar at bottom')
         }
       })
     }
 
-    // Listen for scroll on all possible scrollable elements
-    const rootElement = document.getElementById('root')
-    if (rootElement) {
-      rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
-      cleanupFunctions.push(() => rootElement.removeEventListener('scroll', checkScrollPosition))
+    // Set up with retry mechanism
+    const setupListeners = () => {
+      // Listen for scroll on all possible scrollable elements
+      const rootElement = document.getElementById('root')
+      
+      if (rootElement) {
+        console.log('Adding scroll listener to #root element')
+        rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
+        cleanupFunctions.push(() => {
+          console.log('Removing scroll listener from #root')
+          rootElement.removeEventListener('scroll', checkScrollPosition)
+        })
+      } else {
+        console.log('#root element not found')
+      }
+      
+      console.log('Adding scroll listeners to window and document')
+      window.addEventListener('scroll', checkScrollPosition, { passive: true })
+      window.addEventListener('resize', checkScrollPosition, { passive: true })
+      document.addEventListener('scroll', checkScrollPosition, { passive: true })
+      
+      cleanupFunctions.push(() => {
+        window.removeEventListener('scroll', checkScrollPosition)
+        window.removeEventListener('resize', checkScrollPosition)
+        document.removeEventListener('scroll', checkScrollPosition)
+      })
+      
+      // Initial check
+      console.log('Running initial scroll check')
+      setTimeout(() => {
+        checkScrollPosition()
+      }, 500)
     }
-    
-    window.addEventListener('scroll', checkScrollPosition, { passive: true })
-    window.addEventListener('resize', checkScrollPosition, { passive: true })
-    document.addEventListener('scroll', checkScrollPosition, { passive: true })
-    
-    cleanupFunctions.push(() => {
-      window.removeEventListener('scroll', checkScrollPosition)
-      window.removeEventListener('resize', checkScrollPosition)
-      document.removeEventListener('scroll', checkScrollPosition)
-    })
-    
-    // Initial check
-    setTimeout(checkScrollPosition, 200)
+
+    // Wait a bit for DOM to be ready, then set up
+    setTimeout(setupListeners, 300)
 
     return () => {
+      console.log('Cleaning up scroll listeners')
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
