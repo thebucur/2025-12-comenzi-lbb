@@ -548,19 +548,21 @@ function InventoryForm() {
   const handleNextCategory = () => {
     if (categories.length === 0) return
     
+    // Get the scrollable root element
+    const rootElement = document.getElementById('root') || document.documentElement
+    
     // Find the currently visible category based on scroll position
     let currentVisibleIndex = -1
-    const scrollPosition = window.scrollY + 100 // Add offset for better detection
     
     for (let i = 0; i < categories.length; i++) {
       const category = categories[i]
       const categoryElement = categoryRefs.current[category.id]
       
       if (categoryElement) {
-        const elementTop = categoryElement.offsetTop
-        const elementBottom = elementTop + categoryElement.offsetHeight
-        
-        if (scrollPosition >= elementTop && scrollPosition <= elementBottom) {
+        // Get element position - rect.top is relative to viewport
+        const rect = categoryElement.getBoundingClientRect()
+        // Element is visible if it's in the viewport (with some tolerance)
+        if (rect.top >= -50 && rect.top <= window.innerHeight / 2) {
           currentVisibleIndex = i
           break
         }
@@ -575,12 +577,18 @@ function InventoryForm() {
     const categoryElement = categoryRefs.current[nextCategory.id]
     
     if (categoryElement) {
-      // Scroll to category with offset to account for fixed bottom bar
-      const elementPosition = categoryElement.offsetTop
-      const offsetPosition = elementPosition - 20 // Small offset from top
+      // Calculate scroll position using getBoundingClientRect
+      // This works reliably with scrollable containers
+      const rect = categoryElement.getBoundingClientRect()
+      const rootRect = rootElement.getBoundingClientRect()
+      const currentScrollTop = rootElement.scrollTop || 0
       
-      window.scrollTo({
-        top: offsetPosition,
+      // Calculate absolute position: current scroll + element position relative to root
+      const scrollToPosition = currentScrollTop + rect.top - rootRect.top - 20
+      
+      // Scroll to the calculated position
+      rootElement.scrollTo({
+        top: Math.max(0, scrollToPosition),
         behavior: 'smooth'
       })
     }
