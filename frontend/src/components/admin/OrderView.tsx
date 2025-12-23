@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 import { getDateRecencyClass } from '../../utils/dateRecency'
+import { formatBucharestDate } from '../../utils/date'
 
 // Use centralized function
 const getAbsoluteUrl = getAbsoluteImageUrl
@@ -204,7 +205,7 @@ function AdminOrderView() {
           </div>
           <h1 className="text-5xl font-bold text-gradient mb-2">Comandă #{order.orderNumber}</h1>
           <p className={`text-secondary/60 text-lg ${createdDateClass}`}>
-            Creată la {new Date(order.createdAt).toLocaleDateString('ro-RO')} 
+            Creată la {formatBucharestDate(order.createdAt)} 
             {' '}{new Date(order.createdAt).toLocaleTimeString('ro-RO')}
           </p>
         </div>
@@ -243,7 +244,7 @@ function AdminOrderView() {
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Data ridicare/livrare</p>
                 <p className={`font-bold text-secondary text-lg ${pickupDateClass}`}>
-                  {new Date(order.pickupDate).toLocaleDateString('ro-RO')}
+                  {formatBucharestDate(order.pickupDate)}
                 </p>
               </div>
               {order.advance && order.advance > 0 && (

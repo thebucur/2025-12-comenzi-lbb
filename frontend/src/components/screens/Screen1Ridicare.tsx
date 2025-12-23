@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { Location } from '../../types/order.types'
+import { getTodayString, toBucharestDateString } from '../../utils/date'
 
 const locations: Location[] = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
 const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
@@ -26,13 +27,16 @@ function Screen1Ridicare() {
   }, [staffNames, staffNamesKey])
 
   const isTodayOrTomorrow = (date: string) => {
-    const selectedDate = new Date(date)
-    const today = new Date()
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
+    const todayStr = getTodayString()
+    const selectedDateStr = toBucharestDateString(date)
     
-    return selectedDate.toDateString() === today.toDateString() || 
-           selectedDate.toDateString() === tomorrow.toDateString()
+    // Get tomorrow's date in Bucharest timezone
+    const todayDate = new Date(todayStr + 'T00:00:00')
+    const tomorrowDate = new Date(todayDate)
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+    const tomorrowStr = toBucharestDateString(tomorrowDate)
+    
+    return selectedDateStr === todayStr || selectedDateStr === tomorrowStr
   }
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,7 +270,7 @@ function Screen1Ridicare() {
             onDrop={(e) => e.preventDefault()}
             onFocus={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
             inputMode="none"
-            min={new Date().toISOString().split('T')[0]}
+            min={getTodayString()}
             className="input-neumorphic w-full text-secondary cursor-pointer"
           />
         </div>

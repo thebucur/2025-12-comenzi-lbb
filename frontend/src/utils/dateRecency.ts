@@ -1,3 +1,5 @@
+import { toBucharestDateString, getTodayString } from './date'
+
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 /**
@@ -5,6 +7,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24
  * - Yesterday: orange text
  * - Two days ago or older: red text
  * - Today or future dates: no color override
+ * Uses Bucharest timezone for date comparisons.
  */
 export const getDateRecencyClass = (dateString?: string | null): string => {
   const recency = getDateRecency(dateString)
@@ -18,6 +21,7 @@ export const getDateRecencyClass = (dateString?: string | null): string => {
  * - Yesterday: yellow
  * - Two days ago or older: red
  * - Otherwise: null
+ * Uses Bucharest timezone for date comparisons.
  */
 export const getDateRecencyHex = (dateString?: string | null): string | null => {
   const recency = getDateRecency(dateString)
@@ -34,13 +38,19 @@ const getDateRecency = (dateString?: string | null): Recency => {
   const parsed = new Date(dateString)
   if (isNaN(parsed.getTime())) return 'future'
 
-  const today = new Date()
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const targetStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+  // Get today's date string in Bucharest timezone (YYYY-MM-DD)
+  const todayStr = getTodayString()
+  // Get the target date string in Bucharest timezone (YYYY-MM-DD)
+  const targetStr = toBucharestDateString(parsed)
 
-  const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
+  // Compare date strings directly
+  if (targetStr === todayStr) return 'today'
+  
+  // Calculate difference in days
+  const todayDate = new Date(todayStr + 'T00:00:00')
+  const targetDate = new Date(targetStr + 'T00:00:00')
+  const diffDays = Math.floor((todayDate.getTime() - targetDate.getTime()) / MS_PER_DAY)
 
-  if (diffDays === 0) return 'today'
   if (diffDays === 1) return 'yesterday'
   if (diffDays > 1) return 'older'
   return 'future'

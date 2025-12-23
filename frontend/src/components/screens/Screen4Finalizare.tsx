@@ -4,6 +4,7 @@ import { useOrder } from '../../context/OrderContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
+import { formatBucharestDate } from '../../utils/date'
 
 function Screen4Finalizare() {
   const { order, updateOrder, resetOrder } = useOrder()
@@ -315,7 +316,7 @@ function Screen4Finalizare() {
           {order.pickupDate && (
             <div className="bg-primary/50 p-4 rounded-2xl">
               <p className="text-sm text-secondary/60 mb-1">Data</p>
-              <p className="font-bold text-secondary">{new Date(order.pickupDate).toLocaleDateString('ro-RO')}</p>
+              <p className="font-bold text-secondary">{formatBucharestDate(order.pickupDate)}</p>
             </div>
           )}
           

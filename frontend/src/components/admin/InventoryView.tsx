@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { INVENTORY_CATEGORIES } from '../../constants/inventoryProducts'
+import { formatBucharestDate, toBucharestDateString, getTodayString } from '../../utils/date'
 
 function InventoryView() {
   const { id } = useParams<{ id: string }>()
@@ -95,9 +96,10 @@ function InventoryView() {
     const parsed = dateInput instanceof Date ? dateInput : new Date(dateInput)
     if (isNaN(parsed.getTime())) return null
 
-    const today = new Date()
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const targetStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    const todayStr = getTodayString()
+    const targetStr = toBucharestDateString(parsed)
+    const todayStart = new Date(todayStr + 'T00:00:00')
+    const targetStart = new Date(targetStr + 'T00:00:00')
 
     const MS_PER_DAY = 24 * 60 * 60 * 1000
     const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
@@ -117,7 +119,7 @@ function InventoryView() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      const dateStr = new Date(inventory.date).toISOString().split('T')[0]
+      const dateStr = toBucharestDateString(inventory.date)
       link.download = `inventory-${inventory.username}-${dateStr}.pdf`
       document.body.appendChild(link)
       link.click()
@@ -169,7 +171,7 @@ function InventoryView() {
       <div className="container mx-auto px-4 py-8 relative z-10">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-4xl font-bold text-gradient">
-            Inventar - {inventory.username} - {new Date(inventory.date).toLocaleDateString('ro-RO')}
+            Inventar - {inventory.username} - {formatBucharestDate(inventory.date)}
           </h1>
           <button
             onClick={() => navigate('/admin/dashboard?tab=inventory')}

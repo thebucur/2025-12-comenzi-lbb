@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { getDateRecencyClass } from '../utils/dateRecency'
+import { formatBucharestDate } from '../utils/date'
 
 // Helper component for date group checkbox with indeterminate state
 function DateGroupCheckbox({ 
@@ -87,7 +88,7 @@ function UserOrdersView() {
     
     ordersList.forEach((order) => {
       const date = new Date(order.createdAt)
-      const dateKey = date.toLocaleDateString('ro-RO', { 
+      const dateKey = formatBucharestDate(date, { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
@@ -216,7 +217,7 @@ function UserOrdersView() {
                         // Format date without year: "DD MMMM" (e.g., "15 decembrie")
                         const formatDateWithoutYear = (dateString: string) => {
                           const date = new Date(dateString)
-                          return date.toLocaleDateString('ro-RO', { 
+                          return formatBucharestDate(date, { 
                             day: 'numeric', 
                             month: 'long'
                           })

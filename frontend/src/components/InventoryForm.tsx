@@ -9,6 +9,7 @@ import {
   InventoryEntryData 
 } from '../services/inventory.api'
 import api from '../services/api'
+import { getTodayString, formatBucharestDate, toBucharestDateString } from '../utils/date'
 
 interface ProductFormData {
   id?: string // Unique ID for stable keys
@@ -30,7 +31,7 @@ interface InventoryCategory {
 function InventoryForm() {
   const navigate = useNavigate()
   const username = localStorage.getItem('authToken') || 'Unknown'
-  const today = new Date().toLocaleDateString('ro-RO')
+  const today = formatBucharestDate(new Date())
   
   const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [productEntries, setProductEntries] = useState<ProductFormData[]>([])
@@ -263,7 +264,7 @@ function InventoryForm() {
           isCustomProduct: false,
           entries: [
             {
-              receptionDate: new Date().toISOString().split('T')[0],
+              receptionDate: getTodayString(),
               quantity: 0,
               unit: category.defaultUnit,
               requiredQuantity: 0,
@@ -381,7 +382,7 @@ function InventoryForm() {
           isCustomProduct: isCustom,
           entries: [
             {
-              receptionDate: new Date().toISOString().split('T')[0],
+              receptionDate: getTodayString(),
               quantity: 0,
               unit,
               requiredQuantity: 0,
@@ -438,8 +439,8 @@ function InventoryForm() {
   const adjustDate = (currentDate: string, days: number): string => {
     const date = new Date(currentDate)
     date.setDate(date.getDate() + days)
-    const adjustedDateStr = date.toISOString().split('T')[0]
-    const todayStr = new Date().toISOString().split('T')[0]
+    const adjustedDateStr = toBucharestDateString(date)
+    const todayStr = getTodayString()
     // Don't allow dates in the future
     return adjustedDateStr > todayStr ? todayStr : adjustedDateStr
   }
@@ -455,9 +456,10 @@ function InventoryForm() {
   const getDateBackgroundColor = (dateString: string): string | null => {
     const MS_PER_DAY = 1000 * 60 * 60 * 24
     const parsed = new Date(dateString)
-    const today = new Date()
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const targetStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    const todayStr = getTodayString()
+    const targetStr = toBucharestDateString(parsed)
+    const todayStart = new Date(todayStr + 'T00:00:00')
+    const targetStart = new Date(targetStr + 'T00:00:00')
     
     const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
     
@@ -483,7 +485,7 @@ function InventoryForm() {
       link.href = url
       
       // Generate filename
-      const dateStr = new Date(date).toISOString().split('T')[0]
+      const dateStr = toBucharestDateString(date)
       link.download = `inventory-${username}-${dateStr}.pdf`
       
       // Trigger download
@@ -732,7 +734,7 @@ function InventoryForm() {
                           {/* All inventory rows */}
                           {product.entries.map((entry, entryIndex) => {
                             // Ensure entry has required fields
-                            const receptionDate = entry.receptionDate || new Date().toISOString().split('T')[0]
+                            const receptionDate = entry.receptionDate || getTodayString()
                             const unit = entry.unit || category.defaultUnit
                             const quantity = entry.quantity || 0
 
@@ -767,7 +769,7 @@ function InventoryForm() {
                                       'receptionDate',
                                       e.target.value
                                     )}
-                                    max={new Date().toISOString().split('T')[0]}
+                                    max={getTodayString()}
                                     className="hidden"
                                     id={`date-mobile-${product.category}-${product.productName}-${entryIndex}`}
                                   />
@@ -912,7 +914,7 @@ function InventoryForm() {
                         <div className="relative hidden md:block" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
                           {product.entries.map((entry, entryIndex) => {
                             // Ensure entry has required fields
-                            const receptionDate = entry.receptionDate || new Date().toISOString().split('T')[0]
+                            const receptionDate = entry.receptionDate || getTodayString()
                             const unit = entry.unit || category.defaultUnit
                             const quantity = entry.quantity || 0
                             const requiredUnit = entry.requiredUnit || category.defaultUnit
@@ -973,7 +975,7 @@ function InventoryForm() {
                                       'receptionDate',
                                       e.target.value
                                     )}
-                                    max={new Date().toISOString().split('T')[0]}
+                                    max={getTodayString()}
                                     className="hidden"
                                     id={`date-${product.category}-${product.productName}-${entryIndex}`}
                                   />

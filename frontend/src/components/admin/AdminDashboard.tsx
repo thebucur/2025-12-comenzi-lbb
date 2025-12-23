@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import api from '../../services/api'
 import { getInventoriesByDate } from '../../services/inventory.api'
 import { getDateRecencyClass } from '../../utils/dateRecency'
+import { getTodayString, formatBucharestDate, formatBucharestDateTime, toBucharestDateString } from '../../utils/date'
 import InventoryProductsManager from './InventoryProductsManager'
 
 // Helper component for date group checkbox with indeterminate state
@@ -666,12 +667,14 @@ function AdminDashboard() {
   const fetchInventoryData = async () => {
     setLoadingInventory(true)
     try {
-      // Generate array of 5 dates: today and 4 past days
+      // Generate array of 5 dates: today and 4 past days (in Bucharest timezone)
       const dates: string[] = []
+      const todayStr = getTodayString()
+      const todayDate = new Date(todayStr + 'T00:00:00')
       for (let i = 0; i < 5; i++) {
-        const date = new Date()
+        const date = new Date(todayDate)
         date.setDate(date.getDate() - i)
-        dates.push(date.toISOString().split('T')[0])
+        dates.push(toBucharestDateString(date))
       }
 
       // Fetch inventory data for all dates in parallel
@@ -775,7 +778,7 @@ function AdminDashboard() {
     
     ordersList.forEach((order) => {
       const date = new Date(order.createdAt)
-      const dateKey = date.toLocaleDateString('ro-RO', { 
+      const dateKey = formatBucharestDate(date, { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
@@ -882,7 +885,7 @@ function AdminDashboard() {
       const url = window.URL.createObjectURL(zipBlob)
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `comenzi-${new Date().toISOString().split('T')[0]}.zip`)
+      link.setAttribute('download', `comenzi-${getTodayString()}.zip`)
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -1198,12 +1201,12 @@ function AdminDashboard() {
                               : 'Livrare la adresa'
                             
                             const deliveryDate = order.pickupDate 
-                              ? new Date(order.pickupDate).toLocaleDateString('ro-RO')
+                              ? formatBucharestDate(order.pickupDate)
                               : '-'
                             const deliveryDateClass = getDateRecencyClass(order.pickupDate)
                             
                             const createdDate = order.createdAt 
-                              ? new Date(order.createdAt).toLocaleDateString('ro-RO')
+                              ? formatBucharestDate(order.createdAt)
                               : '-'
                             const createdDateClass = getDateRecencyClass(order.createdAt)
                             
@@ -1318,7 +1321,7 @@ function AdminDashboard() {
                   <div className="bg-primary/50 p-3 rounded-xl mb-4">
                     <p className="text-sm text-secondary/60">Creat</p>
                     <p className="font-bold text-secondary">
-                      {new Date(user.createdAt).toLocaleDateString('ro-RO')}
+                      {formatBucharestDate(user.createdAt)}
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -1454,7 +1457,7 @@ function AdminDashboard() {
                   .map(([date, inventoryData]) => (
                     <div key={date} className="card-neumorphic">
                       <h3 className="text-xl font-bold text-secondary mb-4">
-                        Inventare pentru {new Date(date).toLocaleDateString('ro-RO', {
+                        Inventare pentru {formatBucharestDate(date, {
                           weekday: 'long',
                           year: 'numeric',
                           month: 'long',
@@ -1482,7 +1485,7 @@ function AdminDashboard() {
                                   <p className="font-bold text-secondary">{userStatus.username}</p>
                                   <p className="text-sm text-secondary/60">
                                     {userStatus.hasSubmitted && userStatus.inventory
-                                      ? `Submitted at ${new Date(userStatus.inventory.submittedAt).toLocaleString('ro-RO')}`
+                                      ? `Submitted at ${formatBucharestDateTime(userStatus.inventory.submittedAt)}`
                                       : 'Not submitted'}
                                   </p>
                                 </div>
