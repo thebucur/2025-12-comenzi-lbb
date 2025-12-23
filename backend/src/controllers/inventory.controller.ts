@@ -173,6 +173,7 @@ export const submitInventory = async (req: Request, res: Response) => {
         })),
       })
 
+      // Version will be incremented automatically by PDF service if generation code changed
       inventory = await prisma.inventory.findUnique({
         where: { id: existingInventory.id },
         include: { entries: true },
@@ -290,13 +291,16 @@ export const getInventoryPDF = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'PDF file not found on disk' })
     }
 
+    const downloadName = path.basename(pdfFullPath)
     res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `inline; filename="inventory-${inventory.username}-${inventory.date.toISOString().split('T')[0]}.pdf"`)
+    // Use attachment so the browser gets the exact filename (including incremental suffix)
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
     res.sendFile(pdfFullPath)
   } catch (error) {
     console.error('Error fetching inventory PDF:', error)
     res.status(500).json({ error: 'Failed to fetch PDF' })
   }
 }
+
 
 

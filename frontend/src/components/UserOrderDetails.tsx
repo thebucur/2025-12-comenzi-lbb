@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { resolveColorValue } from '../constants/colors'
 import { getAbsoluteImageUrl } from '../utils/imageUrl'
+import { getDateRecencyClass } from '../utils/dateRecency'
 
 // Use centralized function
 const getAbsoluteUrl = getAbsoluteImageUrl
@@ -101,6 +102,8 @@ function UserOrderDetails() {
   // Get foaie de zahar photos
   const foaieDeZaharPhotos = order.photos.filter(p => p.isFoaieDeZahar)
   const regularPhotos = order.photos.filter(p => !p.isFoaieDeZahar)
+  const createdDateClass = getDateRecencyClass(order.createdAt)
+  const pickupDateClass = getDateRecencyClass(order.pickupDate)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary">
@@ -120,7 +123,7 @@ function UserOrderDetails() {
             <span className="text-5xl">📋</span>
           </div>
           <h1 className="text-5xl font-bold text-gradient mb-2">Comandă #{order.orderNumber}</h1>
-          <p className="text-secondary/60 text-lg">
+          <p className={`text-secondary/60 text-lg ${createdDateClass}`}>
             Creată la {new Date(order.createdAt).toLocaleDateString('ro-RO')} 
             {' '}{new Date(order.createdAt).toLocaleTimeString('ro-RO')}
           </p>
@@ -159,7 +162,7 @@ function UserOrderDetails() {
               </div>
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Data ridicare/livrare</p>
-                <p className="font-bold text-secondary text-lg">
+                <p className={`font-bold text-secondary text-lg ${pickupDateClass}`}>
                   {new Date(order.pickupDate).toLocaleDateString('ro-RO')}
                 </p>
               </div>
@@ -304,4 +307,5 @@ function UserOrderDetails() {
 }
 
 export default UserOrderDetails
+
 

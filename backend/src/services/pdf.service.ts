@@ -923,7 +923,7 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
     const titleFontSize = 12
     const categoryFontSize = 8
     const headerFontSize = 7
-    const lineHeight = 10  // Row height
+    const lineHeight = 12  // Row height
     
     // Month abbreviations for date formatting
     const monthAbbr = ['IAN', 'FEB', 'MAR', 'APR', 'MAI', 'IUN', 'IUL', 'AUG', 'SEP', 'OCT', 'NOI', 'DEC']
@@ -1032,12 +1032,49 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
       submittedEntriesMap.get(entry.category)!.set(entry.productName, entry)
     }
     
-    // Process all categories from INVENTORY_CATEGORIES
-    const categories = INVENTORY_CATEGORIES
+    // Fetch categories from database, sorted by displayOrder
+    // TypeScript may not recognize the model, but it exists at runtime
+    const dbCategories = await (prisma as any).inventoryCategory.findMany({
+      include: {
+        products: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+      orderBy: { displayOrder: 'asc' },
+    }) as Array<{
+      id: string
+      name: string
+      units: string[]
+      defaultUnit: string
+      products: Array<{ name: string }>
+    }>
+    
+    // Convert database categories to the format expected by PDF generation
+    // Use database categories if available, otherwise fall back to hardcoded ones
+    const categories = dbCategories.length > 0 
+      ? dbCategories.map((cat) => ({
+          id: cat.id,
+          name: cat.name,
+          units: cat.units,
+          defaultUnit: cat.defaultUnit,
+          products: cat.products.map((p) => p.name),
+        }))
+      : INVENTORY_CATEGORIES
     
     // Colors
     const categoryColor = '#c1121f' // red for category headers
     const textColor = '#000000'
+    
+    // Helper to draw a horizontal line between rows
+    const drawRowSeparator = (columnX: number, rowY: number) => {
+      doc.save()
+      doc.strokeColor('#d3d3d3') // light grey color
+      doc.lineWidth(0.3) // thin line
+      doc.moveTo(columnX, rowY + lineHeight)
+      doc.lineTo(columnX + columnWidth, rowY + lineHeight)
+      doc.stroke()
+      doc.restore()
+    }
     
     // Helper to draw a row
     const drawRow = (
@@ -1093,6 +1130,9 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
         align: 'center',
         lineBreak: false
       })
+      
+      // Draw horizontal line at the bottom of the row
+      drawRowSeparator(columnX, rowY)
     }
     
     // Track column positions and row indices

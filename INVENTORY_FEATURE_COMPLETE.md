@@ -39,12 +39,12 @@ The inventory feature has been fully implemented as specified. Users can now sub
 ### 3. Frontend Implementation ✅
 - **Product Constants** (`frontend/src/constants/inventoryProducts.ts`):
   - 6 categories defined:
-    1. PRODUSE LA BUCATA (31 products) - units: buc./g./tava
-    2. PRODUSE KG (30 products) - units: tava/platou/rand
+    1. PRODUSE LA BUCATA (31 products) - units: buc./g./tv
+    2. PRODUSE KG (30 products) - units: tv/plt/rand
     3. TORTURI SI TARTE (21 products) - units: felie/buc.
-    4. PATISERIE (10 products) - units: tava/platou
+    4. PATISERIE (10 products) - units: tv/plt
     5. ALTELE (3 products) - units: buc./g.
-    6. POST (8 products) - units: tava/platou/rand
+    6. POST (8 products) - units: tv/plt/rand
 
 - **API Service** (`frontend/src/services/inventory.api.ts`):
   - TypeScript interfaces for all data types
@@ -201,5 +201,6 @@ To test the implementation:
 ## Conclusion
 
 The inventory feature is fully implemented and ready for testing. All requirements from the plan have been met. The only minor issue is the Prisma client generation which will resolve itself when the backend server is restarted or when file locks are released.
+
 
 

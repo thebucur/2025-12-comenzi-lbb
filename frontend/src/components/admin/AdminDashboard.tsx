@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import api from '../../services/api'
 import { getInventoriesByDate, getInventoryPDFUrl } from '../../services/inventory.api'
 import { getDateRecencyClass } from '../../utils/dateRecency'
+import InventoryProductsManager from './InventoryProductsManager'
 
 interface Photo {
   id: string
@@ -484,7 +485,7 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
 
 function AdminDashboard() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts'>('orders')
   const [orders, setOrders] = useState<Order[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
@@ -951,6 +952,16 @@ function AdminDashboard() {
             >
               📋 Inventar
             </button>
+            <button
+              onClick={() => setActiveTab('inventoryProducts')}
+              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+                activeTab === 'inventoryProducts'
+                  ? 'btn-active scale-105'
+                  : 'bg-primary/50 text-secondary hover:scale-102'
+              }`}
+            >
+              📦 Produse Inventar
+            </button>
           </div>
         </div>
 
@@ -1351,6 +1362,11 @@ function AdminDashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Inventory Products Tab */}
+        {activeTab === 'inventoryProducts' && (
+          <InventoryProductsManager />
         )}
 
         {/* User Modal */}

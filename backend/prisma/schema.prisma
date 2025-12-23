@@ -101,6 +101,7 @@ model Inventory {
   date          DateTime          // Date for which inventory is submitted (date only, no time)
   submittedAt   DateTime          @default(now())
   pdfPath       String?
+  version       Int               @default(1)  // Version number (v1, v2, v3, etc.)
   entries       InventoryEntry[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -119,4 +120,28 @@ model InventoryEntry {
   entries         Json      // Array of {receptionDate: Date, quantity: number, unit: string}
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// Inventory Product Management Models
+model InventoryCategory {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  units       String[]           // Available measuring units
+  defaultUnit String             // Default unit for this category
+  displayOrder Int               @default(0) // For sorting categories
+  products    InventoryProduct[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model InventoryProduct {
+  id         String            @id @default(uuid())
+  categoryId String
+  category   InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String            // Product name
+  displayOrder Int             @default(0) // For sorting products within a category
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  
+  @@unique([categoryId, name])
 }

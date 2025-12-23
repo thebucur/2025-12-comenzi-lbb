@@ -17,11 +17,21 @@ interface ProductFormData {
   entries: InventoryEntryData[]
 }
 
+interface InventoryCategory {
+  id: string
+  name: string
+  units: string[]
+  defaultUnit: string
+  displayOrder: number
+  products: string[] // Product names as strings
+}
+
 function InventoryForm() {
   const navigate = useNavigate()
   const username = localStorage.getItem('authToken') || 'Unknown'
   const today = new Date().toLocaleDateString('ro-RO')
   
+  const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [productEntries, setProductEntries] = useState<ProductFormData[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -32,10 +42,46 @@ function InventoryForm() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const initialLoadRef = useRef(true)
 
-  // Load today's inventory on mount or initialize all products
+  // Load categories from API
   useEffect(() => {
-    loadTodayInventory()
+    loadCategories()
   }, [])
+
+  // Load today's inventory after categories are loaded
+  useEffect(() => {
+    if (categories.length > 0) {
+      loadTodayInventory()
+    }
+  }, [categories])
+
+  const loadCategories = async () => {
+    try {
+      const response = await api.get('/inventory-products/categories/public')
+      // Transform API response to match expected format
+      const transformedCategories: InventoryCategory[] = response.data.map((cat: any) => ({
+        id: cat.id,
+        name: cat.name,
+        units: cat.units,
+        defaultUnit: cat.defaultUnit,
+        displayOrder: cat.displayOrder || 0,
+        products: cat.products.map((p: any) => p.name).sort()
+      })).sort((a: InventoryCategory, b: InventoryCategory) => a.displayOrder - b.displayOrder)
+      
+      setCategories(transformedCategories)
+    } catch (error) {
+      console.error('Error loading categories from API, using fallback:', error)
+      // Fallback to hardcoded categories if API fails
+      const fallbackCategories: InventoryCategory[] = INVENTORY_CATEGORIES.map((cat, index) => ({
+        id: cat.id,
+        name: cat.name,
+        units: cat.units,
+        defaultUnit: cat.defaultUnit,
+        displayOrder: index,
+        products: cat.products
+      }))
+      setCategories(fallbackCategories)
+    }
+  }
 
   // Auto-save effect - saves draft after 1 second of inactivity
   useEffect(() => {
@@ -82,10 +128,10 @@ function InventoryForm() {
     }
   }
 
-  // Helper function to create all default products
+  // Helper function to create all default products from loaded categories
   const createAllDefaultProducts = (): ProductFormData[] => {
     const allProducts: ProductFormData[] = []
-    INVENTORY_CATEGORIES.forEach(category => {
+    categories.forEach(category => {
       category.products.forEach(productName => {
         allProducts.push({
           id: `${category.name}-${productName}`,
@@ -397,7 +443,7 @@ function InventoryForm() {
               ← ÎNAPOI
             </button>
           </div>
-          {INVENTORY_CATEGORIES.map(category => {
+          {categories.map(category => {
             const categoryProducts = productEntries.filter(e => e.category === category.name)
             
             return (

@@ -12,8 +12,12 @@ import adminRoutes from './routes/admin.routes'
 import authRoutes from './routes/auth.routes'
 import configRoutes from './routes/config.routes'
 import inventoryRoutes from './routes/inventory.routes'
+import inventoryProductsRoutes from './routes/inventory-products.routes'
 
 dotenv.config()
+
+// Build marker to verify deployed code version
+const BUILD_VERSION = 'pdf-unique-20251223'
 
 // Function to automatically seed the database
 async function seedDatabase() {
@@ -195,6 +199,11 @@ app.use('/pdfs', (req, res, next) => {
   next()
 }, express.static(PDF_DIR))
 
+// Health/version endpoint to verify deployed backend build
+app.get('/api/version', (_req, res) => {
+  res.json({ version: BUILD_VERSION })
+})
+
 // Routes
 app.use('/api/orders', ordersRoutes)
 app.use('/api/upload', uploadRoutes)
@@ -203,6 +212,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/config', configRoutes)
 app.use('/api/inventory', inventoryRoutes)
+app.use('/api/inventory-products', inventoryProductsRoutes)
 
 // Log registered routes on startup
 console.log('Registered routes:')

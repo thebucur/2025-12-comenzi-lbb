@@ -1,4 +1,8 @@
-export interface InventoryCategory {
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+interface InventoryCategory {
   id: string
   name: string
   units: string[]
@@ -6,7 +10,7 @@ export interface InventoryCategory {
   products: string[]
 }
 
-export const INVENTORY_CATEGORIES: InventoryCategory[] = [
+const INVENTORY_CATEGORIES: InventoryCategory[] = [
   {
     id: 'produse-bucata',
     name: 'PRODUSE LA BUCATA',
@@ -158,5 +162,54 @@ export const INVENTORY_CATEGORIES: InventoryCategory[] = [
   },
 ]
 
+async function seedInventoryProducts() {
+  console.log('🌱 Seeding inventory products...')
 
+  try {
+    // Delete all existing categories and products (cascading delete will handle products)
+    await prisma.inventoryProduct.deleteMany()
+    await prisma.inventoryCategory.deleteMany()
+    console.log('✅ Cleared existing inventory products and categories')
+
+    // Create categories and products
+    for (let i = 0; i < INVENTORY_CATEGORIES.length; i++) {
+      const categoryData = INVENTORY_CATEGORIES[i]
+      
+      const category = await prisma.inventoryCategory.create({
+        data: {
+          name: categoryData.name,
+          units: categoryData.units,
+          defaultUnit: categoryData.defaultUnit,
+          displayOrder: i,
+        },
+      })
+
+      console.log(`✅ Created category: ${category.name}`)
+
+      // Create products for this category
+      for (let j = 0; j < categoryData.products.length; j++) {
+        const productName = categoryData.products[j]
+        
+        await prisma.inventoryProduct.create({
+          data: {
+            categoryId: category.id,
+            name: productName,
+            displayOrder: j,
+          },
+        })
+      }
+
+      console.log(`✅ Created ${categoryData.products.length} products for ${category.name}`)
+    }
+
+    console.log('✅ Successfully seeded inventory products!')
+  } catch (error) {
+    console.error('❌ Error seeding inventory products:', error)
+    throw error
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+seedInventoryProducts()
 

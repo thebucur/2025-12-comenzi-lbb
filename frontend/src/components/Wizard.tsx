@@ -135,17 +135,19 @@ function Wizard({ onLogout }: WizardProps) {
           currentStep={currentStep} 
           onStepClick={handleStepClick}
         />
-        
+
         <div className="mt-8">
           {currentStep === 1 && <Screen1Ridicare />}
           {currentStep === 2 && <Screen2Sortiment />}
           {currentStep === 3 && <Screen3Decor />}
           {currentStep === 4 && <Screen4Finalizare />}
         </div>
-
+        
         <div className="max-w-6xl mx-auto">
+
           {/* Desktop Layout */}
           <div className="hidden md:flex justify-between items-center mt-12 gap-4">
+            {/* Back button - desktop */}
             <button
               onClick={handlePrevious}
               disabled={currentStep === 1}

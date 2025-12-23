@@ -25,3 +25,4 @@ router.get('/pdf/:id', getInventoryPDF)
 export default router
 
 
+

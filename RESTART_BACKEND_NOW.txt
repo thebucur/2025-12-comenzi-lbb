@@ -1,0 +1,26 @@
+⚠️ BACKEND RESTART REQUIRED ⚠️
+
+The database is set up correctly, but your backend server needs to restart!
+
+HOW TO RESTART:
+
+1. Find the terminal/window where your backend is running
+   (You should see logs like "Server running on http://...")
+
+2. Press Ctrl+C to stop it
+
+3. Run this command:
+   npm run dev
+
+4. Refresh your browser
+
+That's it! The 500 error will be gone.
+
+---
+
+ALTERNATIVE: If you can't find the backend terminal, just run:
+   cd backend
+   npm run dev
+
+This will start a new backend instance.
+
