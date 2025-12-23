@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { INVENTORY_CATEGORIES } from '../constants/inventoryProducts'
 import { 
@@ -42,6 +43,7 @@ function InventoryForm() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const initialLoadRef = useRef(true)
   const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
+  const bottomBarRef = useRef<HTMLDivElement | null>(null)
 
   // Load categories from API
   useEffect(() => {
@@ -109,6 +111,75 @@ function InventoryForm() {
       }
     }
   }, [productEntries])
+
+  // Detect if near bottom of page to retract the bar
+  useEffect(() => {
+    const bottomBar = bottomBarRef.current
+    if (!bottomBar) return
+
+    // Get the scrollable root element
+    const rootElement = document.getElementById('root')
+    if (!rootElement) return
+
+    let animationFrameId: number | null = null
+
+    const checkScrollPosition = () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+
+      animationFrameId = requestAnimationFrame(() => {
+        if (!bottomBar || !rootElement) return
+
+        // Get scroll position from #root element
+        const scrollTop = rootElement.scrollTop
+        const scrollHeight = rootElement.scrollHeight
+        const clientHeight = rootElement.clientHeight
+        
+        // Consider "near bottom" if within 300px of the bottom
+        const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
+        const nearBottom = distanceFromBottom < 300
+
+        console.log('Scroll position:', {
+          scrollTop,
+          scrollHeight,
+          clientHeight,
+          distanceFromBottom,
+          nearBottom
+        })
+
+        if (nearBottom) {
+          // Move down to reveal submit button
+          const barHeight = bottomBar.offsetHeight || 100
+          bottomBar.style.transform = `translate3d(0, ${barHeight}px, 0)`
+          bottomBar.style.transition = 'transform 0.3s ease-out'
+        } else {
+          // Keep at bottom
+          bottomBar.style.transform = 'translate3d(0, 0, 0)'
+          bottomBar.style.transition = 'transform 0.3s ease-out'
+        }
+      })
+    }
+
+    // Check on scroll and resize with throttling via requestAnimationFrame
+    rootElement.addEventListener('scroll', checkScrollPosition, { passive: true })
+    window.addEventListener('resize', checkScrollPosition, { passive: true })
+    rootElement.addEventListener('touchmove', checkScrollPosition, { passive: true })
+    rootElement.addEventListener('touchend', checkScrollPosition, { passive: true })
+    
+    // Initial check
+    setTimeout(checkScrollPosition, 100)
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+      rootElement.removeEventListener('scroll', checkScrollPosition)
+      window.removeEventListener('resize', checkScrollPosition)
+      rootElement.removeEventListener('touchmove', checkScrollPosition)
+      rootElement.removeEventListener('touchend', checkScrollPosition)
+    }
+  }, [])
 
   // Auto-save function
   const autoSaveDraft = async () => {
@@ -1056,23 +1127,51 @@ function InventoryForm() {
           </div>
         )}
 
-        {/* Mobile Floating Bottom Bar */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t-2 border-secondary/20 shadow-lg safe-area-inset-bottom">
-          <div className="container mx-auto px-4 py-3 flex gap-3">
-            <button
-              onClick={handleNextCategory}
-              className="flex-1 px-4 py-3 rounded-xl bg-accent-purple/80 hover:bg-accent-purple text-white font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+        {/* Mobile Floating Bottom Bar - Rendered via Portal */}
+        {typeof window !== 'undefined' && createPortal(
+          <div 
+            ref={bottomBarRef}
+            className="md:hidden"
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 9999,
+              background: 'linear-gradient(to top, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.95) 25%, rgba(255, 255, 255, 0.5) 60%, rgba(255, 255, 255, 0) 100%)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
+              transition: 'transform 0.3s ease-out',
+              paddingTop: '2.25rem',
+              paddingBottom: `calc(0.75rem + env(safe-area-inset-bottom, 0))`,
+              width: '100%',
+              boxSizing: 'border-box',
+              pointerEvents: 'auto',
+              touchAction: 'none'
+            }}
+          >
+            <div 
+              className="container mx-auto px-4 flex gap-3"
+              style={{ paddingBottom: '0.75rem' }}
             >
-              URMĂTOAREA CATEGORIE
-            </button>
-            <button
-              onClick={handleSaveAndClose}
-              className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
-            >
-              SALVEAZĂ ȘI ÎNCHIDE
-            </button>
-          </div>
-        </div>
+              <button
+                onClick={handleNextCategory}
+                className="flex-1 px-4 py-3 rounded-xl bg-accent-purple/80 hover:bg-accent-purple text-white font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+              >
+                URMĂTOAREA CATEGORIE
+              </button>
+              <button
+                onClick={handleSaveAndClose}
+                className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+              >
+                SALVEAZĂ ȘI ÎNCHIDE
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </div>
   )
