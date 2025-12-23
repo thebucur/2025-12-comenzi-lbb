@@ -79,6 +79,7 @@ model User {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   pickedUpOrders Order[]      @relation("PickedUpOrders")
+  inventories    Inventory[]
 }
 
 model GlobalConfig {
@@ -90,4 +91,32 @@ model GlobalConfig {
   updatedAt   DateTime @updatedAt
   
   @@unique([category, key])
+}
+
+model Inventory {
+  id            String            @id @default(uuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username      String
+  date          DateTime          // Date for which inventory is submitted (date only, no time)
+  submittedAt   DateTime          @default(now())
+  pdfPath       String?
+  entries       InventoryEntry[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model InventoryEntry {
+  id              String    @id @default(uuid())
+  inventoryId     String
+  inventory       Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  category        String    // Category name (e.g., "PRODUSE LA BUCATA")
+  productName     String    // Product name or custom name
+  isCustomProduct Boolean   @default(false)
+  entries         Json      // Array of {receptionDate: Date, quantity: number, unit: string}
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }

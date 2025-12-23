@@ -54,3 +54,4 @@ Write-Host "1. Go to Supabase dashboard → Settings → Database" -ForegroundCo
 Write-Host "2. Copy the EXACT connection string from 'Connection string' section" -ForegroundColor White
 Write-Host "3. Use that exact string (it's already properly formatted)" -ForegroundColor White
 Write-Host "4. Make sure your Supabase project region matches the connection string" -ForegroundColor White
+

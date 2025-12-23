@@ -95,7 +95,7 @@ function Wizard({ onLogout }: WizardProps) {
   const handleTrimiteInventar = (e?: React.MouseEvent) => {
     e?.preventDefault()
     e?.stopPropagation()
-    // TODO: Implement functionality
+    navigate('/inventory')
   }
 
   const handleResetOrder = () => {

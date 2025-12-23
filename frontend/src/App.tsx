@@ -9,6 +9,7 @@ import AdminOrderView from './components/admin/OrderView'
 import PhotoUpload from './components/PhotoUpload'
 import UserOrdersView from './components/UserOrdersView'
 import UserOrderDetails from './components/UserOrderDetails'
+import InventoryForm from './components/InventoryForm'
 
 function App() {
   const [, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
@@ -83,6 +84,10 @@ function App() {
           <Route
             path="/my-orders/:id"
             element={requireAuth(<UserOrderDetails />)}
+          />
+          <Route
+            path="/inventory"
+            element={requireAuth(<InventoryForm />)}
           />
           <Route
             path="/admin"

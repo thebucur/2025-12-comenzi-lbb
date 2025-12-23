@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
+import { getInventoriesByDate, getInventoryPDFUrl } from '../../services/inventory.api'
 
 interface Photo {
   id: string
@@ -482,10 +483,15 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
 
 function AdminDashboard() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory'>('orders')
   const [orders, setOrders] = useState<Order[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
+  const [selectedInventoryDate, setSelectedInventoryDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  )
+  const [inventoryData, setInventoryData] = useState<any>(null)
+  const [loadingInventory, setLoadingInventory] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [isDownloading, setIsDownloading] = useState(false)
@@ -510,7 +516,8 @@ function AdminDashboard() {
     fetchOrders()
     if (activeTab === 'users') fetchUsers()
     if (activeTab === 'globalConfig') fetchGlobalConfigs()
-  }, [activeTab])
+    if (activeTab === 'inventory') fetchInventoryData()
+  }, [activeTab, selectedInventoryDate])
 
   const fetchOrders = async () => {
     try {
@@ -613,6 +620,20 @@ function AdminDashboard() {
     }
   }
 
+  const fetchInventoryData = async () => {
+    if (!selectedInventoryDate) return
+    
+    setLoadingInventory(true)
+    try {
+      const data = await getInventoriesByDate(selectedInventoryDate)
+      setInventoryData(data)
+    } catch (error) {
+      console.error('Error fetching inventory data:', error)
+      setInventoryData(null)
+    } finally {
+      setLoadingInventory(false)
+    }
+  }
 
   const handleCreateUser = () => {
     setEditingUser(null)
@@ -918,6 +939,16 @@ function AdminDashboard() {
               }`}
             >
               ⚙️ Configurare Globală
+            </button>
+            <button
+              onClick={() => setActiveTab('inventory')}
+              className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+                activeTab === 'inventory'
+                  ? 'btn-active scale-105'
+                  : 'bg-primary/50 text-secondary hover:scale-102'
+              }`}
+            >
+              📋 Inventar
             </button>
           </div>
         </div>
@@ -1228,6 +1259,94 @@ function AdminDashboard() {
                 />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Inventory Tab */}
+        {activeTab === 'inventory' && (
+          <div className="space-y-6">
+            <div className="card-neumorphic">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-secondary mb-2">Inventar</h2>
+                  <p className="text-secondary/60">Vizualizează inventarele trimise de utilizatori</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="date"
+                    value={selectedInventoryDate}
+                    onChange={(e) => setSelectedInventoryDate(e.target.value)}
+                    className="input-neumorphic px-4 py-2 text-secondary"
+                  />
+                  <button
+                    onClick={fetchInventoryData}
+                    className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300"
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {loadingInventory ? (
+              <div className="card-neumorphic text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple mb-4 animate-float">
+                  <svg className="animate-spin h-8 w-8 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+                <p className="text-secondary/60">Loading inventory data...</p>
+              </div>
+            ) : inventoryData && inventoryData.users ? (
+              <div className="card-neumorphic">
+                <h3 className="text-xl font-bold text-secondary mb-4">
+                  Inventare pentru {new Date(selectedInventoryDate).toLocaleDateString('ro-RO')}
+                </h3>
+                <div className="space-y-3">
+                  {inventoryData.users.map((userStatus: any) => (
+                    <div
+                      key={userStatus.userId}
+                      className={`p-4 rounded-xl flex items-center justify-between ${
+                        userStatus.hasSubmitted
+                          ? 'bg-green-100/80 border-2 border-green-300'
+                          : 'bg-rose-100/80 border-2 border-rose-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`text-2xl ${userStatus.hasSubmitted ? 'text-green-600' : 'text-rose-600'}`}>
+                          {userStatus.hasSubmitted ? '✅' : '❌'}
+                        </div>
+                        <div>
+                          <p className="font-bold text-secondary">{userStatus.username}</p>
+                          <p className="text-sm text-secondary/60">
+                            {userStatus.hasSubmitted
+                              ? `Submitted at ${new Date(userStatus.inventory.submittedAt).toLocaleString('ro-RO')}`
+                              : 'Not submitted'}
+                          </p>
+                        </div>
+                      </div>
+                      {userStatus.hasSubmitted && userStatus.inventory && (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={getInventoryPDFUrl(userStatus.inventory.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-secondary hover:scale-105 transition-all duration-300 text-sm"
+                          >
+                            📄 View PDF
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="card-neumorphic text-center py-12">
+                <p className="text-secondary/60">No inventory data available for this date</p>
+              </div>
+            )}
           </div>
         )}
 

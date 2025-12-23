@@ -491,3 +491,487 @@ export const generatePDF = async (orderId: string): Promise<string> => {
   }
 }
 
+// Inventory categories - must match frontend constants
+const INVENTORY_CATEGORIES = [
+  {
+    id: 'produse-bucata',
+    name: 'PRODUSE LA BUCATA',
+    units: ['buc.', 'g.', 'tava'],
+    defaultUnit: 'buc.',
+    products: [
+      'Amandina',
+      'Ora 12',
+      'Ecler frisca',
+      'Ecler vanilie farta',
+      'Ecler fistic',
+      'Ecler cafea',
+      'Ecler ciocolata',
+      'Ecler caramel sarat',
+      'Savarine',
+      'Blanche',
+      'Kremsnit',
+      'Extraordinar',
+      'Mousse X3',
+      'Mousse fructe de padure',
+      'Tiramisu cupa',
+      'Mura',
+      'Mousse Snyx / felie',
+      'Visine pe tocuri',
+      'Mambo',
+      'Paris Brest',
+      'Pavlova',
+      'Cannolo siciliani',
+      'Mini tort amandina',
+      'Mini tort inima',
+      'Mousse fistic',
+      'Mousse Rocher',
+      'Pina Colada',
+      'Pearl',
+      'Mousse Kaffa',
+    ],
+  },
+  {
+    id: 'produse-kg',
+    name: 'PRODUSE KG',
+    units: ['tava', 'platou', 'rand'],
+    defaultUnit: 'tava',
+    products: [
+      'Saratele',
+      'Placinta cu mere dulce',
+      'Placinta cu branza',
+      'Gobs',
+      'Turtite cu stafide',
+      'Pricomigdale',
+      'Cornulete',
+      'Cracker vanzare',
+      'Cracker cafea',
+      'Minichoux',
+      'Mini eclere',
+      'Mini eclere cu fistic',
+      'Mini Paris Brest',
+      'Minitarte',
+      'Raffaella',
+      'Caramel',
+      'Meringue',
+      'Ardealul',
+      'Tavalita',
+      'Rulouri vanilie',
+      'Rulouri ciocolata',
+      'Praj cu branza si lam',
+      'Linzer',
+      'Alba ca zapada',
+      'Dubai',
+      'Dubai fara zahar',
+      'Rulada Dubai',
+      'Mini Excellent',
+      'Mini Rocher',
+      'Mix fructe',
+    ],
+  },
+  {
+    id: 'torturi-tarte',
+    name: 'TORTURI SI TARTE',
+    units: ['felie', 'buc.'],
+    defaultUnit: 'felie',
+    products: [
+      'Tort belcolade intreg',
+      'Tort belcolade feliat',
+      'Tort fructe de padure',
+      'Tort mousse X3',
+      'Tort de zmeure',
+      'Tort de mure',
+      'Tort Ness feliat',
+      'Tort amarena',
+      'Tort fara zahar',
+      'Tort padurea neagra',
+      'Tort Snyx',
+      'Tort Oreo',
+      'Tarta cu branza',
+      'Bavareza cu portocale',
+      'Tort de biscuiti',
+      'Tort Mambo',
+      'Tort fistic, ciocolata, zmeure',
+      'Tort Ferrero Rocher',
+      'Cinnamon clasic',
+      'Cinnamon fistic',
+      'Cinnamon cafea',
+    ],
+  },
+  {
+    id: 'patiserie',
+    name: 'PATISERIE',
+    units: ['tava', 'platou'],
+    defaultUnit: 'tava',
+    products: [
+      'Pateuri cu branza',
+      'Strudele cu mere',
+      'Rulouri cu branza',
+      'Mini pateuri',
+      'Mini ciuperci',
+      'Mini carne',
+      'Cozonac',
+      'Pasca',
+      'Croissant zmeure',
+      'Croissant fistic',
+    ],
+  },
+  {
+    id: 'altele',
+    name: 'ALTELE',
+    units: ['buc.', 'g.'],
+    defaultUnit: 'buc.',
+    products: [
+      'Alune',
+      'Mucenici',
+      'Cozonac fara zahar',
+    ],
+  },
+  {
+    id: 'post',
+    name: 'POST',
+    units: ['tava', 'platou', 'rand'],
+    defaultUnit: 'tava',
+    products: [
+      'Minciunele',
+      'Placinta cu dovleac',
+      'Placinta cu mere',
+      'Negresa',
+      'Baclava',
+      'Sarailie',
+      'Sarailie fara zahar',
+      'Salam de biscuiti',
+    ],
+  },
+]
+
+export const generateInventoryPDF = async (inventory: any): Promise<string> => {
+  try {
+    console.log(`Starting inventory PDF generation for ${inventory.username} on ${inventory.date}`)
+
+    // Ensure PDF directory exists
+    await fs.mkdir(PDF_DIR, { recursive: true })
+
+    // Ensure Roboto fonts are available
+    const fonts = await ensureRobotoFonts()
+
+    // Create landscape A4 document (842x595 points)
+    const doc = new PDFDocument({ 
+      size: 'A4', 
+      layout: 'landscape',
+      margin: 15
+    })
+    
+    const dateStr = new Date(inventory.date).toISOString().split('T')[0]
+    const filename = `inventory-${inventory.username}-${dateStr}.pdf`
+    const filepath = path.join(PDF_DIR, filename)
+    const stream = createWriteStream(filepath)
+    doc.pipe(stream)
+
+    // Register Roboto fonts if available
+    let fontRegular = 'Helvetica'
+    let fontBold = 'Helvetica-Bold'
+    
+    if (fonts.regular && fonts.bold) {
+      try {
+        await fs.access(fonts.regular)
+        await fs.access(fonts.bold)
+        
+        doc.registerFont('Roboto', fonts.regular)
+        doc.registerFont('Roboto-Bold', fonts.bold)
+        fontRegular = 'Roboto'
+        fontBold = 'Roboto-Bold'
+        console.log('Using Roboto fonts for inventory PDF generation')
+      } catch (error) {
+        console.error('Failed to register Roboto fonts, using default fonts:', error)
+      }
+    }
+
+    // Layout configuration
+    const margins = 15
+    const pageWidth = 842 // A4 landscape width
+    const pageHeight = 595 // A4 landscape height
+    const availableWidth = pageWidth - margins * 2
+    const availableHeight = pageHeight - margins * 2
+    
+    const columnGap = 10
+    const columnWidth = (availableWidth - columnGap * 2) / 3
+    
+    // Sub-column widths within each main column
+    const productNameWidth = columnWidth * 0.40
+    const invWidth = columnWidth * 0.32
+    const necWidth = columnWidth * 0.28
+    
+    const fontSize = 8
+    const titleFontSize = 12
+    const categoryFontSize = 8
+    const headerFontSize = 7
+    const lineHeight = 10  // Row height
+    
+    // Month abbreviations for date formatting
+    const monthAbbr = ['IAN', 'FEB', 'MAR', 'APR', 'MAI', 'IUN', 'IUL', 'AUG', 'SEP', 'OCT', 'NOI', 'DEC']
+    
+    // Format date as "DD.MMM" (e.g., "12.DEC")
+    const formatDateShort = (dateStr: string): string => {
+      const date = new Date(dateStr)
+      const day = date.getDate()
+      const month = monthAbbr[date.getMonth()]
+      return `${day}.${month}`
+    }
+    
+    // Header - Title
+    const inventoryDate = new Date(inventory.date)
+    const titleDate = `${inventoryDate.getDate()}.${(inventoryDate.getMonth() + 1).toString().padStart(2, '0')}`
+    const headerText = removeDiacritics(`INVENTAR ${inventory.username.toUpperCase()} ${titleDate}`)
+    
+    doc.font(fontBold).fontSize(titleFontSize)
+    doc.text(headerText, margins, margins, { align: 'left', width: availableWidth })
+    doc.moveDown(0.3)
+    
+    // Column headers (INV / NEC) for each of the 3 columns
+    const columnHeaderY = doc.y
+    doc.font(fontBold).fontSize(headerFontSize)
+    
+    for (let col = 0; col < 3; col++) {
+      const columnX = margins + col * (columnWidth + columnGap)
+      // INV header - positioned over INV data area
+      doc.text('INV', columnX + productNameWidth, columnHeaderY, { 
+        width: invWidth, 
+        align: 'center' 
+      })
+      // NEC header - positioned over NEC data area  
+      doc.text('NEC', columnX + productNameWidth + invWidth, columnHeaderY, { 
+        width: necWidth, 
+        align: 'center' 
+      })
+    }
+    doc.moveDown(0.3)
+    
+    const contentStartY = doc.y
+    
+    // Create a map of submitted entries by category and product name
+    const submittedEntriesMap = new Map<string, Map<string, any>>()
+    for (const entry of inventory.entries) {
+      if (!submittedEntriesMap.has(entry.category)) {
+        submittedEntriesMap.set(entry.category, new Map())
+      }
+      submittedEntriesMap.get(entry.category)!.set(entry.productName, entry)
+    }
+    
+    // Process all categories from INVENTORY_CATEGORIES
+    const categories = INVENTORY_CATEGORIES
+    
+    // Colors
+    const categoryColor = '#c1121f' // red for category headers
+    const textColor = '#000000'
+    
+    // Helper to draw a row
+    const drawRow = (
+      columnX: number, 
+      rowY: number, 
+      productName: string, 
+      invText: string, 
+      necText: string,
+      showProductName: boolean = true
+    ) => {
+      // Product name
+      if (showProductName && productName) {
+        doc.font(fontRegular).fontSize(fontSize)
+        doc.fillColor(textColor)
+        doc.text(productName, columnX, rowY, { 
+          width: productNameWidth,
+          lineBreak: false
+        })
+      }
+      
+      // INV column
+      doc.font(fontRegular).fontSize(fontSize)
+      doc.fillColor(textColor)
+      doc.text(invText, columnX + productNameWidth, rowY, {
+        width: invWidth,
+        align: 'left',
+        lineBreak: false
+      })
+      
+      // NEC column
+      doc.font(fontBold).fontSize(fontSize)
+      doc.fillColor(textColor)
+      doc.text(necText, columnX + productNameWidth + invWidth, rowY, {
+        width: necWidth,
+        align: 'left',
+        lineBreak: false
+      })
+    }
+    
+    // Track column positions
+    let currentColumn = 0
+    let columnX = margins
+    let columnY = contentStartY
+    
+    // Render all categories, flowing across columns
+    for (const category of categories) {
+      const categoryName = category.name
+      
+      // Check if we need to move to next column (if category header would overflow)
+      if (columnY + 50 > pageHeight - margins && currentColumn < 2) {
+        currentColumn++
+        columnX = margins + currentColumn * (columnWidth + columnGap)
+        columnY = contentStartY
+      }
+      
+      // Category header in RED
+      doc.font(fontBold).fontSize(categoryFontSize)
+      doc.fillColor(categoryColor)
+      doc.text(removeDiacritics(categoryName), columnX, columnY, { 
+        width: columnWidth
+      })
+      doc.fillColor(textColor)
+      columnY += 10
+      
+      // Products in this category - show ALL products
+      for (const productName of category.products) {
+        const submittedEntry = submittedEntriesMap.get(categoryName)?.get(productName)
+        const cleanProductName = removeDiacritics(productName)
+        
+        // Check if we need to move to next column
+        if (columnY + lineHeight > pageHeight - margins && currentColumn < 2) {
+          currentColumn++
+          columnX = margins + currentColumn * (columnWidth + columnGap)
+          columnY = contentStartY
+        }
+        
+        if (submittedEntry) {
+          // Product has submitted data
+          const productEntries = Array.isArray(submittedEntry.entries) ? submittedEntry.entries : []
+          const entriesWithData = productEntries.filter((e: any) => 
+            (e.quantity && e.quantity > 0) || (e.requiredQuantity && e.requiredQuantity > 0)
+          )
+          
+          if (entriesWithData.length > 0) {
+            // First row shows product name + first entry
+            let isFirstRow = true
+            
+            for (const dataEntry of entriesWithData) {
+              // Check if we need to move to next column
+              if (columnY + lineHeight > pageHeight - margins && currentColumn < 2) {
+                currentColumn++
+                columnX = margins + currentColumn * (columnWidth + columnGap)
+                columnY = contentStartY
+                isFirstRow = true // Show product name again in new column
+              }
+              
+              const hasInventar = dataEntry.quantity && dataEntry.quantity > 0
+              const hasNecesar = dataEntry.requiredQuantity && dataEntry.requiredQuantity > 0
+              
+              // Build INV text
+              let invText = ''
+              if (hasInventar) {
+                const dateShort = formatDateShort(dataEntry.receptionDate)
+                invText = `${dateShort}  ${dataEntry.unit} ${dataEntry.quantity}`
+              }
+              
+              // Build NEC text
+              let necText = ''
+              if (hasNecesar) {
+                necText = `${dataEntry.requiredUnit} ${dataEntry.requiredQuantity}`
+              }
+              
+              drawRow(
+                columnX, 
+                columnY, 
+                cleanProductName, 
+                invText, 
+                necText, 
+                isFirstRow
+              )
+              
+              columnY += lineHeight
+              isFirstRow = false
+            }
+          } else {
+            // Product exists but has no data - show with empty values
+            drawRow(columnX, columnY, cleanProductName, '', '', true)
+            columnY += lineHeight
+          }
+        } else {
+          // Product not submitted - show with empty values
+          drawRow(columnX, columnY, cleanProductName, '', '', true)
+          columnY += lineHeight
+        }
+      }
+      
+      // Also show custom products that are not in the default list
+      const categorySubmittedEntries = submittedEntriesMap.get(categoryName)
+      if (categorySubmittedEntries) {
+        for (const [productName, entry] of categorySubmittedEntries.entries()) {
+          // Check if it's a custom product (not in default list)
+          if (!category.products.includes(productName)) {
+            const cleanProductName = removeDiacritics(productName)
+            const productEntries = Array.isArray(entry.entries) ? entry.entries : []
+            const entriesWithData = productEntries.filter((e: any) => 
+              (e.quantity && e.quantity > 0) || (e.requiredQuantity && e.requiredQuantity > 0)
+            )
+            
+            if (entriesWithData.length > 0) {
+              let isFirstRow = true
+              
+              for (const dataEntry of entriesWithData) {
+                // Check if we need to move to next column
+                if (columnY + lineHeight > pageHeight - margins && currentColumn < 2) {
+                  currentColumn++
+                  columnX = margins + currentColumn * (columnWidth + columnGap)
+                  columnY = contentStartY
+                  isFirstRow = true
+                }
+                
+                const hasInventar = dataEntry.quantity && dataEntry.quantity > 0
+                const hasNecesar = dataEntry.requiredQuantity && dataEntry.requiredQuantity > 0
+                
+                // Build INV text
+                let invText = ''
+                if (hasInventar) {
+                  const dateShort = formatDateShort(dataEntry.receptionDate)
+                  invText = `${dateShort}  ${dataEntry.unit} ${dataEntry.quantity}`
+                }
+                
+                // Build NEC text
+                let necText = ''
+                if (hasNecesar) {
+                  necText = `${dataEntry.requiredUnit} ${dataEntry.requiredQuantity}`
+                }
+                
+                drawRow(
+                  columnX, 
+                  columnY, 
+                  cleanProductName, 
+                  invText, 
+                  necText, 
+                  isFirstRow
+                )
+                
+                columnY += lineHeight
+                isFirstRow = false
+              }
+            }
+          }
+        }
+      }
+      
+      columnY += 5 // Gap between categories
+    }
+
+    doc.end()
+
+    // Wait for stream to finish
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', () => resolve())
+      stream.on('error', (err) => reject(err))
+    })
+
+    console.log(`Inventory PDF generated successfully: ${filepath}`)
+    return filepath
+  } catch (error) {
+    console.error('Error in generateInventoryPDF:', error)
+    throw error
+  }
+}
+

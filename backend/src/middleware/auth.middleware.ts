@@ -3,6 +3,23 @@ import prisma from '../lib/prisma'
 
 export interface AuthRequest extends Request {
   userId?: string
+  user?: {
+    id: string
+    username: string
+  }
+}
+
+// Extend Express Request type globally
+declare global {
+  namespace Express {
+    interface Request {
+      userId?: string
+      user?: {
+        id: string
+        username: string
+      }
+    }
+  }
 }
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -25,6 +42,10 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     req.userId = user.id
+    req.user = {
+      id: user.id,
+      username: user.username
+    }
     next()
   } catch (error) {
     console.error('Authentication error:', error)

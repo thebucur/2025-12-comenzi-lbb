@@ -11,6 +11,7 @@ import reportsRoutes from './routes/reports.routes'
 import adminRoutes from './routes/admin.routes'
 import authRoutes from './routes/auth.routes'
 import configRoutes from './routes/config.routes'
+import inventoryRoutes from './routes/inventory.routes'
 
 dotenv.config()
 
@@ -201,6 +202,7 @@ app.use('/api/reports', reportsRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/config', configRoutes)
+app.use('/api/inventory', inventoryRoutes)
 
 // Log registered routes on startup
 console.log('Registered routes:')
