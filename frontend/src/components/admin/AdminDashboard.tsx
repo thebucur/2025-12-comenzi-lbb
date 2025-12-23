@@ -987,7 +987,10 @@ function AdminDashboard() {
         <div className="bg-gray-400 md:card-neumorphic rounded-xl md:rounded-2xl mb-6 sm:mb-8 p-4 md:p-6">
           <div className="flex flex-wrap gap-2 sm:gap-4">
             <button
-              onClick={() => setActiveTab('orders')}
+              onClick={() => {
+                setActiveTab('orders')
+                setSearchParams({ tab: 'orders' })
+              }}
               className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'orders'
                   ? 'btn-active scale-105'
@@ -997,7 +1000,10 @@ function AdminDashboard() {
               📦 Comenzi
             </button>
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => {
+                setActiveTab('users')
+                setSearchParams({ tab: 'users' })
+              }}
               className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'users'
                   ? 'btn-active scale-105'
@@ -1007,7 +1013,10 @@ function AdminDashboard() {
               👥 Utilizatori
             </button>
             <button
-              onClick={() => setActiveTab('globalConfig')}
+              onClick={() => {
+                setActiveTab('globalConfig')
+                setSearchParams({ tab: 'globalConfig' })
+              }}
               className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'globalConfig'
                   ? 'btn-active scale-105'
@@ -1017,7 +1026,10 @@ function AdminDashboard() {
               ⚙️ Config
             </button>
             <button
-              onClick={() => setActiveTab('inventory')}
+              onClick={() => {
+                setActiveTab('inventory')
+                setSearchParams({ tab: 'inventory' })
+              }}
               className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'inventory'
                   ? 'btn-active scale-105'
@@ -1027,7 +1039,10 @@ function AdminDashboard() {
               📋 Inventar
             </button>
             <button
-              onClick={() => setActiveTab('inventoryProducts')}
+              onClick={() => {
+                setActiveTab('inventoryProducts')
+                setSearchParams({ tab: 'inventoryProducts' })
+              }}
               className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
                 activeTab === 'inventoryProducts'
                   ? 'btn-active scale-105'
