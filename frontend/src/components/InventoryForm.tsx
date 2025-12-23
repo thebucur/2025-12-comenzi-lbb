@@ -348,7 +348,7 @@ function InventoryForm() {
       const updated = productEntries.map(e => {
         if (e.category === category && e.productName === productName) {
           const newEntry = {
-            receptionDate: new Date().toISOString().split('T')[0],
+            receptionDate: getTodayString(),
             quantity: 0,
             unit,
             requiredQuantity: 0,
