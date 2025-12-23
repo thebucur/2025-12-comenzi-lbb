@@ -71,11 +71,116 @@ async function seedDatabase() {
     console.log('✅ Database seeded successfully!')
     console.log('✅ Admin user verified: username=admin, password=0000')
     console.log(`✅ Admin user ID: ${verifyUser.id}`)
+
+    // Seed inventory products if they don't exist
+    const categoriesCount = await prisma.inventoryCategory.count()
+    if (categoriesCount === 0) {
+      console.log('🌱 Seeding inventory products...')
+      await seedInventoryProducts(prisma)
+      console.log('✅ Inventory products seeded successfully!')
+    } else {
+      console.log(`✅ Inventory products already exist (${categoriesCount} categories)`)
+    }
   } catch (error) {
     console.warn('⚠️ Seeding warning (continuing anyway):', error)
     // Don't fail startup if seeding fails - admin might already exist
   } finally {
     await prisma.$disconnect()
+  }
+}
+
+// Inventory products seeding function
+async function seedInventoryProducts(prismaClient: PrismaClient) {
+  const INVENTORY_CATEGORIES = [
+    {
+      name: 'PRODUSE LA BUCATA',
+      units: ['buc.', 'g.', 'tv'],
+      defaultUnit: 'buc.',
+      products: [
+        'Amandina', 'Ora 12', 'Ecler frisca', 'Ecler vanilie farta', 'Ecler fistic',
+        'Ecler cafea', 'Ecler ciocolata', 'Ecler caramel sarat', 'Savarine', 'Blanche',
+        'Kremsnit', 'Extraordinar', 'Mousse X3', 'Mousse fructe de padure', 'Tiramisu cupa',
+        'Mura', 'Mousse Snyx / felie', 'Visine pe tocuri', 'Mambo', 'Paris Brest',
+        'Pavlova', 'Cannolo siciliani', 'Mini tort amandina', 'Mini tort inima',
+        'Mousse fistic', 'Mousse Rocher', 'Pina Colada', 'Pearl', 'Mousse Kaffa',
+      ],
+    },
+    {
+      name: 'PRODUSE KG',
+      units: ['tv', 'plt', 'rand'],
+      defaultUnit: 'tv',
+      products: [
+        'Saratele', 'Placinta cu mere dulce', 'Placinta cu branza', 'Gobs', 'Turtite cu stafide',
+        'Pricomigdale', 'Cornulete', 'Cracker vanzare', 'Cracker cafea', 'Minichoux',
+        'Mini eclere', 'Mini eclere cu fistic', 'Mini Paris Brest', 'Minitarte', 'Raffaella',
+        'Caramel', 'Meringue', 'Ardealul', 'Tavalita', 'Rulouri vanilie',
+        'Rulouri ciocolata', 'Praj cu branza si lam', 'Linzer', 'Alba ca zapada', 'Dubai',
+        'Dubai fara zahar', 'Rulada Dubai', 'Mini Excellent', 'Mini Rocher', 'Mix fructe',
+      ],
+    },
+    {
+      name: 'TORTURI SI TARTE',
+      units: ['felie', 'buc.'],
+      defaultUnit: 'felie',
+      products: [
+        'Tort belcolade intreg', 'Tort belcolade feliat', 'Tort fructe de padure', 'Tort mousse X3',
+        'Tort de zmeure', 'Tort de mure', 'Tort Ness feliat', 'Tort amarena',
+        'Tort fara zahar', 'Tort padurea neagra', 'Tort Snyx', 'Tort Oreo',
+        'Tarta cu branza', 'Bavareza cu portocale', 'Tort de biscuiti', 'Tort Mambo',
+        'Tort fistic, ciocolata, zmeure', 'Tort Ferrero Rocher', 'Cinnamon clasic',
+        'Cinnamon fistic', 'Cinnamon cafea',
+      ],
+    },
+    {
+      name: 'PATISERIE',
+      units: ['tv', 'plt'],
+      defaultUnit: 'tv',
+      products: [
+        'Pateuri cu branza', 'Strudele cu mere', 'Rulouri cu branza', 'Mini pateuri',
+        'Mini ciuperci', 'Mini carne', 'Cozonac', 'Pasca', 'Croissant zmeure', 'Croissant fistic',
+      ],
+    },
+    {
+      name: 'ALTELE',
+      units: ['buc.', 'g.'],
+      defaultUnit: 'buc.',
+      products: ['Alune', 'Mucenici', 'Cozonac fara zahar'],
+    },
+    {
+      name: 'POST',
+      units: ['tv', 'plt', 'rand'],
+      defaultUnit: 'tv',
+      products: [
+        'Minciunele', 'Placinta cu dovleac', 'Placinta cu mere', 'Negresa',
+        'Baclava', 'Sarailie', 'Sarailie fara zahar', 'Salam de biscuiti',
+      ],
+    },
+  ]
+
+  for (let i = 0; i < INVENTORY_CATEGORIES.length; i++) {
+    const categoryData = INVENTORY_CATEGORIES[i]
+    
+    const category = await prismaClient.inventoryCategory.create({
+      data: {
+        name: categoryData.name,
+        units: categoryData.units,
+        defaultUnit: categoryData.defaultUnit,
+        displayOrder: i,
+      },
+    })
+
+    // Create products for this category
+    for (let j = 0; j < categoryData.products.length; j++) {
+      await prismaClient.inventoryProduct.create({
+        data: {
+          categoryId: category.id,
+          name: categoryData.products[j],
+          displayOrder: j,
+        },
+      })
+    }
+
+    console.log(`✅ Created category "${category.name}" with ${categoryData.products.length} products`)
   }
 }
 
