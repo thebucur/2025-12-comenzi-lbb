@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
-import { getInventoriesByDate, getInventoryPDFUrl } from '../../services/inventory.api'
+import { getInventoriesByDate } from '../../services/inventory.api'
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import InventoryProductsManager from './InventoryProductsManager'
 
@@ -1177,7 +1177,7 @@ function AdminDashboard() {
                                   </span>
                                 </td>
                                 <td className={`px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${deliveryDateClass}`}>{deliveryDate}</td>
-                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${createdDateClass}">{createdDate}</td>
+                                <td className={`hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${createdDateClass}`}>{createdDate}</td>
                                 <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs truncate max-w-[120px] sm:max-w-none">{order.location || '-'}</td>
                                 <td className="px-1 sm:px-2 py-1.5 sm:py-2">
                                   <input
