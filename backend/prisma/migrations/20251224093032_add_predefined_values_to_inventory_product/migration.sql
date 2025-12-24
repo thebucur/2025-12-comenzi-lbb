@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "InventoryProduct" ADD COLUMN "predefinedValues" DOUBLE PRECISION[] NOT NULL DEFAULT ARRAY[]::DOUBLE PRECISION[];

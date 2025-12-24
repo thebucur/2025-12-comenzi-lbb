@@ -6,6 +6,7 @@ interface InventoryProduct {
   categoryId: string
   name: string
   displayOrder: number
+  predefinedValues?: number[]
   createdAt: string
   updatedAt: string
 }
@@ -46,7 +47,9 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
   const [productCategoryId, setProductCategoryId] = useState('')
   const [productFormData, setProductFormData] = useState({
     name: '',
+    predefinedValues: [] as number[],
   })
+  const [newPredefinedValueInput, setNewPredefinedValueInput] = useState('')
 
   useEffect(() => {
     fetchCategories()
@@ -216,15 +219,72 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
   const handleCreateProduct = (categoryId: string) => {
     setEditingProduct(null)
     setProductCategoryId(categoryId)
-    setProductFormData({ name: '' })
+    setProductFormData({ name: '', predefinedValues: [] })
+    setNewPredefinedValueInput('')
     setShowProductModal(true)
   }
 
   const handleEditProduct = (product: InventoryProduct) => {
     setEditingProduct(product)
     setProductCategoryId(product.categoryId)
-    setProductFormData({ name: product.name })
+    setProductFormData({ 
+      name: product.name,
+      predefinedValues: product.predefinedValues || []
+    })
+    setNewPredefinedValueInput('')
     setShowProductModal(true)
+  }
+
+  const handleAddPredefinedValue = () => {
+    if (!newPredefinedValueInput.trim()) return
+    
+    const numValue = parseFloat(newPredefinedValueInput.trim())
+    if (isNaN(numValue)) {
+      alert('Introduceți o valoare numerică validă')
+      return
+    }
+
+    if (productFormData.predefinedValues.length >= 4) {
+      alert('Puteți adăuga maximum 4 valori predefinite')
+      return
+    }
+
+    if (productFormData.predefinedValues.includes(numValue)) {
+      alert('Această valoare există deja')
+      return
+    }
+
+    setProductFormData({
+      ...productFormData,
+      predefinedValues: [...productFormData.predefinedValues, numValue]
+    })
+    setNewPredefinedValueInput('')
+  }
+
+  const handleRemovePredefinedValue = (index: number) => {
+    setProductFormData({
+      ...productFormData,
+      predefinedValues: productFormData.predefinedValues.filter((_, i) => i !== index)
+    })
+  }
+
+  const handleUpdatePredefinedValue = (index: number, newValue: string) => {
+    const numValue = parseFloat(newValue.trim())
+    if (isNaN(numValue) && newValue.trim() !== '') {
+      return // Don't update if invalid number (unless empty)
+    }
+    
+    const newValues = [...productFormData.predefinedValues]
+    if (newValue.trim() === '') {
+      // Remove if empty
+      newValues.splice(index, 1)
+    } else {
+      newValues[index] = numValue
+    }
+    setProductFormData({
+      ...productFormData,
+      predefinedValues: newValues
+    })
   }
 
   const handleSaveProduct = async () => {
@@ -242,6 +302,7 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
         await api.post('/inventory-products/products', {
           categoryId: productCategoryId,
           name: productFormData.name,
+          predefinedValues: productFormData.predefinedValues,
         })
       }
 
@@ -408,7 +469,11 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
                         {category.products.map((product) => (
                           <div
                             key={product.id}
-                            className="bg-primary/50 px-4 py-3 rounded-xl flex items-center justify-between group hover:bg-primary/70 transition-all"
+                            className={`bg-primary/50 px-4 py-3 rounded-xl flex items-center justify-between group hover:bg-primary/70 transition-all ${
+                              product.predefinedValues && product.predefinedValues.length > 0
+                                ? 'border-2 border-blue-500'
+                                : ''
+                            }`}
                           >
                             <span className="text-secondary font-semibold">{product.name}</span>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -565,6 +630,69 @@ function InventoryProductsManager({ onRefresh }: InventoryProductsManagerProps) 
                   placeholder="Ex: Ecler frisca"
                   autoFocus
                 />
+              </div>
+
+              {/* Predefined Values */}
+              <div>
+                <label className="block mb-3 font-bold text-secondary">
+                  Valori predefinite (max 4)
+                </label>
+                <p className="text-sm text-secondary/60 mb-3">
+                  Aceste valori vor apărea ca butoane când utilizatorul dă click pe câmpul "Necesar"
+                </p>
+                
+                {/* Add value input */}
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="number"
+                    step="any"
+                    value={newPredefinedValueInput}
+                    onChange={(e) => setNewPredefinedValueInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddPredefinedValue()
+                      }
+                    }}
+                    className="input-neumorphic flex-1 text-secondary placeholder:text-secondary/40"
+                    placeholder="Ex: 10, 25.5, 100"
+                    disabled={productFormData.predefinedValues.length >= 4}
+                  />
+                  <button
+                    onClick={handleAddPredefinedValue}
+                    disabled={productFormData.predefinedValues.length >= 4}
+                    className="btn-active px-6 py-2 rounded-xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    + Adaugă
+                  </button>
+                </div>
+
+                {/* Values list */}
+                {productFormData.predefinedValues.length > 0 && (
+                  <div className="space-y-2">
+                    {productFormData.predefinedValues.map((value, index) => (
+                      <div
+                        key={index}
+                        className="bg-primary/50 px-4 py-2 rounded-xl flex items-center justify-between"
+                      >
+                        <input
+                          type="number"
+                          step="any"
+                          value={value}
+                          onChange={(e) => handleUpdatePredefinedValue(index, e.target.value)}
+                          className="bg-transparent border-none outline-none text-secondary font-semibold flex-1"
+                        />
+                        <button
+                          onClick={() => handleRemovePredefinedValue(index)}
+                          className="text-red-500 hover:text-red-700 transition-colors font-bold"
+                          title="Șterge"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

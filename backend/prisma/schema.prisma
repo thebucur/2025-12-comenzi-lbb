@@ -135,13 +135,14 @@ model InventoryCategory {
 }
 
 model InventoryProduct {
-  id         String            @id @default(uuid())
-  categoryId String
-  category   InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name       String            // Product name
-  displayOrder Int             @default(0) // For sorting products within a category
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id               String            @id @default(uuid())
+  categoryId       String
+  category         InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name             String            // Product name
+  displayOrder     Int               @default(0) // For sorting products within a category
+  predefinedValues Float[]           @default([]) // Predefined values for quick selection (max 4)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   
   @@unique([categoryId, name])
 }

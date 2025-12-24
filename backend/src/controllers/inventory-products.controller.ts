@@ -123,10 +123,26 @@ export const deleteCategory = async (req: Request, res: Response) => {
 // Create a product in a category
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const { categoryId, name, displayOrder } = req.body
+    const { categoryId, name, displayOrder, predefinedValues } = req.body
 
     if (!categoryId || !name) {
       return res.status(400).json({ error: 'Category ID and name are required' })
+    }
+
+    // Validate predefinedValues if provided
+    if (predefinedValues !== undefined) {
+      if (!Array.isArray(predefinedValues)) {
+        return res.status(400).json({ error: 'predefinedValues must be an array' })
+      }
+      if (predefinedValues.length > 4) {
+        return res.status(400).json({ error: 'predefinedValues can have at most 4 values' })
+      }
+      // Validate all values are numbers
+      for (const value of predefinedValues) {
+        if (typeof value !== 'number' || isNaN(value)) {
+          return res.status(400).json({ error: 'All predefinedValues must be valid numbers' })
+        }
+      }
     }
 
     const product = await prisma.inventoryProduct.create({
@@ -134,6 +150,7 @@ export const createProduct = async (req: Request, res: Response) => {
         categoryId,
         name,
         displayOrder: displayOrder || 0,
+        predefinedValues: predefinedValues || [],
       },
     })
 
@@ -154,12 +171,28 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const { name, displayOrder } = req.body
+    const { name, displayOrder, predefinedValues } = req.body
 
     const updateData: any = {}
     
     if (name !== undefined) updateData.name = name
     if (displayOrder !== undefined) updateData.displayOrder = displayOrder
+    if (predefinedValues !== undefined) {
+      // Validate predefinedValues
+      if (!Array.isArray(predefinedValues)) {
+        return res.status(400).json({ error: 'predefinedValues must be an array' })
+      }
+      if (predefinedValues.length > 4) {
+        return res.status(400).json({ error: 'predefinedValues can have at most 4 values' })
+      }
+      // Validate all values are numbers
+      for (const value of predefinedValues) {
+        if (typeof value !== 'number' || isNaN(value)) {
+          return res.status(400).json({ error: 'All predefinedValues must be valid numbers' })
+        }
+      }
+      updateData.predefinedValues = predefinedValues
+    }
 
     const product = await prisma.inventoryProduct.update({
       where: { id },

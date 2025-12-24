@@ -19,13 +19,19 @@ interface ProductFormData {
   entries: InventoryEntryData[]
 }
 
+interface InventoryProduct {
+  name: string
+  id: string
+  predefinedValues?: number[]
+}
+
 interface InventoryCategory {
   id: string
   name: string
   units: string[]
   defaultUnit: string
   displayOrder: number
-  products: string[] // Product names as strings
+  products: InventoryProduct[] // Product objects with predefinedValues
 }
 
 function InventoryForm() {
@@ -47,6 +53,15 @@ function InventoryForm() {
   const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const bottomBarRef = useRef<HTMLDivElement | null>(null)
   const [bottomBarReady, setBottomBarReady] = useState(false)
+  
+  // Predefined values lookup map: categoryName-productName -> predefinedValues[]
+  const predefinedValuesMap = useRef<Map<string, number[]>>(new Map())
+  
+  // State for tracking which input field should show the popup
+  const [focusedRequiredQuantityField, setFocusedRequiredQuantityField] = useState<{
+    category: string
+    productName: string
+  } | null>(null)
 
   // Load categories from API
   useEffect(() => {
@@ -70,8 +85,23 @@ function InventoryForm() {
         units: cat.units,
         defaultUnit: cat.defaultUnit,
         displayOrder: cat.displayOrder || 0,
-        products: cat.products.map((p: any) => p.name).sort()
+        products: cat.products.map((p: any) => ({
+          name: p.name,
+          id: p.id,
+          predefinedValues: p.predefinedValues || []
+        })).sort((a: InventoryProduct, b: InventoryProduct) => a.name.localeCompare(b.name))
       })).sort((a: InventoryCategory, b: InventoryCategory) => a.displayOrder - b.displayOrder)
+      
+      // Build predefined values lookup map
+      predefinedValuesMap.current.clear()
+      transformedCategories.forEach(category => {
+        category.products.forEach(product => {
+          if (product.predefinedValues && product.predefinedValues.length > 0) {
+            const key = `${category.name}-${product.name}`
+            predefinedValuesMap.current.set(key, product.predefinedValues)
+          }
+        })
+      })
       
       setCategories(transformedCategories)
     } catch (error) {
@@ -83,9 +113,10 @@ function InventoryForm() {
         units: cat.units,
         defaultUnit: cat.defaultUnit,
         displayOrder: index,
-        products: cat.products
+        products: cat.products.map((name: string) => ({ name, id: '', predefinedValues: [] }))
       }))
       setCategories(fallbackCategories)
+      predefinedValuesMap.current.clear()
     }
   }
 
@@ -256,11 +287,11 @@ function InventoryForm() {
   const createAllDefaultProducts = (): ProductFormData[] => {
     const allProducts: ProductFormData[] = []
     categories.forEach(category => {
-      category.products.forEach(productName => {
+      category.products.forEach(product => {
         allProducts.push({
-          id: `${category.name}-${productName}`,
+          id: `${category.name}-${product.name}`,
           category: category.name,
-          productName,
+          productName: product.name,
           isCustomProduct: false,
           entries: [
             {
@@ -466,6 +497,18 @@ function InventoryForm() {
     if (diffDays === 1) return '#ffff00' // yellow for yesterday
     if (diffDays >= 2) return '#ef4444' // red for two days ago or older
     return null // no color for today or future dates
+  }
+
+  // Get predefined values for a product
+  const getPredefinedValues = (category: string, productName: string): number[] => {
+    const key = `${category}-${productName}`
+    return predefinedValuesMap.current.get(key) || []
+  }
+
+  // Handle predefined value selection
+  const handlePredefinedValueSelect = (value: number, category: string, productName: string) => {
+    updateProductEntry(category, productName, 0, 'requiredQuantity', value)
+    setFocusedRequiredQuantityField(null)
   }
 
   // Function to download PDF
@@ -868,46 +911,96 @@ function InventoryForm() {
                           })}
 
                           {/* NECESAR row - after all inventory rows, only for first entry data */}
-                          {product.entries.length > 0 && (
-                            <div className="flex items-center gap-2 rounded-lg bg-blue-100/60 p-2">
-                              <span className="text-xs text-secondary font-bold flex-shrink-0" style={{ width: '70px' }}>Necesar:</span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={product.entries[0].requiredQuantity || ''}
-                                onChange={(e) => {
-                                  const value = e.target.value.replace(/[^0-9,]/g, '')
-                                  const numValue = parseFloat(value.replace(',', '.')) || 0
-                                  updateProductEntry(
+                          {product.entries.length > 0 && (() => {
+                            const predefinedValues = getPredefinedValues(product.category, product.productName)
+                            const showPopup = focusedRequiredQuantityField?.category === product.category && 
+                                            focusedRequiredQuantityField?.productName === product.productName
+                            return (
+                              <div className="flex items-center gap-2 rounded-lg bg-blue-100/60 p-2 relative" style={{ overflow: 'visible' }}>
+                                <span className="text-xs text-secondary font-bold flex-shrink-0" style={{ width: '70px' }}>Necesar:</span>
+                                <div className="relative flex-1 min-w-0" style={{ maxWidth: '80px', overflow: 'visible' }}>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={product.entries[0].requiredQuantity || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value.replace(/[^0-9,]/g, '')
+                                      const numValue = parseFloat(value.replace(',', '.')) || 0
+                                      updateProductEntry(
+                                        product.category,
+                                        product.productName,
+                                        0,
+                                        'requiredQuantity',
+                                        numValue
+                                      )
+                                    }}
+                                    onFocus={() => {
+                                      if (predefinedValues.length > 0) {
+                                        setFocusedRequiredQuantityField({ category: product.category, productName: product.productName })
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      // Only close if not clicking on a button
+                                      const relatedTarget = e.relatedTarget as HTMLElement
+                                      if (!relatedTarget || !relatedTarget.closest('.predefined-values-popup')) {
+                                        setTimeout(() => {
+                                          setFocusedRequiredQuantityField(null)
+                                        }, 150)
+                                      }
+                                    }}
+                                    placeholder="0"
+                                    className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-sm font-bold bg-white w-full"
+                                    style={{ height: '40px', padding: '6px 8px' }}
+                                  />
+                                  {/* Predefined values popup */}
+                                  {showPopup && predefinedValues.length > 0 && (
+                                    <div 
+                                      className="absolute flex gap-2 p-2 rounded-xl backdrop-blur-md predefined-values-popup"
+                                      style={{ 
+                                        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                                        minWidth: '120px',
+                                        bottom: 'calc(100% + 8px)',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        zIndex: 1000
+                                      }}
+                                    >
+                                      {predefinedValues.map((value, index) => (
+                                        <button
+                                          key={index}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            handlePredefinedValueSelect(value, product.category, product.productName)
+                                          }}
+                                          className="px-3 py-2 rounded-lg bg-accent-purple/90 hover:bg-accent-purple text-white font-bold text-sm shadow-lg transition-all hover:scale-105 whitespace-nowrap"
+                                        >
+                                          {value}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <select
+                                  value={product.entries[0].requiredUnit || category.defaultUnit}
+                                  onChange={(e) => updateProductEntry(
                                     product.category,
                                     product.productName,
                                     0,
-                                    'requiredQuantity',
-                                    numValue
-                                  )
-                                }}
-                                placeholder="0"
-                                className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-sm font-bold bg-white flex-1 min-w-0"
-                                style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
-                              />
-                              <select
-                                value={product.entries[0].requiredUnit || category.defaultUnit}
-                                onChange={(e) => updateProductEntry(
-                                  product.category,
-                                  product.productName,
-                                  0,
-                                  'requiredUnit',
-                                  e.target.value
-                                )}
-                                className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-sm font-bold bg-white flex-1 min-w-0"
-                                style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
-                              >
-                                {category.units.map(unitOption => (
-                                  <option key={unitOption} value={unitOption}>{unitOption}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                                    'requiredUnit',
+                                    e.target.value
+                                  )}
+                                  className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-sm font-bold bg-white flex-1 min-w-0"
+                                  style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
+                                >
+                                  {category.units.map(unitOption => (
+                                    <option key={unitOption} value={unitOption}>{unitOption}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )
+                          })()}
                         </div>
 
                         {/* Desktop layout */}
@@ -1073,45 +1166,94 @@ function InventoryForm() {
                                 </div>
 
                                 {/* NECESAR column - only show on first row */}
-                                {entryIndex === 0 ? (
-                                  <div className="flex items-center rounded-lg bg-blue-100/60" style={{ padding: '4px 8px', gap: '4px' }}>
-                                    <input
-                                      type="text"
-                                      inputMode="decimal"
-                                      value={requiredQuantity || ''}
-                                      onChange={(e) => {
-                                        const value = e.target.value.replace(/[^0-9,]/g, '')
-                                        const numValue = parseFloat(value.replace(',', '.')) || 0
-                                        updateProductEntry(
+                                {entryIndex === 0 ? (() => {
+                                  const predefinedValues = getPredefinedValues(product.category, product.productName)
+                                  const showPopup = focusedRequiredQuantityField?.category === product.category && 
+                                                  focusedRequiredQuantityField?.productName === product.productName
+                                  return (
+                                    <div className="flex items-center rounded-lg bg-blue-100/60 relative" style={{ padding: '4px 8px', gap: '4px' }}>
+                                      <div className="relative">
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          value={requiredQuantity || ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value.replace(/[^0-9,]/g, '')
+                                            const numValue = parseFloat(value.replace(',', '.')) || 0
+                                            updateProductEntry(
+                                              product.category,
+                                              product.productName,
+                                              entryIndex,
+                                              'requiredQuantity',
+                                              numValue
+                                            )
+                                          }}
+                                          onFocus={() => {
+                                            if (predefinedValues.length > 0) {
+                                              setFocusedRequiredQuantityField({ category: product.category, productName: product.productName })
+                                            }
+                                          }}
+                                          onBlur={(e) => {
+                                            // Only close if not clicking on a button
+                                            const relatedTarget = e.relatedTarget as HTMLElement
+                                            if (!relatedTarget || !relatedTarget.closest('.predefined-values-popup')) {
+                                              setTimeout(() => {
+                                                setFocusedRequiredQuantityField(null)
+                                              }, 150)
+                                            }
+                                          }}
+                                          placeholder="0"
+                                          className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-xs bg-white"
+                                          style={{ width: '48px', height: '28px', padding: '4px 6px' }}
+                                        />
+                                        {/* Predefined values popup */}
+                                        {showPopup && predefinedValues.length > 0 && (
+                                          <div 
+                                            className="absolute flex gap-2 z-50 p-2 rounded-xl backdrop-blur-md predefined-values-popup"
+                                            style={{ 
+                                              backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                                              minWidth: '120px',
+                                              bottom: 'calc(100% + 8px)',
+                                              left: '50%',
+                                              transform: 'translateX(-50%)'
+                                            }}
+                                          >
+                                            {predefinedValues.map((value, index) => (
+                                              <button
+                                                key={index}
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.preventDefault()
+                                                  e.stopPropagation()
+                                                  handlePredefinedValueSelect(value, product.category, product.productName)
+                                                }}
+                                                className="px-3 py-2 rounded-lg bg-accent-purple/90 hover:bg-accent-purple text-white font-bold text-xs shadow-lg transition-all hover:scale-105 whitespace-nowrap"
+                                              >
+                                                {value}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <select
+                                        value={requiredUnit}
+                                        onChange={(e) => updateProductEntry(
                                           product.category,
                                           product.productName,
                                           entryIndex,
-                                          'requiredQuantity',
-                                          numValue
-                                        )
-                                      }}
-                                      placeholder="0"
-                                      className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-xs bg-white"
-                                      style={{ width: '48px', height: '28px', padding: '4px 6px' }}
-                                    />
-                                    <select
-                                      value={requiredUnit}
-                                      onChange={(e) => updateProductEntry(
-                                        product.category,
-                                        product.productName,
-                                        entryIndex,
-                                        'requiredUnit',
-                                        e.target.value
-                                      )}
-                                      className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
-                                      style={{ width: '70px', height: '28px', padding: '4px 8px' }}
-                                    >
-                                      {category.units.map(unitOption => (
-                                        <option key={unitOption} value={unitOption}>{unitOption}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                ) : (
+                                          'requiredUnit',
+                                          e.target.value
+                                        )}
+                                        className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
+                                        style={{ width: '70px', height: '28px', padding: '4px 8px' }}
+                                      >
+                                        {category.units.map(unitOption => (
+                                          <option key={unitOption} value={unitOption}>{unitOption}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )
+                                })() : (
                                   <div></div>
                                 )}
                                 </div>
