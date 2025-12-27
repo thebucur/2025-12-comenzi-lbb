@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Cake Ordering Wizard',
-        short_name: 'Cake Wizard',
-        description: 'Order cakes with ease',
+        name: 'Comenzi LBB',
+        short_name: 'Comenzi LBB',
+        description: 'Sistem de comenzi LBB',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
