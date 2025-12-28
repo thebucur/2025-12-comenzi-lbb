@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="adminGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="100" fill="url(#adminGrad)"/>
+  <path d="M256 120 L320 180 L320 260 L360 260 L360 380 L152 380 L152 260 L192 260 L192 180 Z" fill="white" opacity="0.9"/>
+  <circle cx="256" cy="280" r="40" fill="url(#adminGrad)"/>
+</svg>
+
+

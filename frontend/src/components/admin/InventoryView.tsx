@@ -11,10 +11,12 @@ function InventoryView() {
   const [inventoryCategories, setInventoryCategories] = useState<any[]>([])
   const [hideEmptyFields, setHideEmptyFields] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showPDFMissingPopup, setShowPDFMissingPopup] = useState(false)
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
 
   useEffect(() => {
     if (!id) {
-      navigate('/admin/dashboard?tab=inventory')
+      navigate('/dashboard?tab=inventory')
       return
     }
 
@@ -54,7 +56,7 @@ function InventoryView() {
       } catch (error) {
         console.error('Error loading inventory:', error)
         alert('Eroare la încărcarea inventarului')
-        navigate('/admin/dashboard?tab=inventory')
+        navigate('/dashboard?tab=inventory')
       } finally {
         setLoading(false)
       }
@@ -125,9 +127,50 @@ function InventoryView() {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to download PDF:', error)
-      alert('Eroare la descărcarea PDF-ului')
+      // Check if error is 404 (PDF not found)
+      if (error.response?.status === 404) {
+        setShowPDFMissingPopup(true)
+      } else {
+        alert('Eroare la descărcarea PDF-ului')
+      }
+    }
+  }
+
+  const handleGeneratePDF = async () => {
+    if (!inventory) return
+    setIsGeneratingPDF(true)
+    try {
+      // Generate PDF
+      await api.post(`/inventory/${inventory.id}/generate-pdf`)
+      
+      // Reload inventory to get updated PDF path
+      const inventoryResponse = await api.get(`/inventory/${inventory.id}`)
+      setInventory(inventoryResponse.data)
+      
+      // Close popup
+      setShowPDFMissingPopup(false)
+      
+      // Download the newly generated PDF
+      const response = await api.get(`/inventory/pdf/${inventory.id}`, {
+        responseType: 'blob',
+      })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const dateStr = toBucharestDateString(inventory.date)
+      link.download = `inventory-${inventory.username}-${dateStr}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to generate PDF:', error)
+      alert('Eroare la generarea PDF-ului')
+    } finally {
+      setIsGeneratingPDF(false)
     }
   }
 
@@ -153,7 +196,7 @@ function InventoryView() {
         <div className="text-center">
           <p className="text-2xl font-bold text-secondary">Inventarul nu a fost găsit</p>
           <button
-            onClick={() => navigate('/admin/dashboard?tab=inventory')}
+            onClick={() => navigate('/dashboard?tab=inventory')}
             className="btn-active px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all mt-4"
           >
             ← Înapoi la Dashboard
@@ -174,7 +217,7 @@ function InventoryView() {
             Inventar - {inventory.username} - {formatBucharestDate(inventory.date)}
           </h1>
           <button
-            onClick={() => navigate('/admin/dashboard?tab=inventory')}
+            onClick={() => navigate('/dashboard?tab=inventory')}
             className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-secondary hover:scale-105 transition-all"
           >
             ← Înapoi
@@ -420,6 +463,32 @@ function InventoryView() {
           </button>
         </div>
       </div>
+
+      {/* PDF Missing Popup */}
+      {showPDFMissingPopup && (
+        <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card max-w-md w-full p-8 animate-float">
+            <h3 className="text-2xl font-bold text-secondary mb-4">
+              Inventarul final încă nu a fost transmis.
+            </h3>
+            <div className="flex gap-4 mt-8">
+              <button
+                onClick={handleGeneratePDF}
+                disabled={isGeneratingPDF}
+                className="flex-1 btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingPDF ? 'Se generează...' : 'Generează PDF acum'}
+              </button>
+              <button
+                onClick={() => setShowPDFMissingPopup(false)}
+                className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
+              >
+                Închide
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

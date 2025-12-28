@@ -1,11 +1,80 @@
-import { defineConfig } from 'vite'
+import { defineConfig, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { writeFileSync } from 'fs'
+import { join } from 'path'
+
+// Plugin to generate admin manifest
+function generateAdminManifest(): Plugin {
+  return {
+    name: 'generate-admin-manifest',
+    writeBundle() {
+      const adminManifest = {
+        name: 'Admin LBB',
+        short_name: 'Admin LBB',
+        description: 'Panou de administrare LBB',
+        theme_color: '#6366f1',
+        background_color: '#6366f1',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/admin',
+        start_url: '/admin',
+        icons: [
+          {
+            src: 'admin-pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'admin-pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: 'admin-pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      }
+      
+      const distPath = join(process.cwd(), 'dist')
+      const manifestPath = join(distPath, 'admin-manifest.webmanifest')
+      writeFileSync(manifestPath, JSON.stringify(adminManifest, null, 2))
+    }
+  }
+}
+
+// Plugin to serve admin.html at /admin in dev mode
+function adminRoutePlugin(): Plugin {
+  return {
+    name: 'admin-route-plugin',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === '/admin' || req.url === '/admin/') {
+          req.url = '/admin.html'
+        }
+        next()
+      })
+    }
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        main: './index.html',
+        admin: './admin.html',
+      },
+    },
+  },
   plugins: [
     react(),
+    adminRoutePlugin(),
+    generateAdminManifest(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],

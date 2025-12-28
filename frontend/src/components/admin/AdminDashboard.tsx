@@ -545,7 +545,7 @@ function AdminDashboard() {
   const handleAdminLogout = () => {
     localStorage.removeItem('adminAuthToken')
     window.dispatchEvent(new Event('adminAuthChange'))
-    navigate('/admin')
+    navigate('/', { replace: true })
   }
 
   // Update activeTab when URL parameter changes
@@ -1241,7 +1241,7 @@ function AdminDashboard() {
                                 <td className="px-1 sm:px-2 py-2">
                                   <div className="flex gap-1 sm:gap-2 items-center">
                                     <button
-                                      onClick={() => navigate(`/admin/orders/${order.id}`)}
+                                      onClick={() => navigate(`/orders/${order.id}`)}
                                       className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all whitespace-nowrap"
                                     >
                                       Vezi
@@ -1493,7 +1493,7 @@ function AdminDashboard() {
                               {userStatus.hasSubmitted && userStatus.inventory && (
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => navigate(`/admin/inventory/${userStatus.inventory.id}`)}
+                                    onClick={() => navigate(`/inventory/${userStatus.inventory.id}`)}
                                     className="btn-active px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold hover:scale-105 transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
                                   >
                                     VEZI INVENTAR

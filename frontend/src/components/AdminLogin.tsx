@@ -29,7 +29,7 @@ function AdminLogin() {
       window.dispatchEvent(new Event('adminAuthChange'))
       
       // Redirect to admin dashboard
-      navigate('/admin/dashboard')
+      navigate('/dashboard')
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.error || 'Credențiale incorecte')
