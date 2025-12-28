@@ -10,6 +10,7 @@ function generateAdminManifest(): Plugin {
     name: 'generate-admin-manifest',
     writeBundle() {
       const adminManifest = {
+        id: '/admin',
         name: 'Admin LBB',
         short_name: 'Admin LBB',
         description: 'Panou de administrare LBB',
@@ -79,6 +80,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
+        id: '/',
         name: 'Comenzi LBB',
         short_name: 'Comenzi LBB',
         description: 'Sistem de comenzi LBB',
