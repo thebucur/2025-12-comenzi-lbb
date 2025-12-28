@@ -19,6 +19,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Only handle requests within /admin scope
+  if (!url.pathname.startsWith('/admin') && url.pathname !== '/admin.html') {
+    // Let other requests pass through without interception
+    return;
+  }
+
   // Network first strategy for API calls
   if (event.request.url.includes('/api/')) {
     event.respondWith(
@@ -32,6 +40,21 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
           return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // For navigation requests to /admin or /admin/*, serve admin.html
+  if (event.request.mode === 'navigate' && url.pathname.startsWith('/admin')) {
+    event.respondWith(
+      fetch('/admin.html')
+        .then((response) => {
+          return response;
+        })
+        .catch(() => {
+          // Fallback if admin.html is not available
+          return new Response('Admin app not found', { status: 404 });
         })
     );
     return;
