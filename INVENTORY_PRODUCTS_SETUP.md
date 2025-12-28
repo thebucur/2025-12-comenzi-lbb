@@ -196,3 +196,4 @@ Possible improvements:
 - Product categorization within categories (subcategories)
 - Product metadata (description, SKU, etc.)
 
+

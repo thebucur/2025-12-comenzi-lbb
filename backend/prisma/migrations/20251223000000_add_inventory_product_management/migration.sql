@@ -32,3 +32,4 @@ CREATE UNIQUE INDEX "InventoryProduct_categoryId_name_key" ON "InventoryProduct"
 -- AddForeignKey
 ALTER TABLE "InventoryProduct" ADD CONSTRAINT "InventoryProduct_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "InventoryCategory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+

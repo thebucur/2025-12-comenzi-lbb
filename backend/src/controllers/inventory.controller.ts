@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
-import { generateInventoryPDF } from '../services/pdf.service'
+import { generateInventoryPDF as generateInventoryPDFService } from '../services/pdf.service'
 import path from 'path'
 import fs from 'fs'
 import { normalizeDateBucharest, getBucharestToday } from '../utils/date'
@@ -201,8 +201,22 @@ export const submitInventory = async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Failed to create/update inventory' })
     }
 
-    // Generate PDF
-    const pdfPath = await generateInventoryPDF(inventory)
+    // Delete existing PDF file if it exists (so we regenerate with the same name)
+    if (inventory.pdfPath) {
+      try {
+        const pdfFullPath = path.resolve(inventory.pdfPath)
+        if (fs.existsSync(pdfFullPath)) {
+          fs.unlinkSync(pdfFullPath)
+          console.log(`Deleted existing PDF before regeneration: ${pdfFullPath}`)
+        }
+      } catch (error) {
+        console.error('Error deleting existing PDF file:', error)
+        // Continue with generation even if deletion fails
+      }
+    }
+
+    // Generate PDF (will use the same base filename since old file is deleted)
+    const pdfPath = await generateInventoryPDFService(inventory)
 
     // Update inventory with PDF path
     await prisma.inventory.update({
@@ -289,6 +303,55 @@ export const getInventoryById = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching inventory by ID:', error)
     res.status(500).json({ error: 'Failed to fetch inventory' })
+  }
+}
+
+// Generate PDF for existing inventory
+export const generateInventoryPDF = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+
+    const inventory = await prisma.inventory.findUnique({
+      where: { id },
+      include: {
+        entries: true,
+      },
+    })
+
+    if (!inventory) {
+      return res.status(404).json({ error: 'Inventory not found' })
+    }
+
+    // Delete existing PDF file if it exists (so we regenerate with the same name)
+    if (inventory.pdfPath) {
+      try {
+        const pdfFullPath = path.resolve(inventory.pdfPath)
+        if (fs.existsSync(pdfFullPath)) {
+          fs.unlinkSync(pdfFullPath)
+          console.log(`Deleted existing PDF: ${pdfFullPath}`)
+        }
+      } catch (error) {
+        console.error('Error deleting existing PDF file:', error)
+        // Continue with generation even if deletion fails
+      }
+    }
+
+    // Generate PDF (will use the same base filename since old file is deleted)
+    const pdfPath = await generateInventoryPDFService(inventory)
+
+    // Update inventory with PDF path
+    await prisma.inventory.update({
+      where: { id: inventory.id },
+      data: { pdfPath },
+    })
+
+    res.json({ 
+      success: true, 
+      pdfPath,
+    })
+  } catch (error) {
+    console.error('Error generating inventory PDF:', error)
+    res.status(500).json({ error: 'Failed to generate PDF' })
   }
 }
 

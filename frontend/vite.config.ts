@@ -1,7 +1,7 @@
 import { defineConfig, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { writeFileSync } from 'fs'
+import { writeFileSync, readFileSync } from 'fs'
 import { join } from 'path'
 
 // Plugin to generate admin manifest
@@ -62,6 +62,30 @@ function adminRoutePlugin(): Plugin {
   }
 }
 
+// Plugin to remove main app service worker registration from admin.html
+function removeMainSWFromAdmin(): Plugin {
+  return {
+    name: 'remove-main-sw-from-admin',
+    enforce: 'post', // Run after other plugins
+    closeBundle() {
+      // This runs after all plugins have finished, including vite-plugin-pwa
+      const adminHtmlPath = join(process.cwd(), 'dist', 'admin.html')
+      try {
+        let html = readFileSync(adminHtmlPath, 'utf-8')
+        // Remove the main app's service worker registration script
+        html = html.replace(/<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/gi, '')
+        html = html.replace(/<script[^>]*src="[^"]*registerSW\.js"[^>]*><\/script>/gi, '')
+        // Remove main app manifest link if present (but keep admin manifest)
+        html = html.replace(/<link[^>]*rel="manifest"[^>]*href="\/manifest\.webmanifest"[^>]*>/gi, '')
+        writeFileSync(adminHtmlPath, html, 'utf-8')
+        console.log('Removed main app SW registration from admin.html')
+      } catch (error) {
+        console.warn('Could not remove main SW from admin.html:', error)
+      }
+    }
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   build: {
@@ -76,6 +100,7 @@ export default defineConfig({
     react(),
     adminRoutePlugin(),
     generateAdminManifest(),
+    removeMainSWFromAdmin(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
