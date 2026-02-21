@@ -6,6 +6,8 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  getUserStaffNames,
+  updateUserStaffNames,
   downloadFoaieDeZahar,
   fixFoaieDeZaharFlags,
   listUploadsFiles,
@@ -23,6 +25,8 @@ router.delete('/orders', deleteOrders)
 router.get('/uploads/files', listUploadsFiles)
 router.post('/fix-foaie-de-zahar-flags', fixFoaieDeZaharFlags)
 router.get('/users', listUsers)
+router.get('/users/:id/staff-names', getUserStaffNames)
+router.put('/users/:id/staff-names', updateUserStaffNames)
 router.post('/users', createUser)
 router.put('/users/:id', updateUser)
 router.delete('/users/:id', deleteUser)

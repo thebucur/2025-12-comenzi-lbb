@@ -67,6 +67,7 @@ interface Order {
 interface User {
   id: string
   username: string
+  staffNames?: string[]
   createdAt: string
 }
 
@@ -541,6 +542,9 @@ function AdminDashboard() {
     username: '',
     password: '',
   })
+  const [usersSubTab, setUsersSubTab] = useState<'global' | 'local'>('global')
+  const [editingStaffUserId, setEditingStaffUserId] = useState<string | null>(null)
+  const [staffNamesEdit, setStaffNamesEdit] = useState<string[]>([])
 
   const handleAdminLogout = () => {
     localStorage.removeItem('adminAuthToken')
@@ -562,6 +566,13 @@ function AdminDashboard() {
     if (activeTab === 'globalConfig') fetchGlobalConfigs()
     if (activeTab === 'inventory') fetchInventoryData()
   }, [activeTab])
+
+  // Refetch users (incl. staff names) when switching to LOCAL sub-tab - show latest edits from app
+  useEffect(() => {
+    if (activeTab === 'users' && usersSubTab === 'local') {
+      fetchUsers()
+    }
+  }, [usersSubTab])
 
   const fetchOrders = async () => {
     try {
@@ -648,12 +659,42 @@ function AdminDashboard() {
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/admin/users')
+      const response = await api.get('/admin/users?includeStaffNames=true')
       setUsers(response.data)
     } catch (error) {
       console.error('Error fetching users:', error)
     }
   }
+
+  const handleEditStaffNames = (user: User) => {
+    setEditingStaffUserId(user.id)
+    setStaffNamesEdit(Array.isArray(user.staffNames) ? [...user.staffNames] : [])
+  }
+
+  const handleSaveStaffNames = async () => {
+    if (!editingStaffUserId) return
+    try {
+      await api.put(`/admin/users/${editingStaffUserId}/staff-names`, { staffNames: staffNamesEdit })
+      setEditingStaffUserId(null)
+      fetchUsers()
+    } catch (error) {
+      console.error('Error saving staff names:', error)
+      alert('Eroare la salvarea numelor')
+    }
+  }
+
+  const handleAddStaffName = () => {
+    const name = prompt('Nume nou (preia comanda):')
+    if (name?.trim() && !staffNamesEdit.includes(name.trim().toUpperCase())) {
+      setStaffNamesEdit([...staffNamesEdit, name.trim().toUpperCase()])
+    }
+  }
+
+  const handleRemoveStaffName = (name: string) => {
+    setStaffNamesEdit(staffNamesEdit.filter(n => n !== name))
+  }
+
+  const nonAdminUsers = users.filter(u => u.username !== 'admin')
 
   const fetchGlobalConfigs = async () => {
     try {
@@ -1294,53 +1335,166 @@ function AdminDashboard() {
         {/* Users Tab */}
         {activeTab === 'users' && (
           <div className="space-y-6">
-            <div className="card-neumorphic flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-secondary">Gestionare utilizatori</h2>
-                <p className="text-secondary/60 text-sm sm:text-base">Administrează utilizatorii platformei</p>
+            <div className="card-neumorphic">
+              <h2 className="text-xl sm:text-2xl font-bold text-secondary mb-2">Gestionare utilizatori</h2>
+              <p className="text-secondary/60 text-sm sm:text-base mb-4">Administrează utilizatorii platformei (GLOBAL) și utilizatorii locali per user (LOCAL)</p>
+              
+              {/* Sub-tabs: GLOBAL | LOCAL */}
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => setUsersSubTab('global')}
+                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                    usersSubTab === 'global' ? 'btn-active scale-105' : 'btn-neumorphic text-secondary hover:scale-102'
+                  }`}
+                >
+                  🌐 GLOBAL
+                </button>
+                <button
+                  onClick={() => setUsersSubTab('local')}
+                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                    usersSubTab === 'local' ? 'btn-active scale-105' : 'btn-neumorphic text-secondary hover:scale-102'
+                  }`}
+                >
+                  📱 LOCAL
+                </button>
               </div>
-              <button
-                onClick={handleCreateUser}
-                className="btn-active px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:scale-105 transition-all w-full sm:w-auto"
-              >
-                + Adaugă utilizator
-              </button>
+
+              {usersSubTab === 'global' && (
+                <>
+                  <div className="flex justify-end mb-4">
+                    <button
+                      onClick={handleCreateUser}
+                      className="btn-active px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:scale-105 transition-all"
+                    >
+                      + Adaugă utilizator
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {users.map((user) => (
+                      <div key={user.id} className="card-neumorphic hover:scale-105 transition-all duration-300">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple flex items-center justify-center text-white text-2xl font-bold">
+                            {user.username.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-secondary">{user.username}</h3>
+                          </div>
+                        </div>
+                        <div className="bg-primary/50 p-3 rounded-xl mb-4">
+                          <p className="text-sm text-secondary/60">Creat</p>
+                          <p className="font-bold text-secondary">
+                            {formatBucharestDate(user.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleEditUser(user)}
+                            className="flex-1 btn-neumorphic px-4 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
+                          >
+                            ✏️ Editează
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="px-4 py-3 bg-red-100 text-red-600 rounded-2xl font-bold hover:scale-105 transition-all shadow-neumorphic"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {usersSubTab === 'local' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-secondary/70 text-sm">Utilizatorii locali (cine preia comanda) pentru fiecare user principal. Editați lista de nume care apar în aplicație.</p>
+                    <button
+                      onClick={() => fetchUsers()}
+                      className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all shrink-0"
+                    >
+                      🔄 Reîncarcă
+                    </button>
+                  </div>
+                  {nonAdminUsers.length === 0 ? (
+                    <p className="text-secondary/60 text-center py-8">Nu există utilizatori (în afară de admin). Adăugați utilizatori în secțiunea GLOBAL.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {nonAdminUsers.map((user) => (
+                        <div key={user.id} className="bg-primary/50 p-4 rounded-2xl">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-bold text-secondary text-lg">{user.username}</h4>
+                            <button
+                              onClick={() => handleEditStaffNames(user)}
+                              className="btn-active px-4 py-2 rounded-xl font-bold text-sm hover:scale-105 transition-all"
+                            >
+                              ✏️ Editează
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {(Array.isArray(user.staffNames) ? user.staffNames : []).length > 0 ? (
+                              (Array.isArray(user.staffNames) ? user.staffNames : []).map((name) => (
+                                <span key={name} className="px-3 py-1 bg-secondary/20 rounded-full text-sm font-semibold text-secondary">
+                                  {name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-secondary/50 text-sm italic">Lista goală (se folosește implicit ALINA, DANA, MIRELA, LIVIA)</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {users.map((user) => (
-                <div key={user.id} className="card-neumorphic hover:scale-105 transition-all duration-300">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple flex items-center justify-center text-white text-2xl font-bold">
-                      {user.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-secondary">{user.username}</h3>
-                    </div>
+            {/* Staff Names Edit Modal */}
+            {editingStaffUserId && (
+              <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="glass-card max-w-md w-full p-8 animate-float">
+                  <h3 className="text-2xl font-bold text-gradient mb-6">Editează utilizatorii locali</h3>
+                  <p className="text-secondary/70 text-sm mb-4">Numele care apar ca opțiuni la „Preia comanda” pentru acest utilizator</p>
+                  <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
+                    {staffNamesEdit.map((name) => (
+                      <div key={name} className="flex items-center justify-between bg-primary/50 p-4 rounded-2xl">
+                        <span className="font-semibold text-secondary">{name}</span>
+                        <button
+                          onClick={() => handleRemoveStaffName(name)}
+                          className="text-red-500 hover:text-red-600 font-bold transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <div className="bg-primary/50 p-3 rounded-xl mb-4">
-                    <p className="text-sm text-secondary/60">Creat</p>
-                    <p className="font-bold text-secondary">
-                      {formatBucharestDate(user.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 mb-6">
                     <button
-                      onClick={() => handleEditUser(user)}
-                      className="flex-1 btn-neumorphic px-4 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
+                      onClick={handleAddStaffName}
+                      className="btn-active px-4 py-3 rounded-2xl font-bold hover:scale-105 transition-all"
                     >
-                      ✏️ Editează
+                      + Adaugă nume
+                    </button>
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={handleSaveStaffNames}
+                      className="flex-1 btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all"
+                    >
+                      ✓ Salvează
                     </button>
                     <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="px-4 py-3 bg-red-100 text-red-600 rounded-2xl font-bold hover:scale-105 transition-all shadow-neumorphic"
+                      onClick={() => setEditingStaffUserId(null)}
+                      className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
                     >
-                      🗑️
+                      ✕ Anulează
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
 

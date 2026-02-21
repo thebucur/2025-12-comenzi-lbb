@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { Location } from '../../types/order.types'
 import { getTodayString, toBucharestDateString } from '../../utils/date'
+import api from '../../services/api'
 
 const locations: Location[] = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
 const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
@@ -11,20 +12,56 @@ function Screen1Ridicare() {
   const userId = localStorage.getItem('userId') || 'default'
   const staffNamesKey = `staffNames_${userId}`
   
-  // Load staff names from localStorage for this user, or use defaults
-  const [staffNames, setStaffNames] = useState<string[]>(() => {
-    const savedStaffNames = localStorage.getItem(staffNamesKey)
-    return savedStaffNames ? JSON.parse(savedStaffNames) : defaultStaffNames
-  })
+  // Load staff names: fetch from API first, fallback to localStorage, then defaults
+  const [staffNames, setStaffNames] = useState<string[]>(defaultStaffNames)
   
   const [showStaffSettings, setShowStaffSettings] = useState(false)
   const [newStaffName, setNewStaffName] = useState('')
   const [showTomorrowAlert, setShowTomorrowAlert] = useState(false)
-  
-  // Save staff names to localStorage whenever they change
+
+  // Fetch staff names from backend on mount
   useEffect(() => {
-    localStorage.setItem(staffNamesKey, JSON.stringify(staffNames))
-  }, [staffNames, staffNamesKey])
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await api.get<{ staffNames: string[] }>('/orders/staff-names')
+        if (!cancelled && Array.isArray(res.data.staffNames) && res.data.staffNames.length > 0) {
+          setStaffNames(res.data.staffNames)
+          localStorage.setItem(staffNamesKey, JSON.stringify(res.data.staffNames))
+        } else if (!cancelled) {
+          const saved = localStorage.getItem(staffNamesKey)
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            setStaffNames(Array.isArray(parsed) ? parsed : defaultStaffNames)
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          const saved = localStorage.getItem(staffNamesKey)
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved)
+              setStaffNames(Array.isArray(parsed) ? parsed : defaultStaffNames)
+            } catch {
+              // keep defaultStaffNames
+            }
+          }
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [staffNamesKey])
+
+  // Sync staff names to backend and localStorage when changed by user
+  const persistStaffNames = useCallback(async (names: string[]) => {
+    localStorage.setItem(staffNamesKey, JSON.stringify(names))
+    try {
+      await api.put('/orders/staff-names', { staffNames: names })
+    } catch {
+      // Keep local state; backend sync will retry on next load
+    }
+  }, [staffNamesKey])
 
   const isTodayOrTomorrow = (date: string) => {
     const todayStr = getTodayString()
@@ -61,16 +98,20 @@ function Screen1Ridicare() {
 
   const handleAddStaff = () => {
     if (newStaffName.trim() && !staffNames.includes(newStaffName.trim().toUpperCase())) {
-      setStaffNames([...staffNames, newStaffName.trim().toUpperCase()])
+      const next = [...staffNames, newStaffName.trim().toUpperCase()]
+      setStaffNames(next)
       setNewStaffName('')
+      persistStaffNames(next)
     }
   }
 
   const handleDeleteStaff = (name: string) => {
-    setStaffNames(staffNames.filter(n => n !== name))
+    const next = staffNames.filter(n => n !== name)
+    setStaffNames(next)
     if (order.staffName === name) {
       updateOrder({ staffName: null })
     }
+    persistStaffNames(next)
   }
 
   return (

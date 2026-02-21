@@ -76,6 +76,7 @@ model User {
   id             String       @id @default(uuid())
   username       String       @unique
   password       String       // Hashed password
+  staffNames     Json?        // Local staff names (array of strings) - "cine preia comanda" per user
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   pickedUpOrders Order[]      @relation("PickedUpOrders")

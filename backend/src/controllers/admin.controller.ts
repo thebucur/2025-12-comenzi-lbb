@@ -32,10 +32,12 @@ export const getOrderDetails = async (req: Request, res: Response) => {
 
 export const listUsers = async (req: Request, res: Response) => {
   try {
+    const { includeStaffNames } = req.query
     const users = await prisma.user.findMany({
       select: {
         id: true,
         username: true,
+        ...(includeStaffNames === 'true' && { staffNames: true }),
         createdAt: true,
         updatedAt: true,
       },
@@ -44,6 +46,49 @@ export const listUsers = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error listing users:', error)
     res.status(500).json({ error: 'Failed to list users' })
+  }
+}
+
+export const getUserStaffNames = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { staffNames: true },
+    })
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    const staffNames = Array.isArray(user.staffNames) ? user.staffNames : (user.staffNames ? [] : [])
+    res.json({ staffNames })
+  } catch (error) {
+    console.error('Error fetching user staff names:', error)
+    res.status(500).json({ error: 'Failed to fetch staff names' })
+  }
+}
+
+export const updateUserStaffNames = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const { staffNames } = req.body
+
+    if (!Array.isArray(staffNames)) {
+      return res.status(400).json({ error: 'staffNames must be an array of strings' })
+    }
+
+    const validNames = staffNames
+      .filter((n: unknown) => typeof n === 'string' && n.trim())
+      .map((n: string) => n.trim().toUpperCase())
+
+    await prisma.user.update({
+      where: { id },
+      data: { staffNames: validNames },
+    })
+
+    res.json({ staffNames: validNames })
+  } catch (error) {
+    console.error('Error updating user staff names:', error)
+    res.status(500).json({ error: 'Failed to update staff names' })
   }
 }
 

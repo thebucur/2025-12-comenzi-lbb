@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { linkSessionToOrder } from './upload.controller'
+import type { AuthRequest } from '../middleware/auth.middleware'
 
 export const createOrder = async (req: Request, res: Response) => {
   try {
@@ -483,6 +484,59 @@ export const getUserOrders = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching user orders:', error)
     res.status(500).json({ error: 'Failed to fetch user orders' })
+  }
+}
+
+export const getMyStaffNames = async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthRequest
+    const userId = authReq.userId
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { staffNames: true },
+    })
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    const staffNames = Array.isArray(user.staffNames) ? user.staffNames : (user.staffNames ? [] : [])
+    res.json({ staffNames })
+  } catch (error) {
+    console.error('Error fetching staff names:', error)
+    res.status(500).json({ error: 'Failed to fetch staff names' })
+  }
+}
+
+export const updateMyStaffNames = async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthRequest
+    const userId = authReq.userId
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    const { staffNames } = req.body
+    if (!Array.isArray(staffNames)) {
+      return res.status(400).json({ error: 'staffNames must be an array of strings' })
+    }
+
+    const validNames = staffNames
+      .filter((n: unknown) => typeof n === 'string' && (n as string).trim())
+      .map((n: string) => (n as string).trim().toUpperCase())
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { staffNames: validNames },
+    })
+
+    res.json({ staffNames: validNames })
+  } catch (error) {
+    console.error('Error updating staff names:', error)
+    res.status(500).json({ error: 'Failed to update staff names' })
   }
 }
 
