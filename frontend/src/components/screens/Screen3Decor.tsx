@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, type ChangeEvent } from 'react'
 import { useOrder } from '../../context/OrderContext'
 import { Coating } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
-import QRCode from 'qrcode'
 import { ColorOption, normalizeColorOptions, resolveColorValue } from '../../constants/colors'
 import { getLocalNetworkUrl, getLocalNetworkIP } from '../../utils/network'
 import api from '../../services/api'
@@ -26,6 +25,7 @@ function Screen3Decor() {
   const [isLocalUploading, setIsLocalUploading] = useState(false)
   const [isFoaieDeZaharUploading, setIsFoaieDeZaharUploading] = useState(false)
   const [uploadModalType, setUploadModalType] = useState<UploadModalType>(null)
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const currentTextareaRef = useRef<'decorDetails' | 'observations' | null>(null)
   const photoPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -301,6 +301,7 @@ function Screen3Decor() {
   }
 
   const generateQRCode = async (type: 'photos' | 'foaieDeZahar' = 'photos') => {
+    setIsGeneratingQR(true)
     try {
       // Use the same session ID for both photos and foaie de zahar
       // This ensures all uploads are linked to the same session
@@ -345,6 +346,7 @@ function Screen3Decor() {
       } catch (error) {
         console.error('Invalid URL generated for QR code:', uploadUrl, error)
         alert('Eroare: URL invalid pentru QR code. Verifică configurația.')
+        setIsGeneratingQR(false)
         return
       }
       
@@ -358,8 +360,9 @@ function Screen3Decor() {
         console.warn('Find your IP: Windows: ipconfig | findstr IPv4');
       }
       
-      // Generate QR code with error correction level for better scanning
-      const dataUrl = await QRCode.toDataURL(uploadUrl, {
+      // Generate QR code with error correction level for better scanning (dynamic import avoids CJS/ESM issues)
+      const { toDataURL } = await import('qrcode')
+      const dataUrl = await toDataURL(uploadUrl, {
         errorCorrectionLevel: 'M',
         margin: 1,
         width: 300,
@@ -373,17 +376,21 @@ function Screen3Decor() {
       console.log(`QR code data URL length: ${dataUrl.length} characters`)
       
       setQrCodeDataUrl(dataUrl);
-      setShowQRCode(true);
-      setUploadModalType(null); // Close the upload type modal
+      setShowQRCode(true)
+      setUploadModalType(null) // Close the upload type modal
       
       // Start polling for new photos and foaie de zahar
       // Make sure polling is started with the correct session ID
       console.log(`Starting photo polling for session: ${sessionId}`)
       startPhotoPolling(sessionId)
     } catch (error) {
-      console.error('Error generating QR code:', error);
+      console.error('Error generating QR code:', error)
+      const msg = error instanceof Error ? error.message : String(error)
+      alert(`Eroare la generarea codului QR: ${msg}`)
+    } finally {
+      setIsGeneratingQR(false)
     }
-  };
+  }
 
   const ensureUploadSession = () => {
     let sessionId = localStorage.getItem('currentUploadSession')
@@ -748,10 +755,20 @@ function Screen3Decor() {
               <div className="flex flex-col gap-4">
                 <button
                   onClick={() => generateQRCode(uploadModalType)}
-                  className="btn-active px-8 py-6 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+                  disabled={isGeneratingQR}
+                  className="btn-active px-8 py-6 rounded-2xl font-bold text-xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  📱 CLIENT
-                  <span className="text-sm font-normal opacity-80">(Scanează QR)</span>
+                  {isGeneratingQR ? (
+                    <>
+                      <span className="animate-pulse">⏳</span>
+                      Se generează...
+                    </>
+                  ) : (
+                    <>
+                      📱 CLIENT
+                      <span className="text-sm font-normal opacity-80">(Scanează QR)</span>
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={uploadModalType === 'photos' ? handleLocalUploadClick : handleFoaieDeZaharClick}

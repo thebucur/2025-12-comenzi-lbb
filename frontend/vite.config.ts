@@ -137,6 +137,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
+        navigateFallbackAllowlist: [/^\//], // Allow all SPA routes (denylist excludes /admin)
         navigateFallbackDenylist: [/^\/admin/],
         runtimeCaching: [
           {
@@ -170,11 +171,14 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: true,
+        enabled: false, // Disable in dev to avoid SW intercepting Vite deps
         type: 'module'
       }
     })
   ],
+  optimizeDeps: {
+    include: ['qrcode'],
+  },
   server: {
     host: '0.0.0.0', // Listen on all network interfaces
     port: 3000,

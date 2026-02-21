@@ -23,6 +23,14 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
+    // Admin user must not login from main frontend (wizard) - only via admin panel
+    const loginContext = req.body?.loginContext
+    if (user.username === 'admin' && loginContext !== 'admin') {
+      return res.status(403).json({
+        error: 'Autentificarea utilizatorului admin nu este permisă din aplicația principală.'
+      })
+    }
+
     // Return user info (without password) and token
     // For now, we use username as token (as per auth.middleware.ts)
     // In production, use JWT tokens

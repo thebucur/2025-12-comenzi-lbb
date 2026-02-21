@@ -197,3 +197,4 @@ Possible improvements:
 - Product metadata (description, SKU, etc.)
 
 
+

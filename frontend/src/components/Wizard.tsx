@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ProgressStepper from './ProgressStepper'
 import Screen1Ridicare from './screens/Screen1Ridicare'
@@ -20,6 +20,7 @@ function Wizard({ onLogout }: WizardProps) {
   const { validateStep, order, resetOrder, updateOrder } = useOrder()
   const username = localStorage.getItem('authToken')
   const [showResetModal, setShowResetModal] = useState(false)
+  const topSectionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const stepParam = searchParams.get('step')
@@ -28,9 +29,13 @@ function Wizard({ onLogout }: WizardProps) {
     }
   }, [searchParams])
 
-  // Scroll to top when step changes
+  // Scroll to top when step changes (so each new panel starts at the top)
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const scrollToTop = () => {
+      topSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    // Run after paint so new panel content is rendered
+    requestAnimationFrame(() => requestAnimationFrame(scrollToTop))
   }, [currentStep])
 
   const handleNext = () => {
@@ -130,7 +135,7 @@ function Wizard({ onLogout }: WizardProps) {
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
       <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-pink/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
       
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div ref={topSectionRef} className="container mx-auto px-4 py-8 relative z-10">
         <ProgressStepper 
           currentStep={currentStep} 
           onStepClick={handleStepClick}

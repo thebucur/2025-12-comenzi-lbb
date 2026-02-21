@@ -18,7 +18,7 @@ function AdminLogin() {
     try {
       // Authenticate with backend using admin credentials
       // Default credentials: admin / 0000
-      const response = await api.post('/auth/login', { username, password })
+      const response = await api.post('/auth/login', { username, password, loginContext: 'admin' })
       const { user, token } = response.data
 
       // Store admin authentication token

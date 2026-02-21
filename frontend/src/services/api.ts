@@ -68,7 +68,14 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Check if this is an admin endpoint
-    const isAdminEndpoint = config.url?.startsWith('/admin')
+    // - /admin/* : admin panel routes
+    // - /inventory-products/* (except /categories/public): admin product management
+    // - /inventory/* when on admin page: InventoryView, PDF generation
+    const isAdminPage = typeof window !== 'undefined' && window.location.pathname.includes('/admin')
+    const isAdminEndpoint =
+      config.url?.startsWith('/admin') ||
+      (config.url?.startsWith('/inventory-products') && !config.url?.includes('/categories/public')) ||
+      (isAdminPage && config.url?.startsWith('/inventory'))
     
     // Get appropriate auth token from localStorage
     // For admin endpoints, use adminAuthToken; otherwise use regular authToken

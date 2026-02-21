@@ -15,7 +15,7 @@ const steps = [
 function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
   const { order } = useOrder()
   return (
-    <div className="flex items-center justify-center mb-12 px-2 sm:px-4 max-w-full overflow-hidden">
+    <div className="flex items-center justify-center mb-12 px-2 sm:px-4 pt-8 max-w-full overflow-hidden">
       {steps.map((step, index) => {
         // Check if this step should be skipped (step 3 when noCake is true)
         const isSkipped = step.number === 3 && order.noCake

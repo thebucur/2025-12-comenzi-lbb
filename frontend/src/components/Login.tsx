@@ -19,6 +19,13 @@ function Login({ onLoginSuccess }: LoginProps) {
     setError('')
     setLoading(true)
 
+    // Block admin login from main app - admin must use /admin panel
+    if (username.trim().toLowerCase() === 'admin') {
+      setError('Autentificarea utilizatorului admin nu este permisă din aplicația principală.')
+      setLoading(false)
+      return
+    }
+
     try {
       const response = await api.post('/auth/login', { username, password })
       const { user } = response.data
