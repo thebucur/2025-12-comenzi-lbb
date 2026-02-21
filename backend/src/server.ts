@@ -71,23 +71,48 @@ async function seedDatabase() {
     console.log('✅ Admin user verified: username=admin, password=0000')
     console.log(`✅ Admin user ID: ${verifyUser.id}`)
 
-    // Seed default staff users if they don't exist
-    const DEFAULT_USERS = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    // Seed default location users with staff names as sub-categories
+    const DEFAULT_STAFF_NAMES = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    const LOCATION_USERS = ['CARAIMAN', 'NORD', 'TIMKEN', 'LABORATOR', 'CENTRU']
     const defaultPassword = await bcrypt.hash('0000', 10)
 
-    for (const username of DEFAULT_USERS) {
+    for (const username of LOCATION_USERS) {
       const existing = await prisma.user.findUnique({ where: { username } })
       if (!existing) {
         await prisma.user.create({
           data: {
             username,
             password: defaultPassword,
-            staffNames: DEFAULT_USERS,
+            staffNames: DEFAULT_STAFF_NAMES,
           },
         })
-        console.log(`✅ Created default user: ${username}`)
+        console.log(`✅ Created location user: ${username}`)
       } else {
-        console.log(`✅ Default user already exists: ${username}`)
+        const currentStaff = Array.isArray(existing.staffNames) ? existing.staffNames : []
+        if (currentStaff.length === 0) {
+          await prisma.user.update({
+            where: { username },
+            data: { staffNames: DEFAULT_STAFF_NAMES },
+          })
+          console.log(`✅ Updated location user staffNames: ${username}`)
+        } else {
+          console.log(`✅ Location user already exists: ${username}`)
+        }
+      }
+    }
+
+    // Remove old staff-as-users entries (ALINA, DANA, MIRELA, LIVIA should not be top-level users)
+    for (const staffName of DEFAULT_STAFF_NAMES) {
+      const oldUser = await prisma.user.findUnique({ where: { username: staffName } })
+      if (oldUser) {
+        const hasOrders = await prisma.order.count({ where: { pickedUpByUserId: oldUser.id } })
+        const hasInventories = await prisma.inventory.count({ where: { userId: oldUser.id } })
+        if (hasOrders === 0 && hasInventories === 0) {
+          await prisma.user.delete({ where: { id: oldUser.id } })
+          console.log(`🗑️ Removed old staff-as-user: ${staffName}`)
+        } else {
+          console.log(`⚠️ Cannot remove ${staffName} - has ${hasOrders} orders and ${hasInventories} inventories linked`)
+        }
       }
     }
 

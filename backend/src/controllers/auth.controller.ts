@@ -111,19 +111,20 @@ export const seedAdmin = async (req: Request, res: Response) => {
       },
     })
 
-    // Also seed default staff users
-    const DEFAULT_USERS = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    // Also seed default location users with staff names as sub-categories
+    const DEFAULT_STAFF_NAMES = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    const LOCATION_USERS = ['CARAIMAN', 'NORD', 'TIMKEN', 'LABORATOR', 'CENTRU']
     const defaultUserPassword = await bcrypt.hash('0000', 10)
     const createdUsers: string[] = []
 
-    for (const name of DEFAULT_USERS) {
+    for (const name of LOCATION_USERS) {
       const existing = await prisma.user.findUnique({ where: { username: name } })
       if (!existing) {
         await prisma.user.create({
           data: {
             username: name,
             password: defaultUserPassword,
-            staffNames: DEFAULT_USERS,
+            staffNames: DEFAULT_STAFF_NAMES,
           },
         })
         createdUsers.push(name)
@@ -134,7 +135,7 @@ export const seedAdmin = async (req: Request, res: Response) => {
       message: 'Admin user created successfully',
       username: 'admin',
       password: '0000',
-      defaultUsersCreated: createdUsers,
+      locationUsersCreated: createdUsers,
     })
   } catch (error) {
     console.error('Error seeding admin user:', error)

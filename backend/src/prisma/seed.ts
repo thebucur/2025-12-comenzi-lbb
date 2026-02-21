@@ -53,23 +53,24 @@ async function main() {
     console.log('✅ Admin user verified: username=admin, password=0000')
     console.log(`✅ Admin user ID: ${verifyUser.id}`)
 
-    // Seed default staff users if they don't exist
-    const DEFAULT_USERS = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    // Seed default location users with staff names as sub-categories
+    const DEFAULT_STAFF_NAMES = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    const LOCATION_USERS = ['CARAIMAN', 'NORD', 'TIMKEN', 'LABORATOR', 'CENTRU']
     const defaultUserPassword = await bcrypt.hash('0000', 10)
 
-    for (const username of DEFAULT_USERS) {
+    for (const username of LOCATION_USERS) {
       const existing = await prisma.user.findUnique({ where: { username } })
       if (!existing) {
         await prisma.user.create({
           data: {
             username,
             password: defaultUserPassword,
-            staffNames: DEFAULT_USERS,
+            staffNames: DEFAULT_STAFF_NAMES,
           },
         })
-        console.log(`✅ Created default user: ${username}`)
+        console.log(`✅ Created location user: ${username}`)
       } else {
-        console.log(`✅ Default user already exists: ${username}`)
+        console.log(`✅ Location user already exists: ${username}`)
       }
     }
 
