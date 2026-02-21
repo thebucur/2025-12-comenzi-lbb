@@ -50,9 +50,30 @@ async function main() {
       throw new Error('Failed to verify admin password - password comparison failed')
     }
 
-    console.log('✅ Database seeded successfully!')
     console.log('✅ Admin user verified: username=admin, password=0000')
     console.log(`✅ Admin user ID: ${verifyUser.id}`)
+
+    // Seed default staff users if they don't exist
+    const DEFAULT_USERS = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
+    const defaultUserPassword = await bcrypt.hash('0000', 10)
+
+    for (const username of DEFAULT_USERS) {
+      const existing = await prisma.user.findUnique({ where: { username } })
+      if (!existing) {
+        await prisma.user.create({
+          data: {
+            username,
+            password: defaultUserPassword,
+            staffNames: DEFAULT_USERS,
+          },
+        })
+        console.log(`✅ Created default user: ${username}`)
+      } else {
+        console.log(`✅ Default user already exists: ${username}`)
+      }
+    }
+
+    console.log('✅ Database seeded successfully!')
   } catch (error) {
     console.error('❌ Error during seeding:', error)
     throw error
