@@ -140,6 +140,12 @@ export default defineConfig({
         navigateFallbackAllowlist: [/^\//], // Allow all SPA routes (denylist excludes /admin)
         navigateFallbackDenylist: [/^\/admin/],
         runtimeCaching: [
+          // Nu cachea date mutabile (users) - mereu fetch din rețea
+          {
+            urlPattern: /\/api\/admin\/users(\/|$|\?)/i,
+            handler: 'NetworkOnly',
+            options: {}
+          },
           {
             urlPattern: /^https:\/\/api\./i,
             handler: 'NetworkFirst',

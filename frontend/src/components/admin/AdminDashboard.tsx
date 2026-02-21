@@ -1361,7 +1361,13 @@ function AdminDashboard() {
 
               {usersSubTab === 'global' && (
                 <>
-                  <div className="flex justify-end mb-4">
+                  <div className="flex justify-end gap-3 mb-4">
+                    <button
+                      onClick={() => fetchUsers()}
+                      className="btn-neumorphic px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:scale-105 transition-all text-secondary"
+                    >
+                      🔄 Reîncarcă
+                    </button>
                     <button
                       onClick={handleCreateUser}
                       className="btn-active px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:scale-105 transition-all"
