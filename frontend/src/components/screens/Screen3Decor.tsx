@@ -628,13 +628,13 @@ function Screen3Decor() {
             <button
               key={type}
               onClick={() => updateOrder({ decorType: type })}
-              className={`p-8 rounded-3xl transition-all duration-300 ${
+              className={`p-6 rounded-2xl font-bold transition-all duration-300 ${
                 order.decorType === type
                   ? 'btn-active scale-105'
                   : 'btn-neumorphic hover:scale-102'
               }`}
             >
-              <div className="text-2xl font-bold">{type}</div>
+              {type}
             </button>
           ))}
         </div>
