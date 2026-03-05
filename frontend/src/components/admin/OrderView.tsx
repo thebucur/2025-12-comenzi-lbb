@@ -27,6 +27,7 @@ interface OrderData {
   address: string | null
   staffName: string
   pickupDate: string
+  pickupTime: string | null
   advance: number | null
   cakeType: string
   weight: string
@@ -245,6 +246,7 @@ function AdminOrderView() {
                 <p className="text-sm text-secondary/60 mb-1">Data ridicare/livrare</p>
                 <p className={`font-bold text-secondary text-lg ${pickupDateClass}`}>
                   {formatBucharestDate(order.pickupDate)}
+                  {order.pickupTime && ` — ${order.pickupTime}`}
                 </p>
               </div>
               {order.advance && order.advance > 0 && (

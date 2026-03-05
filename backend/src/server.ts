@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.routes'
 import configRoutes from './routes/config.routes'
 import inventoryRoutes from './routes/inventory.routes'
 import inventoryProductsRoutes from './routes/inventory-products.routes'
+import aiRoutes from './routes/ai.routes'
 
 dotenv.config()
 
@@ -364,6 +365,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/config', configRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/inventory-products', inventoryProductsRoutes)
+app.use('/api/ai', aiRoutes)
 
 // Log registered routes on startup
 console.log('Registered routes:')

@@ -54,6 +54,7 @@ interface Order {
   deliveryMethod: string
   location: string | null
   pickupDate: string
+  pickupTime: string | null
   staffName: string
   createdAt: string
   createdByUsername: string | null
@@ -1242,7 +1243,7 @@ function AdminDashboard() {
                               : 'Livrare la adresa'
                             
                             const deliveryDate = order.pickupDate 
-                              ? formatBucharestDate(order.pickupDate)
+                              ? formatBucharestDate(order.pickupDate) + (order.pickupTime ? ` ${order.pickupTime}` : '')
                               : '-'
                             const deliveryDateClass = getDateRecencyClass(order.pickupDate)
                             

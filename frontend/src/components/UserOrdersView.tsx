@@ -50,6 +50,7 @@ interface Order {
   deliveryMethod: string
   location: string | null
   pickupDate: string
+  pickupTime: string | null
   staffName: string
   createdAt: string
   createdByUsername: string | null
@@ -224,7 +225,7 @@ function UserOrdersView() {
                         }
                         
                         const deliveryDate = order.pickupDate 
-                          ? formatDateWithoutYear(order.pickupDate)
+                          ? formatDateWithoutYear(order.pickupDate) + (order.pickupTime ? ` ${order.pickupTime}` : '')
                           : '-'
                         const deliveryDateClass = getDateRecencyClass(order.pickupDate)
                         

@@ -117,6 +117,7 @@ function Screen4Finalizare() {
         clientName: order.clientName.trim(),
         phoneNumber: order.phoneNumber.trim(),
         pickupDate: pickupDate,
+        pickupTime: order.pickupTime || null,
         tomorrowVerification: order.tomorrowVerification || false,
         advance: order.advance ? Number(order.advance) : null,
         noCake: order.noCake || false,
@@ -316,7 +317,10 @@ function Screen4Finalizare() {
           {order.pickupDate && (
             <div className="bg-primary/50 p-4 rounded-2xl">
               <p className="text-sm text-secondary/60 mb-1">Data</p>
-              <p className="font-bold text-secondary">{formatBucharestDate(order.pickupDate)}</p>
+              <p className="font-bold text-secondary">
+                {formatBucharestDate(order.pickupDate)}
+                {order.pickupTime && ` — ${order.pickupTime}`}
+              </p>
             </div>
           )}
           

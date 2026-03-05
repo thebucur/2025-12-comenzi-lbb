@@ -22,6 +22,7 @@ model Order {
   clientName            String
   phoneNumber           String
   pickupDate            DateTime
+  pickupTime            String?
   tomorrowVerification  Boolean  @default(false)
   advance               Float?
   

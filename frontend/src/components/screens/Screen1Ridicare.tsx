@@ -292,28 +292,67 @@ function Screen1Ridicare() {
           )}
         </div>
 
-        <div>
-          <label className="block mb-3 font-bold text-secondary">
-            Data ridicare/livrare <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            value={order.pickupDate}
-            onChange={handleDateChange}
-            onKeyDown={(e) => {
-              // Block typing; allow navigation keys only
-              const allowedKeys = ['Tab', 'Shift', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
-              if (!allowedKeys.includes(e.key)) {
-                e.preventDefault()
-              }
-            }}
-            onPaste={(e) => e.preventDefault()}
-            onDrop={(e) => e.preventDefault()}
-            onFocus={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
-            inputMode="none"
-            min={getTodayString()}
-            className="input-neumorphic w-full text-secondary cursor-pointer"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block mb-3 font-bold text-secondary">
+              Data ridicare/livrare <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={order.pickupDate}
+              onChange={handleDateChange}
+              onKeyDown={(e) => {
+                const allowedKeys = ['Tab', 'Shift', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
+                if (!allowedKeys.includes(e.key)) {
+                  e.preventDefault()
+                }
+              }}
+              onPaste={(e) => e.preventDefault()}
+              onDrop={(e) => e.preventDefault()}
+              onFocus={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
+              inputMode="none"
+              min={getTodayString()}
+              className="input-neumorphic w-full text-secondary cursor-pointer"
+            />
+          </div>
+          <div>
+            <label className="block mb-3 font-bold text-secondary">
+              Ora ridicare/livrare
+            </label>
+            <div className="flex items-center gap-2">
+              <select
+                value={order.pickupTime ? order.pickupTime.split(':')[0] : ''}
+                onChange={(e) => {
+                  const hour = e.target.value
+                  const minute = order.pickupTime ? order.pickupTime.split(':')[1] : '00'
+                  updateOrder({ pickupTime: hour ? `${hour}:${minute}` : '' })
+                }}
+                className="input-neumorphic flex-1 text-secondary cursor-pointer text-center"
+              >
+                <option value="">--</option>
+                {Array.from({ length: 15 }, (_, i) => i + 8).map((h) => (
+                  <option key={h} value={String(h).padStart(2, '0')}>
+                    {String(h).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+              <span className="text-2xl font-bold text-secondary">:</span>
+              <select
+                value={order.pickupTime ? order.pickupTime.split(':')[1] : ''}
+                onChange={(e) => {
+                  const hour = order.pickupTime ? order.pickupTime.split(':')[0] : '08'
+                  const minute = e.target.value
+                  updateOrder({ pickupTime: minute ? `${hour}:${minute}` : '' })
+                }}
+                className="input-neumorphic flex-1 text-secondary cursor-pointer text-center"
+              >
+                <option value="">--</option>
+                {['00', '15', '30', '45'].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         <div>

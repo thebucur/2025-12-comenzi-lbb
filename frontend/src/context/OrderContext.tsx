@@ -10,6 +10,7 @@ const initialOrder: Order = {
   clientName: '',
   phoneNumber: '',
   pickupDate: '',
+  pickupTime: '',
   tomorrowVerification: false,
   advance: null,
   noCake: false,

@@ -340,8 +340,9 @@ export const generatePDF = async (orderId: string): Promise<string> => {
   addField('Adresă', order.address || undefined)
   addField('Preia comanda', order.staffName)
   const pickupDateValue = order.pickupDate ? new Date(order.pickupDate).toLocaleDateString('ro-RO') : undefined
+  const pickupTimeValue = order.pickupTime ? ` ora ${order.pickupTime}` : ''
   const pickupDateHighlight = getDateHighlightColor(order.pickupDate)
-  addField('Data', pickupDateValue, pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined)
+  addField('Data', pickupDateValue ? pickupDateValue + pickupTimeValue : undefined, pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined)
   if (order.advance) addField('Avans', `${order.advance} RON`)
   doc.moveDown()
 

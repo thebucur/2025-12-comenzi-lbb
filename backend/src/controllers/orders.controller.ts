@@ -139,6 +139,7 @@ export const createOrder = async (req: Request, res: Response) => {
         clientName: String(orderData.clientName).trim(),
         phoneNumber: String(orderData.phoneNumber).trim(),
         pickupDate: pickupDateObj,
+        pickupTime: orderData.pickupTime ? String(orderData.pickupTime) : null,
         tomorrowVerification: Boolean(orderData.tomorrowVerification),
         advance: orderData.advance ? parseFloat(orderData.advance.toString()) : null,
         noCake: Boolean(orderData.noCake),

@@ -42,6 +42,7 @@ export interface Order {
   clientName: string
   phoneNumber: string
   pickupDate: string
+  pickupTime: string
   tomorrowVerification: boolean
   advance: number | null
   
