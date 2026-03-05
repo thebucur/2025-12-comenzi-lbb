@@ -57,6 +57,18 @@ export const formatBucharestDateTime = (date: Date | string, options?: Intl.Date
 }
 
 /**
+ * Format time only (HH:MM) to Romanian locale string (Bucharest timezone)
+ */
+export const formatBucharestTime = (date: Date | string): string => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  return dateObj.toLocaleTimeString(LOCALE, {
+    timeZone: BUCHAREST_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/**
  * Get current date/time as a Date object adjusted for Bucharest timezone display
  * Note: JavaScript Date objects are always in UTC internally.
  * This function helps create dates that when formatted will show Bucharest time.

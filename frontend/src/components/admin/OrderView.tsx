@@ -4,7 +4,7 @@ import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 import { getDateRecencyClass } from '../../utils/dateRecency'
-import { formatBucharestDate } from '../../utils/date'
+import { formatBucharestDate, formatBucharestTime } from '../../utils/date'
 
 // Use centralized function
 const getAbsoluteUrl = getAbsoluteImageUrl
@@ -26,6 +26,7 @@ interface OrderData {
   location: string | null
   address: string | null
   staffName: string
+  createdByUsername: string | null
   pickupDate: string
   pickupTime: string | null
   advance: number | null
@@ -224,6 +225,12 @@ function AdminOrderView() {
                 <p className="text-sm text-secondary/60 mb-1">Telefon</p>
                 <p className="font-bold text-secondary text-lg">07{order.phoneNumber}</p>
               </div>
+              {order.createdByUsername && (
+                <div className="bg-primary/50 p-4 rounded-2xl">
+                  <p className="text-sm text-secondary/60 mb-1">Locație preluare</p>
+                  <p className="font-bold text-secondary text-lg">{order.createdByUsername}</p>
+                </div>
+              )}
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Livrare</p>
                 <p className="font-bold text-secondary text-lg">
@@ -241,6 +248,12 @@ function AdminOrderView() {
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Preia comanda</p>
                 <p className="font-bold text-secondary text-lg">{order.staffName}</p>
+              </div>
+              <div className="bg-primary/50 p-4 rounded-2xl">
+                <p className="text-sm text-secondary/60 mb-1">Preluat pe</p>
+                <p className={`font-bold text-secondary text-lg ${createdDateClass}`}>
+                  {formatBucharestDate(order.createdAt)} — {formatBucharestTime(order.createdAt)}
+                </p>
               </div>
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Data ridicare/livrare</p>

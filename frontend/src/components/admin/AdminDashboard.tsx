@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 import api from '../../services/api'
 import { getInventoriesByDate } from '../../services/inventory.api'
 import { getDateRecencyClass } from '../../utils/dateRecency'
-import { getTodayString, formatBucharestDate, formatBucharestDateTime, toBucharestDateString } from '../../utils/date'
+import { getTodayString, formatBucharestDate, formatBucharestDateTime, formatBucharestTime, toBucharestDateString } from '../../utils/date'
 import InventoryProductsManager from './InventoryProductsManager'
 
 // Helper component for date group checkbox with indeterminate state
@@ -1248,7 +1248,7 @@ function AdminDashboard() {
                             const deliveryDateClass = getDateRecencyClass(order.pickupDate)
                             
                             const createdDate = order.createdAt 
-                              ? formatBucharestDate(order.createdAt)
+                              ? formatBucharestDate(order.createdAt) + ' ' + formatBucharestTime(order.createdAt)
                               : '-'
                             const createdDateClass = getDateRecencyClass(order.createdAt)
                             
@@ -1271,7 +1271,7 @@ function AdminDashboard() {
                                 </td>
                                 <td className={`px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${deliveryDateClass}`}>{deliveryDate}</td>
                                 <td className={`hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap ${createdDateClass}`}>{createdDate}</td>
-                                <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs truncate max-w-[120px] sm:max-w-none">{order.location || '-'}</td>
+                                <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs truncate max-w-[120px] sm:max-w-none">{order.createdByUsername || '-'}</td>
                                 <td className="px-1 sm:px-2 py-1.5 sm:py-2">
                                   <input
                                     type="checkbox"
