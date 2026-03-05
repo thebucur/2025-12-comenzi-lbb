@@ -30,6 +30,64 @@ export const getOrderDetails = async (req: Request, res: Response) => {
   }
 }
 
+export const updateOrder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const body = req.body as Record<string, unknown>
+
+    const order = await prisma.order.findUnique({ where: { id } })
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' })
+    }
+
+    const pickupDate = body.pickupDate != null ? new Date(body.pickupDate as string) : undefined
+    if (pickupDate !== undefined && isNaN(pickupDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid pickupDate' })
+    }
+
+    const updateData: Record<string, unknown> = {}
+    const allowed = [
+      'deliveryMethod', 'location', 'address', 'staffName', 'clientName', 'phoneNumber',
+      'pickupDate', 'pickupTime', 'tomorrowVerification', 'advance', 'noCake',
+      'cakeType', 'weight', 'customWeight', 'shape', 'floors', 'otherProducts',
+      'coating', 'colors', 'decorType', 'decorDetails', 'observations', 'createdByUsername',
+    ] as const
+    for (const key of allowed) {
+      if (body[key] === undefined) continue
+      if (key === 'pickupDate' && pickupDate !== undefined) {
+        updateData[key] = pickupDate
+        continue
+      }
+      if (key === 'advance') {
+        updateData[key] = body[key] === null || body[key] === '' ? null : parseFloat(String(body[key]))
+        continue
+      }
+      if (key === 'tomorrowVerification' || key === 'noCake') {
+        updateData[key] = Boolean(body[key])
+        continue
+      }
+      if (key === 'colors') {
+        updateData[key] = Array.isArray(body[key]) ? (body[key] as unknown[]).map((c) => String(c)) : []
+        continue
+      }
+      updateData[key] = body[key] === null || body[key] === '' ? null : String(body[key])
+    }
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: updateData as Parameters<typeof prisma.order.update>[0]['data'],
+      include: {
+        photos: true,
+        pickedUpBy: { select: { id: true, username: true } },
+      },
+    })
+    res.json(updated)
+  } catch (error) {
+    console.error('Error updating order:', error)
+    res.status(500).json({ error: 'Failed to update order' })
+  }
+}
+
 export const listUsers = async (req: Request, res: Response) => {
   try {
     const { includeStaffNames } = req.query

@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
-import { resolveColorValue } from '../../constants/colors'
+import { resolveColorValue, normalizeColorOptions, type ColorOption } from '../../constants/colors'
 import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import { formatBucharestDate, formatBucharestTime } from '../../utils/date'
+import { useInstallationConfig } from '../../hooks/useInstallationConfig'
+
+const defaultCakeTypes = ['MOUSSE DE CIOCOLATĂ NEAGRĂ', 'MOUSSE DE FRUCTE', 'MOUSSE DE VANILIE', 'MOUSSE DE CAFEA', 'MOUSSE DE LĂMÂIE', 'MOUSSE DE COCO', 'MOUSSE DE MENTĂ', 'MOUSSE DE ZMEURĂ', 'MOUSSE DE CĂPȘUNI', 'MOUSSE DE ANANAS', 'MOUSSE DE MANGOSTEEN', 'MOUSSE DE PISTACHIO', 'MOUSSE DE CARAMEL', 'MOUSSE DE BANANĂ', 'MOUSSE DE CIREȘE', 'MOUSSE DE PORTOCALĂ', 'MOUSSE DE MIRABELLE', 'ALT TIP']
+const defaultWeights = ['1 KG', '1.5 KG', '2 KG', '2.5 KG', '3 KG', 'ALTĂ GREUTATE']
+const defaultShapes = ['ROTUND', 'DREPTUNGHIULAR', 'ALTĂ FORMĂ']
+const defaultFloors = ['1', '2', '3', '4', '5']
+const defaultCoatings = ['GLAZURĂ', 'FRIȘCĂ', 'CREMĂ', 'NAKED', 'DOAR CAPAC']
+const defaultDecorTypes = ['SIMPLU', 'MEDIU', 'COMPLEX', 'PREMIUM']
 
 // Use centralized function
 const getAbsoluteUrl = getAbsoluteImageUrl
@@ -47,9 +55,21 @@ interface OrderData {
 function AdminOrderView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const config = useInstallationConfig()
   const [order, setOrder] = useState<OrderData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState<Partial<OrderData>>({})
+  const [saving, setSaving] = useState(false)
+
+  const cakeTypes = (config?.sortiment?.cakeTypes as string[]) || defaultCakeTypes
+  const weights = (config?.sortiment?.weights as string[]) || defaultWeights
+  const shapes = (config?.sortiment?.shapes as string[]) || defaultShapes
+  const floors = (config?.sortiment?.floors as string[]) || defaultFloors
+  const coatings = (config?.decor?.coatings as string[]) || defaultCoatings
+  const colorOptions: ColorOption[] = normalizeColorOptions(config?.decor?.colors as Array<string | ColorOption>)
+  const decorTypes = (config?.decor?.decorTypes as string[]) || defaultDecorTypes
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -84,6 +104,68 @@ function AdminOrderView() {
     } catch (err) {
       console.error('Error downloading PDF:', err)
       alert('Eroare la descărcarea PDF-ului')
+    }
+  }
+
+  const openEditModal = () => {
+    if (!order) return
+    const pickupDateStr = order.pickupDate ? new Date(order.pickupDate).toISOString().slice(0, 10) : ''
+    setEditForm({
+      clientName: order.clientName,
+      phoneNumber: order.phoneNumber,
+      createdByUsername: order.createdByUsername ?? '',
+      deliveryMethod: order.deliveryMethod,
+      location: order.location ?? '',
+      address: order.address ?? '',
+      staffName: order.staffName,
+      pickupDate: pickupDateStr,
+      pickupTime: order.pickupTime ?? '',
+      advance: order.advance ?? undefined,
+      cakeType: order.cakeType ?? '',
+      weight: order.weight ?? '',
+      shape: order.shape ?? '',
+      floors: order.floors ?? '',
+      otherProducts: order.otherProducts ?? '',
+      coating: order.coating ?? '',
+      colors: order.colors ?? [],
+      decorType: order.decorType ?? '',
+      decorDetails: order.decorDetails ?? '',
+      observations: order.observations ?? '',
+    })
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!id || !order) return
+    setSaving(true)
+    try {
+      const payload = {
+        ...editForm,
+        pickupDate: editForm.pickupDate ? new Date(editForm.pickupDate as string).toISOString() : order.pickupDate,
+        advance: editForm.advance != null ? Number(editForm.advance) : null,
+        createdByUsername: editForm.createdByUsername || null,
+        location: editForm.location || null,
+        address: editForm.address || null,
+        pickupTime: editForm.pickupTime || null,
+        cakeType: editForm.cakeType || null,
+        weight: editForm.weight || null,
+        shape: editForm.shape || null,
+        floors: editForm.floors || null,
+        otherProducts: editForm.otherProducts || null,
+        coating: editForm.coating || null,
+        decorType: editForm.decorType || null,
+        decorDetails: editForm.decorDetails || null,
+        observations: editForm.observations || null,
+        colors: Array.isArray(editForm.colors) ? editForm.colors : (typeof editForm.colors === 'string' ? (editForm.colors as string).split(',').map((c) => c.trim()).filter(Boolean) : []),
+      }
+      const { data } = await api.put(`/admin/orders/${id}`, payload)
+      setOrder(data)
+      setShowEditModal(false)
+    } catch (err: any) {
+      console.error(err)
+      alert(err.response?.data?.error || err.response?.data?.message || 'Eroare la salvarea comenzii')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -194,12 +276,20 @@ function AdminOrderView() {
       <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-pink/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
       
       <div className="container mx-auto px-4 py-8 relative z-10">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="mb-8 btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all inline-flex items-center gap-2"
-        >
-          ← Înapoi la panou
-        </button>
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="btn-neumorphic px-6 py-3 rounded-2xl font-bold text-secondary hover:scale-105 transition-all inline-flex items-center gap-2"
+          >
+            ← Înapoi la panou
+          </button>
+          <button
+            onClick={openEditModal}
+            className="btn-active px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-all inline-flex items-center gap-2"
+          >
+            ✏️ Editează
+          </button>
+        </div>
 
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-r from-accent-purple to-accent-pink shadow-glow-purple mb-6 animate-float">
@@ -398,6 +488,289 @@ function AdminOrderView() {
             </button>
           )}
         </div>
+
+        {/* Edit order modal - aligned with site modals, no horizontal scroll */}
+        {showEditModal && (
+          <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto overflow-x-hidden">
+            <div className="glass-card w-full max-w-lg my-8 p-8 overflow-hidden flex flex-col max-h-[90vh]">
+              <h3 className="text-2xl font-bold text-gradient mb-6 shrink-0">Editează comanda</h3>
+              <div className="space-y-6 overflow-y-auto overflow-x-hidden min-w-0 pr-1">
+                <div>
+                  <h4 className="text-lg font-bold text-secondary mb-3">📦 Detalii comandă</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Client *</label>
+                      <input
+                        type="text"
+                        value={editForm.clientName ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, clientName: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Telefon *</label>
+                      <input
+                        type="text"
+                        value={editForm.phoneNumber ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                        placeholder="07..."
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Locație preluare</label>
+                      <input
+                        type="text"
+                        value={editForm.createdByUsername ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, createdByUsername: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Livrare *</label>
+                      <select
+                        value={editForm.deliveryMethod ?? 'ridicare'}
+                        onChange={(e) => setEditForm((f) => ({ ...f, deliveryMethod: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="ridicare">Ridicare</option>
+                        <option value="livrare">Livrare</option>
+                      </select>
+                    </div>
+                    {(editForm.deliveryMethod === 'ridicare') && (
+                      <div className="min-w-0">
+                        <label className="block text-sm font-medium text-secondary/80 mb-1">Locație ridicare</label>
+                        <input
+                          type="text"
+                          value={editForm.location ?? ''}
+                          onChange={(e) => setEditForm((f) => ({ ...f, location: e.target.value }))}
+                          className="input-neumorphic w-full text-secondary min-w-0"
+                          placeholder="ex: TIMKEN, WINMARKT"
+                        />
+                      </div>
+                    )}
+                    {(editForm.deliveryMethod === 'livrare') && (
+                      <div className="sm:col-span-2 min-w-0">
+                        <label className="block text-sm font-medium text-secondary/80 mb-1">Adresă livrare</label>
+                        <input
+                          type="text"
+                          value={editForm.address ?? ''}
+                          onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                          className="input-neumorphic w-full text-secondary min-w-0"
+                        />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Preia comanda *</label>
+                      <input
+                        type="text"
+                        value={editForm.staffName ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, staffName: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Data ridicare/livrare *</label>
+                      <input
+                        type="date"
+                        value={editForm.pickupDate ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, pickupDate: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Ora (opțional)</label>
+                      <input
+                        type="text"
+                        value={editForm.pickupTime ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, pickupTime: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                        placeholder="ex: 14:00"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Avans (RON)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editForm.advance ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, advance: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-secondary mb-3">🎂 Detalii tort</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Tip tort</label>
+                      <select
+                        value={editForm.cakeType ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, cakeType: e.target.value || undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {cakeTypes.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Greutate</label>
+                      <select
+                        value={editForm.weight ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value || undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {weights.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Formă</label>
+                      <select
+                        value={editForm.shape ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, shape: e.target.value || undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {shapes.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Etaje</label>
+                      <select
+                        value={editForm.floors ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, floors: e.target.value || undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {floors.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2 min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Alte produse</label>
+                      <textarea
+                        value={editForm.otherProducts ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, otherProducts: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-h-[80px] min-w-0"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-secondary mb-3">🎨 Detalii decor</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Îmbrăcăminte</label>
+                      <select
+                        value={editForm.coating ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, coating: e.target.value || undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {coatings.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Culoare 1</label>
+                      <select
+                        value={Array.isArray(editForm.colors) ? (editForm.colors[0] ?? '') : ''}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          const current = Array.isArray(editForm.colors) ? editForm.colors : []
+                          const next = v ? [v, current[1]].filter(Boolean) : (current[1] ? [current[1]] : [])
+                          setEditForm((f) => ({ ...f, colors: next }))
+                        }}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {colorOptions.map((opt) => (
+                          <option key={opt.name} value={opt.name}>{opt.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Culoare 2</label>
+                      <select
+                        value={Array.isArray(editForm.colors) ? (editForm.colors[1] ?? '') : ''}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          const current = Array.isArray(editForm.colors) ? editForm.colors : []
+                          const next = v ? [current[0], v].filter(Boolean) : (current[0] ? [current[0]] : [])
+                          setEditForm((f) => ({ ...f, colors: next }))
+                        }}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {colorOptions.map((opt) => (
+                          <option key={opt.name} value={opt.name}>{opt.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0 sm:col-span-2">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Tip decor</label>
+                      <select
+                        value={editForm.decorType ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, decorType: e.target.value || undefined }))}
+                        className="input-neumorphic w-full text-secondary min-w-0"
+                      >
+                        <option value="">— Selectează —</option>
+                        {decorTypes.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2 min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Detalii decor</label>
+                      <textarea
+                        value={editForm.decorDetails ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, decorDetails: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-h-[80px] min-w-0"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="sm:col-span-2 min-w-0">
+                      <label className="block text-sm font-medium text-secondary/80 mb-1">Observații</label>
+                      <textarea
+                        value={editForm.observations ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, observations: e.target.value }))}
+                        className="input-neumorphic w-full text-secondary min-h-[80px] min-w-0"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-4 mt-6 shrink-0">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="flex-1 btn-active px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all disabled:opacity-50"
+                >
+                  {saving ? 'Se salvează...' : '✓ Salvează'}
+                </button>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={saving}
+                  className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all disabled:opacity-50"
+                >
+                  Anulează
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

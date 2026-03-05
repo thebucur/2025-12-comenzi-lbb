@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/auth.middleware'
 import { 
-  getOrderDetails, 
+  getOrderDetails,
+  updateOrder,
   listUsers,
   createUser,
   updateUser,
@@ -20,6 +21,7 @@ const router = Router()
 router.use(authenticate)
 
 router.get('/orders/:id', getOrderDetails)
+router.put('/orders/:id', updateOrder)
 router.get('/orders/:id/foaie-de-zahar', downloadFoaieDeZahar)
 router.delete('/orders', deleteOrders)
 router.get('/uploads/files', listUploadsFiles)
