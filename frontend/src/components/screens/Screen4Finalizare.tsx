@@ -6,15 +6,34 @@ import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 import { formatBucharestDate } from '../../utils/date'
 
+interface ModalState {
+  visible: boolean
+  type: 'success' | 'error' | 'warning'
+  title: string
+  messages: string[]
+  onClose?: () => void
+}
+
 function Screen4Finalizare() {
   const { order, updateOrder, resetOrder } = useOrder()
   const navigate = useNavigate()
   const [, setSearchParams] = useSearchParams()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [nextOrderNumber, setNextOrderNumber] = useState<number | null>(null)
+  const [pdfSettings, setPdfSettings] = useState({ recipientEmail: '', sendEmail: true, downloadPdf: false })
+  const [modal, setModal] = useState<ModalState>({ visible: false, type: 'success', title: '', messages: [] })
+
+  const showModal = (type: ModalState['type'], title: string, messages: string[], onClose?: () => void) => {
+    setModal({ visible: true, type, title, messages, onClose })
+  }
+
+  const closeModal = () => {
+    const cb = modal.onClose
+    setModal(prev => ({ ...prev, visible: false }))
+    cb?.()
+  }
 
   useEffect(() => {
-    // Fetch next order number when component mounts
     const fetchNextOrderNumber = async () => {
       try {
         const response = await api.get('/orders/next-number')
@@ -26,7 +45,23 @@ function Screen4Finalizare() {
         }
       }
     }
+    const fetchPdfSettings = async () => {
+      try {
+        const response = await api.get('/auth/config')
+        const settings = response.data?.pdfSettings?.settings
+        if (settings && typeof settings === 'object') {
+          setPdfSettings({
+            recipientEmail: settings.recipientEmail || '',
+            sendEmail: settings.sendEmail !== false,
+            downloadPdf: settings.downloadPdf === true,
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching PDF settings:', error)
+      }
+    }
     fetchNextOrderNumber()
+    fetchPdfSettings()
   }, [])
 
   const handleEdit = (step: number) => {
@@ -87,7 +122,11 @@ function Screen4Finalizare() {
       }
       
       if (missingFields.length > 0) {
-        alert(`Lipsesc câmpuri obligatorii:\n${missingFields.join('\n')}\n\nVă rugăm să completați toate câmpurile obligatorii.`)
+        showModal('warning', 'Câmpuri obligatorii lipsă', [
+          ...missingFields,
+          '',
+          'Vă rugăm să completați toate câmpurile obligatorii.',
+        ])
         setIsSubmitting(false)
         return
       }
@@ -157,28 +196,33 @@ function Screen4Finalizare() {
         photos: photoUrls,
       })
       
-      // Generate PDF
-      await api.post(`/orders/${response.data.id}/generate-pdf`)
-      
-      // Download the generated PDF
-      try {
-        const pdfResponse = await api.get(`/orders/${response.data.id}/pdf`, {
-          responseType: 'blob',
-        })
-        
-        // Create a blob URL and trigger download
-        const blob = new Blob([pdfResponse.data], { type: 'application/pdf' })
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `comanda-${orderNumber}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url) // Clean up the blob URL
-      } catch (pdfError) {
-        console.error('Error downloading PDF:', pdfError)
-        // Don't block the success flow if PDF download fails
+      // Generate PDF și trimitere email (conform setărilor)
+      const pdfResult = await api.post<{ success: boolean; emailSent?: boolean; emailError?: string | null }>(
+        `/orders/${response.data.id}/generate-pdf`,
+        {
+          sendEmail: pdfSettings.sendEmail,
+          recipientEmail: pdfSettings.recipientEmail || undefined,
+        }
+      )
+      const emailSent = pdfResult.data?.emailSent === true
+      const emailError = pdfResult.data?.emailError ?? null
+      console.log('Răspuns generate-pdf:', { emailSent, emailError, full: pdfResult.data })
+
+      // Descarcă PDF local dacă e activat
+      if (pdfSettings.downloadPdf) {
+        try {
+          const pdfBlob = await api.get(`/orders/${response.data.id}/pdf`, { responseType: 'blob' })
+          const url = window.URL.createObjectURL(new Blob([pdfBlob.data]))
+          const link = document.createElement('a')
+          link.href = url
+          link.setAttribute('download', `comanda-${orderNumber}.pdf`)
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          window.URL.revokeObjectURL(url)
+        } catch (dlErr) {
+          console.error('Eroare la descărcarea PDF:', dlErr)
+        }
       }
       
       // Clear upload session
@@ -186,10 +230,21 @@ function Screen4Finalizare() {
         localStorage.removeItem('currentUploadSession')
       }
       
-      alert(`Comanda #${orderNumber} a fost trimisă cu succes!`)
-      // Reset and go back to step 1 to take a new order
-      resetOrder()
-      navigate('/?step=1', { replace: true })
+      const parts: string[] = [`Comanda #${orderNumber} a fost trimisă cu succes!`]
+      if (pdfSettings.sendEmail) {
+        if (emailSent) {
+          parts.push('Comanda trimisă spre laborator.')
+        } else if (emailError) {
+          parts.push(`Emailul cu PDF nu s-a putut trimite: ${emailError}`)
+        }
+      }
+      if (pdfSettings.downloadPdf) {
+        parts.push('PDF-ul a fost descărcat.')
+      }
+      showModal('success', 'Comandă trimisă!', parts, () => {
+        resetOrder()
+        navigate('/?step=1', { replace: true })
+      })
     } catch (error: unknown) {
       console.error('Error submitting order:', error)
       if (axios.isAxiosError(error)) {
@@ -232,9 +287,9 @@ function Screen4Finalizare() {
           errorMessage = `Eroare: ${error.message}`
         }
       
-        alert(errorMessage)
+        showModal('error', 'Eroare', [errorMessage])
       } else {
-        alert('Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.')
+        showModal('error', 'Eroare', ['Eroare la trimiterea comenzii. Vă rugăm să încercați din nou.'])
       }
     } finally {
       setIsSubmitting(false)
@@ -500,6 +555,58 @@ function Screen4Finalizare() {
           )}
         </button>
       </div>
+
+      {/* Custom Modal */}
+      {modal.visible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative card-neumorphic max-w-md w-full animate-[modalIn_0.3s_ease-out]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-5 ${
+                modal.type === 'success'
+                  ? 'bg-gradient-to-r from-green-400 to-emerald-500 shadow-[0_0_20px_rgba(52,211,153,0.4)]'
+                  : modal.type === 'warning'
+                  ? 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_20px_rgba(251,191,36,0.4)]'
+                  : 'bg-gradient-to-r from-red-400 to-rose-500 shadow-[0_0_20px_rgba(248,113,113,0.4)]'
+              }`}>
+                <span className="text-4xl text-white">
+                  {modal.type === 'success' ? '✓' : modal.type === 'warning' ? '!' : '✕'}
+                </span>
+              </div>
+
+              <h3 className={`text-2xl font-bold mb-4 ${
+                modal.type === 'success' ? 'text-gradient' : modal.type === 'warning' ? 'text-amber-600' : 'text-red-500'
+              }`}>
+                {modal.title}
+              </h3>
+
+              <div className="space-y-2 mb-8 w-full">
+                {modal.messages.map((msg, i) => (
+                  msg === ''
+                    ? <div key={i} className="h-2" />
+                    : <p key={i} className="text-secondary/80 text-base leading-relaxed">{msg}</p>
+                ))}
+              </div>
+
+              <button
+                onClick={closeModal}
+                className={`px-10 py-3 rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 ${
+                  modal.type === 'success'
+                    ? 'btn-active shadow-glow-purple'
+                    : modal.type === 'warning'
+                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                    : 'bg-gradient-to-r from-red-400 to-rose-500 text-white shadow-[0_0_20px_rgba(248,113,113,0.3)]'
+                }`}
+              >
+                {modal.type === 'success' ? 'OK' : 'Am înțeles'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

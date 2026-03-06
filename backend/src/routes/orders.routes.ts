@@ -16,15 +16,44 @@ router.put('/staff-names', authenticate, updateMyStaffNames)
 router.get('/:id', getOrder)
 router.get('/', listOrders)
 
+const RECIPIENT_EMAIL = 'abucur@gmail.com'
+
+function getEmailErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    const msg = err.message
+    const resp = (err as { response?: string; responseCode?: number })?.response
+    if (typeof resp === 'string') return `${msg} (${resp})`
+    return msg
+  }
+  return String(err)
+}
+
 router.post('/:id/generate-pdf', async (req, res) => {
   try {
     const { id } = req.params
-    const pdfPath = await generatePDF(id)
+    const { sendEmail: shouldSendEmail, recipientEmail } = req.body || {}
+    const { filepath: pdfPath, orderNumber } = await generatePDF(id)
     
-    // Note: Email sending would need to be configured separately
-    // For now, PDF generation is successful without email
+    const targetEmail = recipientEmail || RECIPIENT_EMAIL
+    let emailSent = false
+    let emailError: string | null = null
 
-    res.json({ success: true, pdfPath })
+    if (shouldSendEmail !== false && targetEmail) {
+      try {
+        console.log('[Email] Trimit PDF comanda #' + orderNumber + ' către ' + targetEmail + '...')
+        await sendOrderEmail(orderNumber, targetEmail, pdfPath)
+        emailSent = true
+        console.log('[Email] Trimis cu succes.')
+      } catch (err) {
+        emailError = getEmailErrorMessage(err)
+        console.error('[Email] Eroare:', emailError, err)
+      }
+      if (!emailSent && !emailError) {
+        emailError = 'Eroare necunoscută la trimiterea emailului.'
+      }
+    }
+
+    res.json({ success: true, pdfPath, emailSent, emailError })
   } catch (error) {
     console.error('Error generating PDF:', error)
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')

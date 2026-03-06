@@ -15,7 +15,24 @@ import inventoryRoutes from './routes/inventory.routes'
 import inventoryProductsRoutes from './routes/inventory-products.routes'
 import aiRoutes from './routes/ai.routes'
 
-dotenv.config()
+// Load .env from backend folder — try multiple strategies to ensure it's found
+const envCandidates = [
+  path.resolve(__dirname, '..', '.env'),
+  path.resolve(process.cwd(), '.env'),
+]
+let envLoaded = false
+for (const candidate of envCandidates) {
+  const result = dotenv.config({ path: candidate })
+  if (!result.error) {
+    console.log(`[dotenv] Loaded .env from: ${candidate}`)
+    envLoaded = true
+    break
+  }
+}
+if (!envLoaded) {
+  console.warn('[dotenv] Could not load .env from any candidate path:', envCandidates)
+  dotenv.config()
+}
 
 // Build marker to verify deployed code version
 const BUILD_VERSION = 'pdf-unique-20251223'
@@ -234,6 +251,12 @@ async function seedInventoryProducts(prismaClient: PrismaClient) {
 const app = express()
 const PORT = parseInt(process.env.PORT || '5000', 10)
 const HOST = process.env.HOST || '0.0.0.0' // Listen on all network interfaces for mobile access
+
+if (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_REFRESH_TOKEN) {
+  console.log('[Email] Gmail OAuth2 configurat')
+} else {
+  console.warn('[Email] Gmail OAuth2 NECONFIGURAT — setează GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN în .env')
+}
 
 // Middleware
 // Enhanced CORS configuration for mobile devices and Railway deployment

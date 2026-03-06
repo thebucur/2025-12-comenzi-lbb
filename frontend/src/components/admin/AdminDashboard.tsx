@@ -546,6 +546,8 @@ function AdminDashboard() {
   const [usersSubTab, setUsersSubTab] = useState<'global' | 'local'>('global')
   const [editingStaffUserId, setEditingStaffUserId] = useState<string | null>(null)
   const [staffNamesEdit, setStaffNamesEdit] = useState<string[]>([])
+  const [pdfSettings, setPdfSettings] = useState({ recipientEmail: '', sendEmail: true, downloadPdf: false })
+  const [pdfSettingsSaving, setPdfSettingsSaving] = useState(false)
 
   const handleAdminLogout = () => {
     localStorage.removeItem('adminAuthToken')
@@ -563,7 +565,10 @@ function AdminDashboard() {
 
   useEffect(() => {
     fetchOrders()
-    if (activeTab === 'users') fetchUsers()
+    if (activeTab === 'users') {
+      fetchUsers()
+      fetchPdfSettings()
+    }
     if (activeTab === 'globalConfig') fetchGlobalConfigs()
     if (activeTab === 'inventory') fetchInventoryData()
   }, [activeTab])
@@ -664,6 +669,39 @@ function AdminDashboard() {
       setUsers(response.data)
     } catch (error) {
       console.error('Error fetching users:', error)
+    }
+  }
+
+  const fetchPdfSettings = async () => {
+    try {
+      const response = await api.get('/config/global')
+      const pdfConfig = response.data.find((c: GlobalConfig) => c.category === 'pdfSettings' && c.key === 'settings')
+      if (pdfConfig && pdfConfig.value && typeof pdfConfig.value === 'object') {
+        const val = pdfConfig.value as Record<string, unknown>
+        setPdfSettings({
+          recipientEmail: (val.recipientEmail as string) || '',
+          sendEmail: val.sendEmail !== false,
+          downloadPdf: val.downloadPdf === true,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching PDF settings:', error)
+    }
+  }
+
+  const savePdfSettings = async (settings: { recipientEmail: string; sendEmail: boolean; downloadPdf: boolean }) => {
+    setPdfSettingsSaving(true)
+    try {
+      await api.post('/config/global', {
+        category: 'pdfSettings',
+        key: 'settings',
+        value: settings,
+      })
+    } catch (error) {
+      console.error('Error saving PDF settings:', error)
+      alert('Eroare la salvarea setărilor PDF')
+    } finally {
+      setPdfSettingsSaving(false)
     }
   }
 
@@ -1455,6 +1493,60 @@ function AdminDashboard() {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* Setări PDF Section */}
+            <div className="card-neumorphic">
+              <h2 className="text-xl sm:text-2xl font-bold text-secondary mb-2">Setări PDF</h2>
+              <p className="text-secondary/60 text-sm sm:text-base mb-6">Configurează trimiterea PDF-ului la finalizarea comenzii</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block mb-2 font-bold text-secondary text-sm">Adresă email destinatar</label>
+                  <input
+                    type="email"
+                    value={pdfSettings.recipientEmail}
+                    onChange={(e) => setPdfSettings({ ...pdfSettings, recipientEmail: e.target.value })}
+                    onBlur={() => savePdfSettings(pdfSettings)}
+                    className="input-neumorphic w-full max-w-md text-secondary placeholder:text-secondary/40"
+                    placeholder="exemplu@email.com"
+                  />
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pdfSettings.sendEmail}
+                      onChange={(e) => {
+                        const newSettings = { ...pdfSettings, sendEmail: e.target.checked }
+                        setPdfSettings(newSettings)
+                        savePdfSettings(newSettings)
+                      }}
+                      className="w-5 h-5 cursor-pointer accent-purple-500"
+                    />
+                    <span className="font-semibold text-secondary">Trimite mail cu PDF</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pdfSettings.downloadPdf}
+                      onChange={(e) => {
+                        const newSettings = { ...pdfSettings, downloadPdf: e.target.checked }
+                        setPdfSettings(newSettings)
+                        savePdfSettings(newSettings)
+                      }}
+                      className="w-5 h-5 cursor-pointer accent-purple-500"
+                    />
+                    <span className="font-semibold text-secondary">Descarcă PDF</span>
+                  </label>
+                </div>
+              </div>
+              
+              {pdfSettingsSaving && (
+                <p className="text-sm text-accent-purple mt-3 animate-pulse">Se salvează...</p>
               )}
             </div>
 

@@ -180,7 +180,7 @@ const ensureRobotoFonts = async (): Promise<{ regular: string | null; bold: stri
   }
 }
 
-export const generatePDF = async (orderId: string): Promise<string> => {
+export const generatePDF = async (orderId: string): Promise<{ filepath: string; orderNumber: number }> => {
   try {
     console.log(`Starting PDF generation for order ${orderId}`)
     
@@ -550,7 +550,7 @@ export const generatePDF = async (orderId: string): Promise<string> => {
     })
 
     console.log(`PDF generated successfully: ${filepath}`)
-    return filepath
+    return { filepath, orderNumber: order.orderNumber }
   } catch (error) {
     console.error('Error in generatePDF:', error)
     throw error
