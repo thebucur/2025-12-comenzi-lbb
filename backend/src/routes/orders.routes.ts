@@ -35,25 +35,17 @@ router.post('/:id/generate-pdf', async (req, res) => {
     const { filepath: pdfPath, orderNumber } = await generatePDF(id)
     
     const targetEmail = recipientEmail || RECIPIENT_EMAIL
-    let emailSent = false
-    let emailError: string | null = null
+    const willSendEmail = shouldSendEmail !== false && !!targetEmail
 
-    if (shouldSendEmail !== false && targetEmail) {
-      try {
-        console.log('[Email] Trimit PDF comanda #' + orderNumber + ' către ' + targetEmail + '...')
-        await sendOrderEmail(orderNumber, targetEmail, pdfPath)
-        emailSent = true
-        console.log('[Email] Trimis cu succes.')
-      } catch (err) {
-        emailError = getEmailErrorMessage(err)
-        console.error('[Email] Eroare:', emailError, err)
-      }
-      if (!emailSent && !emailError) {
-        emailError = 'Eroare necunoscută la trimiterea emailului.'
-      }
+    // Respond immediately - email will be sent in background
+    res.json({ success: true, pdfPath, emailQueued: willSendEmail })
+
+    // Fire-and-forget: send email in the background after responding
+    if (willSendEmail) {
+      sendOrderEmail(orderNumber, targetEmail, pdfPath)
+        .then(() => console.log(`[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}`))
+        .catch((err) => console.error(`[Email] Eroare comanda #${orderNumber}:`, getEmailErrorMessage(err), err))
     }
-
-    res.json({ success: true, pdfPath, emailSent, emailError })
   } catch (error) {
     console.error('Error generating PDF:', error)
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')

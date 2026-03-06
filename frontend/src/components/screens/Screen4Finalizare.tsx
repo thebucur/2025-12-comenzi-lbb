@@ -197,16 +197,14 @@ function Screen4Finalizare() {
       })
       
       // Generate PDF și trimitere email (conform setărilor)
-      const pdfResult = await api.post<{ success: boolean; emailSent?: boolean; emailError?: string | null }>(
+      // Email-ul se trimite în background pe server - răspunsul vine imediat
+      await api.post(
         `/orders/${response.data.id}/generate-pdf`,
         {
           sendEmail: pdfSettings.sendEmail,
           recipientEmail: pdfSettings.recipientEmail || undefined,
         }
       )
-      const emailSent = pdfResult.data?.emailSent === true
-      const emailError = pdfResult.data?.emailError ?? null
-      console.log('Răspuns generate-pdf:', { emailSent, emailError, full: pdfResult.data })
 
       // Descarcă PDF local dacă e activat
       if (pdfSettings.downloadPdf) {
@@ -232,11 +230,7 @@ function Screen4Finalizare() {
       
       const parts: string[] = [`Comanda #${orderNumber} a fost trimisă cu succes!`]
       if (pdfSettings.sendEmail) {
-        if (emailSent) {
-          parts.push('Comanda trimisă spre laborator.')
-        } else if (emailError) {
-          parts.push(`Emailul cu PDF nu s-a putut trimite: ${emailError}`)
-        }
+        parts.push('Emailul cu PDF se trimite în fundal.')
       }
       if (pdfSettings.downloadPdf) {
         parts.push('PDF-ul a fost descărcat.')
