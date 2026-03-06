@@ -1,6 +1,8 @@
 # Use Node 20 Bookworm - includes libatomic1, avoids Railpack apt step that can OOM (exit 137)
 FROM node:20-bookworm-slim
 
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy backend package files

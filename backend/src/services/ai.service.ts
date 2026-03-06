@@ -1,8 +1,11 @@
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+let openai: OpenAI | null = null
+function getOpenAI(): OpenAI | null {
+  if (!process.env.OPENAI_API_KEY) return null
+  if (!openai) openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  return openai
+}
 
 const SYSTEM_PROMPT = `Ești un asistent care procesează text dictat vocal pentru comenzi de torturi și prăjituri la o cofetărie.
 
@@ -38,7 +41,9 @@ export async function processDictatedText(
     : 'Acest text conține observații generale despre o comandă de tort/prăjitură (alergii, livrare, preferințe speciale, etc.).'
 
   try {
-    const response = await openai.chat.completions.create({
+    const client = getOpenAI()
+    if (!client) return rawText
+    const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
