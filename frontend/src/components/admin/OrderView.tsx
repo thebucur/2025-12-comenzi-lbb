@@ -312,6 +312,12 @@ function AdminOrderView() {
             ✏️ Editează
           </button>
           <button
+            onClick={handleDownloadPDF}
+            className="btn-active px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-all inline-flex items-center gap-2"
+          >
+            📥 Descarcă PDF
+          </button>
+          <button
             onClick={handlePrintClick}
             className="bg-green-500/20 border-2 border-green-500/50 px-6 py-3 rounded-2xl font-bold text-green-700 hover:scale-105 transition-all inline-flex items-center gap-2"
           >
@@ -493,18 +499,9 @@ function AdminOrderView() {
           )}
         </div>
 
-        {/* PDF Download and Foaie de Zahar Download */}
-        <div className="mt-12 flex justify-center gap-4 flex-wrap">
-          <button
-            onClick={handleDownloadPDF}
-            className="btn-active px-12 py-6 rounded-3xl font-bold text-2xl hover:scale-105 transition-all duration-300 inline-flex items-center gap-3"
-          >
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Descarcă PDF
-          </button>
-          {order.photos.some(p => p.isFoaieDeZahar) && (
+        {/* Foaie de Zahar Download */}
+        {order.photos.some(p => p.isFoaieDeZahar) && (
+          <div className="mt-12 flex justify-center gap-4 flex-wrap">
             <button
               onClick={handleDownloadFoaieDeZahar}
               className="bg-yellow-500/20 border-2 border-yellow-500/50 px-12 py-6 rounded-3xl font-bold text-2xl hover:scale-105 transition-all duration-300 inline-flex items-center gap-3 text-yellow-600"
@@ -514,8 +511,8 @@ function AdminOrderView() {
               </svg>
               📄 Descarcă Foaie de Zahar
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Print confirmation modal */}
         {showPrintModal && (
