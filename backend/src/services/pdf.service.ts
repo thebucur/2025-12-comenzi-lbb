@@ -321,19 +321,21 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     doc.moveDown(0.3) // add a small spacer for readability
   }
 
-  // Header with delivery date and time
-  console.log(`[PDF Header Debug] order.pickupDate = ${order.pickupDate} (type: ${typeof order.pickupDate})`)
-  console.log(`[PDF Header Debug] order.pickupTime = ${order.pickupTime} (type: ${typeof order.pickupTime})`)
+  // Header: Comanda nr. xxx / <modalitate livrare> / data - ora
   const pickupDateObj = order.pickupDate ? new Date(order.pickupDate) : null
   const deliveryDate = pickupDateObj
     ? `${String(pickupDateObj.getDate()).padStart(2, '0')}.${String(pickupDateObj.getMonth() + 1).padStart(2, '0')}.${pickupDateObj.getFullYear()}`
     : ''
   const deliveryTime = order.pickupTime || ''
-  console.log(`[PDF Header Debug] deliveryDate = "${deliveryDate}", deliveryTime = "${deliveryTime}"`)
-  const headerTitle = deliveryDate
-    ? `Comanda #${order.orderNumber} - livrare pe ${deliveryDate}${deliveryTime ? ` - ${deliveryTime}` : ''}`
-    : `Comanda #${order.orderNumber}`
-  console.log(`[PDF Header Debug] headerTitle = "${headerTitle}"`)
+  const deliveryMethodText = order.deliveryMethod === 'ridicare'
+    ? (order.location || 'Ridicare')
+    : 'LA ADRESA'
+  const dateTimePart = deliveryDate
+    ? `${deliveryDate}${deliveryTime ? ` - ${deliveryTime}` : ''}`
+    : ''
+  const headerParts = [`Comanda nr. ${order.orderNumber}`, deliveryMethodText]
+  if (dateTimePart) headerParts.push(dateTimePart)
+  const headerTitle = headerParts.join(' / ')
   doc.font(fontBold).fontSize(16).text(removeDiacritics(headerTitle), { align: 'center' })
   doc.moveDown(0.6)
 
@@ -354,10 +356,8 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
   addField('Preluată pe', createdAtFormatted)
   addField('Client', order.clientName)
   addField('Telefon', `07${order.phoneNumber}`)
-  if (order.deliveryMethod === 'ridicare') {
-    addField('Livrare', order.location ? `Ridicare din ${order.location}` : 'Ridicare')
-  } else {
-    addField('Livrare', order.address || 'Livrare la adresă')
+  if (order.deliveryMethod === 'livrare' && order.address) {
+    addField('Adresa', order.address)
   }
   if (order.advance) addField('Avans', `${order.advance} RON`)
   doc.moveDown()
