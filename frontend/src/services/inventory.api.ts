@@ -74,6 +74,12 @@ export const getInventoriesByDate = async (date: string): Promise<InventoriesByD
   return response.data
 }
 
+// Get current user's inventories from the last 5 days
+export const getMyInventories = async (): Promise<Inventory[]> => {
+  const response = await api.get<Inventory[]>('/inventory/my-inventories')
+  return response.data
+}
+
 // Get inventory PDF URL
 export const getInventoryPDFUrl = (inventoryId: string): string => {
   // Get the base URL without /api

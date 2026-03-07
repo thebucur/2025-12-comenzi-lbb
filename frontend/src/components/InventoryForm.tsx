@@ -1302,13 +1302,19 @@ function InventoryForm() {
             ) : null}
           </div>
           
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-4">
             <button
               onClick={handleSubmit}
               disabled={submitting}
               className="btn-active px-6 md:px-12 py-3 md:py-4 rounded-2xl font-bold text-base md:text-xl hover:scale-105 transition-all duration-300 shadow-glow-purple w-full md:w-auto"
             >
               {submitting ? 'SE TRIMITE...' : 'TRIMITE INVENTAR'}
+            </button>
+            <button
+              onClick={() => navigate('/my-inventories')}
+              className="px-6 py-2.5 rounded-xl bg-purple-100/90 hover:bg-purple-200/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-purple-200/50"
+            >
+              ISTORIC INVENTAR
             </button>
           </div>
         </div>
@@ -1373,31 +1379,39 @@ function InventoryForm() {
             }}
           >
             <div 
-              className="container mx-auto px-4 flex gap-3"
+              className="container mx-auto px-4 flex flex-col gap-2"
               style={{ paddingBottom: '0.75rem' }}
             >
+              <div className="flex gap-3">
+                <button
+                  onClick={handleNextCategory}
+                  className="flex-1 px-4 py-3 rounded-xl bg-accent-purple/80 hover:bg-accent-purple text-white font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                  URMĂTOAREA CATEGORIE
+                </button>
+                <button
+                  onClick={handleSaveAndClose}
+                  disabled={isSavingAndClosing}
+                  className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSavingAndClosing ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      SE SALVEAZĂ...
+                    </>
+                  ) : (
+                    'SALVEAZĂ ȘI ÎNCHIDE'
+                  )}
+                </button>
+              </div>
               <button
-                onClick={handleNextCategory}
-                className="flex-1 px-4 py-3 rounded-xl bg-accent-purple/80 hover:bg-accent-purple text-white font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
+                onClick={() => navigate('/my-inventories')}
+                className="w-full px-4 py-2.5 rounded-xl bg-purple-100/90 hover:bg-purple-200/90 text-secondary font-bold text-xs transition-all duration-300 shadow-md hover:shadow-lg border border-purple-200/50"
               >
-                URMĂTOAREA CATEGORIE
-              </button>
-              <button
-                onClick={handleSaveAndClose}
-                disabled={isSavingAndClosing}
-                className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isSavingAndClosing ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    SE SALVEAZĂ...
-                  </>
-                ) : (
-                  'SALVEAZĂ ȘI ÎNCHIDE'
-                )}
+                ISTORIC INVENTAR
               </button>
             </div>
           </div>,

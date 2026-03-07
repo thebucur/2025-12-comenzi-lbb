@@ -7,7 +7,8 @@ import {
   getInventoriesByDate,
   getInventoryById,
   getInventoryPDF,
-  generateInventoryPDF
+  generateInventoryPDF,
+  getUserInventories
 } from '../controllers/inventory.controller'
 
 const router = Router()
@@ -17,6 +18,7 @@ router.use(authenticate)
 
 // User routes
 router.get('/today', getTodayInventory)
+router.get('/my-inventories', getUserInventories)
 router.post('/', saveInventory)
 router.post('/submit', submitInventory)
 

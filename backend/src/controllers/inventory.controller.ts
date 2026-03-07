@@ -355,6 +355,37 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
   }
 }
 
+// Get current user's inventories from the last 5 days
+export const getUserInventories = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    const cutoffDate = getBucharestToday()
+    cutoffDate.setDate(cutoffDate.getDate() - 5)
+
+    const inventories = await prisma.inventory.findMany({
+      where: {
+        userId,
+        date: {
+          gte: cutoffDate,
+        },
+      },
+      include: {
+        entries: true,
+      },
+      orderBy: { date: 'desc' },
+    })
+
+    res.json(inventories)
+  } catch (error) {
+    console.error('Error fetching user inventories:', error)
+    res.status(500).json({ error: 'Failed to fetch inventories' })
+  }
+}
+
 // Get inventory PDF
 export const getInventoryPDF = async (req: Request, res: Response) => {
   try {

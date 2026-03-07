@@ -7,6 +7,7 @@ import PhotoUpload from './components/PhotoUpload'
 import UserOrdersView from './components/UserOrdersView'
 import UserOrderDetails from './components/UserOrderDetails'
 import InventoryForm from './components/InventoryForm'
+import UserInventoryHistory from './components/UserInventoryHistory'
 
 function App() {
   const [, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'))
@@ -73,6 +74,10 @@ function App() {
           <Route
             path="/inventory"
             element={requireAuth(<InventoryForm />)}
+          />
+          <Route
+            path="/my-inventories"
+            element={requireAuth(<UserInventoryHistory />)}
           />
           <Route path="/upload/:sessionId" element={<PhotoUpload />} />
         </Routes>
