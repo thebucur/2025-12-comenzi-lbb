@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useOrder } from '../../context/OrderContext'
-import { Location } from '../../types/order.types'
 import { getTodayString, toBucharestDateString } from '../../utils/date'
 import api from '../../services/api'
+import { useInstallationConfig } from '../../hooks/useInstallationConfig'
 
-const locations: Location[] = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
+const defaultLocations = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
 const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
 
 function Screen1Ridicare() {
   const { order, updateOrder } = useOrder()
+  const config = useInstallationConfig()
+  const locations = config?.pickupLocations?.locations ?? defaultLocations
   const userId = localStorage.getItem('userId') || 'default'
   const staffNamesKey = `staffNames_${userId}`
   

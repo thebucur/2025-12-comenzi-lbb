@@ -13,6 +13,9 @@ function InventoryView() {
   const [loading, setLoading] = useState(true)
   const [showPDFMissingPopup, setShowPDFMissingPopup] = useState(false)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [printResult, setPrintResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [sendingEmail, setSendingEmail] = useState(false)
 
   useEffect(() => {
     if (!id) {
@@ -174,6 +177,26 @@ function InventoryView() {
     }
   }
 
+  const handlePrintClick = () => {
+    setPrintResult(null)
+    setShowPrintModal(true)
+  }
+
+  const handleConfirmSendEmail = async () => {
+    if (!inventory) return
+    setSendingEmail(true)
+    try {
+      await api.post(`/inventory/${inventory.id}/generate-pdf`, { sendEmail: true })
+      const dateStr = toBucharestDateString(inventory.date)
+      setPrintResult({ type: 'success', message: `Inventarul ${inventory.username} din ${dateStr} a fost trimis pe email cu succes!` })
+    } catch (err: any) {
+      console.error('Error sending inventory email:', err)
+      setPrintResult({ type: 'error', message: err.response?.data?.error || 'Eroare la trimiterea inventarului pe email' })
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary flex items-center justify-center">
@@ -238,6 +261,12 @@ function InventoryView() {
               className="btn-active px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
             >
               DOWNLOAD PDF
+            </button>
+            <button
+              onClick={handlePrintClick}
+              className="bg-green-500/20 border-2 border-green-500/50 px-4 py-2 rounded-xl font-bold text-green-700 hover:scale-105 transition-all inline-flex items-center gap-2"
+            >
+              🖨️ PRINT
             </button>
           </div>
         </div>
@@ -453,13 +482,19 @@ function InventoryView() {
           )}
         </div>
 
-        {/* Bottom Download PDF Button */}
-        <div className="mt-6 flex justify-center">
+        {/* Bottom Action Buttons */}
+        <div className="mt-6 flex justify-center gap-3">
           <button
             onClick={handleDownloadPDF}
             className="btn-active px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all"
           >
             DOWNLOAD PDF
+          </button>
+          <button
+            onClick={handlePrintClick}
+            className="bg-green-500/20 border-2 border-green-500/50 px-6 py-3 rounded-xl font-bold text-green-700 hover:scale-105 transition-all inline-flex items-center gap-2"
+          >
+            🖨️ PRINT
           </button>
         </div>
       </div>
@@ -484,6 +519,77 @@ function InventoryView() {
                 className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all"
               >
                 Închide
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print confirmation modal */}
+      {showPrintModal && (
+        <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card max-w-md w-full p-8 animate-float">
+            <div className="text-center mb-6">
+              {!printResult ? (
+                <>
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 mb-4">
+                    {sendingEmail ? (
+                      <svg className="animate-spin h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <span className="text-4xl">🖨️</span>
+                    )}
+                  </div>
+                  {sendingEmail ? (
+                    <h3 className="text-3xl font-bold text-gradient mb-4">Se trimite...</h3>
+                  ) : (
+                    <>
+                      <h3 className="text-3xl font-bold text-gradient mb-4">Trimite pe email</h3>
+                      <p className="text-secondary/80 text-lg">
+                        Inventarul <span className="font-bold text-secondary">{inventory.username}</span> din <span className="font-bold text-secondary">{formatBucharestDate(inventory.date)}</span> va fi generat ca PDF și trimis pe email.
+                      </p>
+                    </>
+                  )}
+                </>
+              ) : printResult.type === 'success' ? (
+                <>
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 mb-4">
+                    <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h3 className="text-3xl font-bold text-gradient mb-4">Trimis cu succes!</h3>
+                  <p className="text-secondary/80 text-lg">{printResult.message}</p>
+                </>
+              ) : (
+                <>
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/20 mb-4">
+                    <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <h3 className="text-3xl font-bold text-gradient mb-4">Eroare</h3>
+                  <p className="text-secondary/80 text-lg">{printResult.message}</p>
+                </>
+              )}
+            </div>
+            <div className="flex gap-4 mt-8">
+              {!printResult && !sendingEmail && (
+                <button
+                  onClick={handleConfirmSendEmail}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all"
+                >
+                  ✓ Trimite
+                </button>
+              )}
+              <button
+                onClick={() => setShowPrintModal(false)}
+                disabled={sendingEmail}
+                className="flex-1 btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {printResult ? 'Închide' : '✕ Anulează'}
               </button>
             </div>
           </div>

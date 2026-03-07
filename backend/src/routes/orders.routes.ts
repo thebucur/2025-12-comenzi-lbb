@@ -60,17 +60,11 @@ router.post('/:id/generate-pdf', async (req, res) => {
 router.get('/:id/pdf', async (req, res) => {
   try {
     const { id } = req.params
-    const order = await prisma.order.findUnique({
-      where: { id },
-    })
+    const { filepath: pdfPath, orderNumber } = await generatePDF(id)
 
-    if (!order || !order.pdfPath) {
-      return res.status(404).json({ error: 'PDF not found' })
-    }
-
-    const fileStream = fs.createReadStream(order.pdfPath)
+    const fileStream = fs.createReadStream(pdfPath)
     res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename=comanda-${order.orderNumber}.pdf`)
+    res.setHeader('Content-Disposition', `attachment; filename=comanda-${orderNumber}.pdf`)
     fileStream.pipe(res)
   } catch (error) {
     console.error('Error serving PDF:', error)

@@ -321,8 +321,20 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     doc.moveDown(0.3) // add a small spacer for readability
   }
 
-  // Header
-  doc.font(fontBold).fontSize(18).text(removeDiacritics(`Comanda #${order.orderNumber}`), { align: 'center' })
+  // Header with delivery date and time
+  console.log(`[PDF Header Debug] order.pickupDate = ${order.pickupDate} (type: ${typeof order.pickupDate})`)
+  console.log(`[PDF Header Debug] order.pickupTime = ${order.pickupTime} (type: ${typeof order.pickupTime})`)
+  const pickupDateObj = order.pickupDate ? new Date(order.pickupDate) : null
+  const deliveryDate = pickupDateObj
+    ? `${String(pickupDateObj.getDate()).padStart(2, '0')}.${String(pickupDateObj.getMonth() + 1).padStart(2, '0')}.${pickupDateObj.getFullYear()}`
+    : ''
+  const deliveryTime = order.pickupTime || ''
+  console.log(`[PDF Header Debug] deliveryDate = "${deliveryDate}", deliveryTime = "${deliveryTime}"`)
+  const headerTitle = deliveryDate
+    ? `Comanda #${order.orderNumber} - livrare pe ${deliveryDate}${deliveryTime ? ` - ${deliveryTime}` : ''}`
+    : `Comanda #${order.orderNumber}`
+  console.log(`[PDF Header Debug] headerTitle = "${headerTitle}"`)
+  doc.font(fontBold).fontSize(16).text(removeDiacritics(headerTitle), { align: 'center' })
   doc.moveDown(0.6)
 
   const columnStartY = doc.y
@@ -333,16 +345,20 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     width: leftColumnWidth,
   })
   doc.moveDown(0.4)
+  addField('Comanda dată în', order.createdByUsername || undefined)
+  addField('Preluată de', order.staffName)
+  const createdAtDate = order.createdAt ? new Date(order.createdAt) : null
+  const createdAtFormatted = createdAtDate
+    ? `${String(createdAtDate.getDate()).padStart(2, '0')}.${String(createdAtDate.getMonth() + 1).padStart(2, '0')}.${createdAtDate.getFullYear()} ora ${String(createdAtDate.getHours()).padStart(2, '0')}:${String(createdAtDate.getMinutes()).padStart(2, '0')}`
+    : undefined
+  addField('Preluată pe', createdAtFormatted)
   addField('Client', order.clientName)
   addField('Telefon', `07${order.phoneNumber}`)
-  addField('Metodă', order.deliveryMethod === 'ridicare' ? 'Ridicare' : 'Livrare')
-  addField('Locație', order.location || undefined)
-  addField('Adresă', order.address || undefined)
-  addField('Preia comanda', order.staffName)
-  const pickupDateValue = order.pickupDate ? new Date(order.pickupDate).toLocaleDateString('ro-RO') : undefined
-  const pickupTimeValue = order.pickupTime ? ` ora ${order.pickupTime}` : ''
-  const pickupDateHighlight = getDateHighlightColor(order.pickupDate)
-  addField('Data', pickupDateValue ? pickupDateValue + pickupTimeValue : undefined, pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined)
+  if (order.deliveryMethod === 'ridicare') {
+    addField('Livrare', order.location ? `Ridicare din ${order.location}` : 'Ridicare')
+  } else {
+    addField('Livrare', order.address || 'Livrare la adresă')
+  }
   if (order.advance) addField('Avans', `${order.advance} RON`)
   doc.moveDown()
 

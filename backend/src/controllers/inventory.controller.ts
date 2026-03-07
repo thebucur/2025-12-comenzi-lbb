@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { generateInventoryPDF as generateInventoryPDFService } from '../services/pdf.service'
+import { sendInventoryEmail } from '../services/email.service'
 import path from 'path'
 import fs from 'fs'
 import { normalizeDateBucharest, getBucharestToday } from '../utils/date'
@@ -307,9 +308,12 @@ export const getInventoryById = async (req: Request, res: Response) => {
 }
 
 // Generate PDF for existing inventory
+const RECIPIENT_EMAIL = 'abucur@gmail.com'
+
 export const generateInventoryPDF = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
+    const { sendEmail: shouldSendEmail } = req.body || {}
 
     const inventory = await prisma.inventory.findUnique({
       where: { id },
@@ -332,7 +336,6 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
         }
       } catch (error) {
         console.error('Error deleting existing PDF file:', error)
-        // Continue with generation even if deletion fails
       }
     }
 
@@ -345,10 +348,20 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
       data: { pdfPath },
     })
 
+    const willSendEmail = shouldSendEmail === true && !!RECIPIENT_EMAIL
+
     res.json({ 
       success: true, 
       pdfPath,
+      emailQueued: willSendEmail,
     })
+
+    if (willSendEmail) {
+      const dateStr = inventory.date.toISOString().slice(0, 10)
+      sendInventoryEmail(inventory.username, dateStr, RECIPIENT_EMAIL, pdfPath)
+        .then(() => console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${RECIPIENT_EMAIL}`))
+        .catch((err) => console.error(`[Email] Eroare inventar ${inventory.username}-${dateStr}:`, err))
+    }
   } catch (error) {
     console.error('Error generating inventory PDF:', error)
     res.status(500).json({ error: 'Failed to generate PDF' })

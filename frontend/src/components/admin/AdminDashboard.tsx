@@ -86,7 +86,7 @@ interface ColorOption {
 }
 
 interface SortimentDecorManagerProps {
-  category: 'sortiment' | 'decor'
+  category: 'sortiment' | 'decor' | 'pickupLocations'
   configs: GlobalConfig[]
   defaultItems: Record<string, string[] | ColorOption[]>
   onRefresh: () => void
@@ -285,6 +285,7 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
       coatings: 'Îmbrăcăminte',
       colors: 'Culori',
       decorTypes: 'Tipuri decor',
+      locations: 'Locații ridicare',
     }
     return labels[key] || key
   }
@@ -1664,6 +1665,19 @@ function AdminDashboard() {
                       { name: 'NEGRU', value: '#000000' },
                     ],
                     decorTypes: ['SIMPLU', 'MEDIU', 'COMPLEX', 'PREMIUM'],
+                  }}
+                  onRefresh={fetchGlobalConfigs}
+                />
+              </div>
+
+              {/* Pickup Locations Section */}
+              <div className="card-neumorphic">
+                <h3 className="text-xl sm:text-2xl font-bold text-gradient mb-4 sm:mb-6">📍 Locație ridicare</h3>
+                <SortimentDecorManager
+                  category="pickupLocations"
+                  configs={globalConfigs.filter((c) => c.category === 'pickupLocations')}
+                  defaultItems={{
+                    locations: ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN'],
                   }}
                   onRefresh={fetchGlobalConfigs}
                 />

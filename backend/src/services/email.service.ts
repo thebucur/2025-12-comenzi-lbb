@@ -102,3 +102,51 @@ export const sendOrderEmail = async (
 
   throw lastError
 }
+
+export const sendInventoryEmail = async (
+  username: string,
+  dateStr: string,
+  recipientEmail: string,
+  pdfPath: string
+): Promise<void> => {
+  const from = process.env.GMAIL_SENDER
+  if (!from) {
+    throw new Error('Setează GMAIL_SENDER în .env (adresa Gmail de pe care trimiți)')
+  }
+
+  const pdfBuffer = await fs.readFile(pdfPath)
+  const filename = `inventory-${username}-${dateStr}.pdf`
+  const subject = `Inventar ${username} - ${dateStr}`
+  const body = `Inventarul pentru ${username} din data ${dateStr}. PDF în atașament.`
+
+  const raw = buildRawEmail(from, recipientEmail, subject, body, filename, pdfBuffer)
+
+  const oauth2Client = getOAuth2Client()
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
+
+  const maxAttempts = 2
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`[Email] [Gmail API] Trimit inventar ${username}-${dateStr} către ${recipientEmail}${attempt > 1 ? ` (încercare ${attempt})` : ''}...`)
+      await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw },
+      })
+      console.log(`[Email] [Gmail API] Trimis cu succes către ${recipientEmail} pentru inventar ${username}-${dateStr}`)
+      return
+    } catch (err) {
+      lastError = err
+      const msg = err instanceof Error ? err.message : String(err)
+      if (attempt < maxAttempts && /ECONNRESET|ETIMEDOUT|socket/i.test(msg)) {
+        console.warn(`[Email] [Gmail API] Eroare conexiune (încercare ${attempt}), reîncerc...`, msg)
+        await new Promise((r) => setTimeout(r, 2000))
+        continue
+      }
+      throw err
+    }
+  }
+
+  throw lastError
+}

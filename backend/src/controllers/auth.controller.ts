@@ -55,6 +55,7 @@ export const getGlobalConfig = async (req: Request, res: Response) => {
     const config: any = {
       sortiment: {},
       decor: {},
+      pickupLocations: {},
     }
 
     globalConfigs.forEach((gc) => {

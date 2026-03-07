@@ -14,6 +14,9 @@ interface GlobalConfig {
     colors?: Array<string | ColorOption>
     decorTypes?: string[]
   }
+  pickupLocations?: {
+    locations?: string[]
+  }
 }
 
 export const useInstallationConfig = () => {

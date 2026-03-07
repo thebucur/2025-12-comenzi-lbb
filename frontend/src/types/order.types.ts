@@ -1,6 +1,6 @@
 export type DeliveryMethod = 'ridicare' | 'livrare'
 
-export type Location = 'TIMKEN' | 'WINMARKT' | 'AFI PLOIESTI' | 'REPUBLICII' | 'CARAIMAN'
+export type Location = string
 
 export type CakeType = 
   | 'MOUSSE DE CIOCOLATĂ NEAGRĂ'

@@ -62,6 +62,9 @@ function AdminOrderView() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [editForm, setEditForm] = useState<Partial<OrderData>>({})
   const [saving, setSaving] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [printResult, setPrintResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const cakeTypes = (config?.sortiment?.cakeTypes as string[]) || defaultCakeTypes
   const weights = (config?.sortiment?.weights as string[]) || defaultWeights
@@ -133,6 +136,25 @@ function AdminOrderView() {
       observations: order.observations ?? '',
     })
     setShowEditModal(true)
+  }
+
+  const handlePrintClick = () => {
+    setPrintResult(null)
+    setShowPrintModal(true)
+  }
+
+  const handleConfirmSendEmail = async () => {
+    if (!id || !order) return
+    setSendingEmail(true)
+    try {
+      await api.post(`/orders/${id}/generate-pdf`, { sendEmail: true })
+      setPrintResult({ type: 'success', message: `Comanda #${order.orderNumber} a fost trimisă pe email cu succes!` })
+    } catch (err: any) {
+      console.error('Error sending order email:', err)
+      setPrintResult({ type: 'error', message: err.response?.data?.error || 'Eroare la trimiterea comenzii pe email' })
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   const handleSaveEdit = async () => {
@@ -288,6 +310,12 @@ function AdminOrderView() {
             className="btn-active px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-all inline-flex items-center gap-2"
           >
             ✏️ Editează
+          </button>
+          <button
+            onClick={handlePrintClick}
+            className="bg-green-500/20 border-2 border-green-500/50 px-6 py-3 rounded-2xl font-bold text-green-700 hover:scale-105 transition-all inline-flex items-center gap-2"
+          >
+            🖨️ Print
           </button>
         </div>
 
@@ -488,6 +516,75 @@ function AdminOrderView() {
             </button>
           )}
         </div>
+
+        {/* Print confirmation modal */}
+        {showPrintModal && (
+          <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="glass-card max-w-md w-full p-8 animate-float">
+              <div className="text-center mb-6">
+                {!printResult ? (
+                  <>
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 mb-4">
+                      {sendingEmail ? (
+                        <svg className="animate-spin h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <span className="text-4xl">🖨️</span>
+                      )}
+                    </div>
+                    <h3 className="text-3xl font-bold text-gradient mb-4">
+                      {sendingEmail ? 'Se trimite...' : 'Trimite comanda pe email'}
+                    </h3>
+                    {!sendingEmail && (
+                      <p className="text-secondary/80 text-lg">
+                        Comanda <span className="font-bold text-secondary">#{order.orderNumber}</span> va fi generată ca PDF și trimisă pe email.
+                      </p>
+                    )}
+                  </>
+                ) : printResult.type === 'success' ? (
+                  <>
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 mb-4">
+                      <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-3xl font-bold text-gradient mb-4">Trimis cu succes!</h3>
+                    <p className="text-secondary/80 text-lg">{printResult.message}</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/20 mb-4">
+                      <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <h3 className="text-3xl font-bold text-gradient mb-4">Eroare</h3>
+                    <p className="text-secondary/80 text-lg">{printResult.message}</p>
+                  </>
+                )}
+              </div>
+              <div className="flex gap-4 mt-8">
+                {!printResult && !sendingEmail && (
+                  <button
+                    onClick={handleConfirmSendEmail}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white px-6 py-4 rounded-2xl font-bold hover:scale-105 transition-all"
+                  >
+                    ✓ Trimite
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowPrintModal(false)}
+                  disabled={sendingEmail}
+                  className="flex-1 btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {printResult ? 'Închide' : '✕ Anulează'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit order modal - aligned with site modals, no horizontal scroll */}
         {showEditModal && (
