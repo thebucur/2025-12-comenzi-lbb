@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { createOrder, getOrder, listOrders, getNextOrderNumber, getUserOrders, getMyStaffNames, updateMyStaffNames } from '../controllers/orders.controller'
 import { generatePDF } from '../services/pdf.service'
-import { sendOrderEmail } from '../services/email.service'
+import { sendOrderEmail, getDevCcEmail } from '../services/email.service'
 import prisma from '../lib/prisma'
 import fs from 'fs'
 import { authenticate } from '../middleware/auth.middleware'
@@ -40,11 +40,12 @@ router.post('/:id/generate-pdf', async (req, res) => {
     // Respond immediately - email will be sent in background
     res.json({ success: true, pdfPath, emailQueued: willSendEmail })
 
-    // Fire-and-forget: send email in the background after responding
     if (willSendEmail) {
-      sendOrderEmail(orderNumber, targetEmail, pdfPath)
-        .then(() => console.log(`[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}`))
-        .catch((err) => console.error(`[Email] Eroare comanda #${orderNumber}:`, getEmailErrorMessage(err), err))
+      getDevCcEmail().then((ccEmail) => {
+        sendOrderEmail(orderNumber, targetEmail, pdfPath, ccEmail || undefined)
+          .then(() => console.log(`[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`))
+          .catch((err) => console.error(`[Email] Eroare comanda #${orderNumber}:`, getEmailErrorMessage(err), err))
+      })
     }
   } catch (error) {
     console.error('Error generating PDF:', error)

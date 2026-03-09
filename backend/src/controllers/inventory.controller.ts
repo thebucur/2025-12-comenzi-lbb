@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { generateInventoryPDF as generateInventoryPDFService } from '../services/pdf.service'
-import { sendInventoryEmail } from '../services/email.service'
+import { sendInventoryEmail, getDevCcEmail } from '../services/email.service'
 import path from 'path'
 import fs from 'fs'
 import { normalizeDateBucharest, getBucharestToday } from '../utils/date'
@@ -358,9 +358,11 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
 
     if (willSendEmail) {
       const dateStr = inventory.date.toISOString().slice(0, 10)
-      sendInventoryEmail(inventory.username, dateStr, RECIPIENT_EMAIL, pdfPath)
-        .then(() => console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${RECIPIENT_EMAIL}`))
-        .catch((err) => console.error(`[Email] Eroare inventar ${inventory.username}-${dateStr}:`, err))
+      getDevCcEmail().then((ccEmail) => {
+        sendInventoryEmail(inventory.username, dateStr, RECIPIENT_EMAIL, pdfPath, ccEmail || undefined)
+          .then(() => console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${RECIPIENT_EMAIL}${ccEmail ? ` (CC: ${ccEmail})` : ''}`))
+          .catch((err) => console.error(`[Email] Eroare inventar ${inventory.username}-${dateStr}:`, err))
+      })
     }
   } catch (error) {
     console.error('Error generating inventory PDF:', error)

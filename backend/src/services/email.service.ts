@@ -1,6 +1,7 @@
 import { google } from 'googleapis'
 import fs from 'fs/promises'
 import path from 'path'
+import prisma from '../lib/prisma'
 
 function getOAuth2Client() {
   const clientId = process.env.GMAIL_CLIENT_ID
@@ -16,22 +17,49 @@ function getOAuth2Client() {
   return oauth2Client
 }
 
+export async function getDevCcEmail(): Promise<string | null> {
+  try {
+    const config = await prisma.globalConfig.findUnique({
+      where: { category_key: { category: 'devSettings', key: 'devCc' } },
+    })
+    if (config && config.value && typeof config.value === 'object') {
+      const val = config.value as Record<string, unknown>
+      if (val.enabled === true && typeof val.email === 'string' && val.email) {
+        return val.email
+      }
+    }
+  } catch (err) {
+    console.error('[Email] Eroare la citirea devCc setting:', err)
+  }
+  return null
+}
+
 function buildRawEmail(
   from: string,
   to: string,
   subject: string,
   textBody: string,
   attachmentFilename: string,
-  attachmentBuffer: Buffer
+  attachmentBuffer: Buffer,
+  cc?: string
 ): string {
   const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
-  const mimeMessage = [
+  const headers = [
     `From: ${from}`,
     `To: ${to}`,
+  ]
+  if (cc) {
+    headers.push(`Cc: ${cc}`)
+  }
+  headers.push(
     `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
+  )
+
+  const mimeMessage = [
+    ...headers,
     '',
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
@@ -59,7 +87,8 @@ function buildRawEmail(
 export const sendOrderEmail = async (
   orderNumber: number,
   recipientEmail: string,
-  pdfPath: string
+  pdfPath: string,
+  ccEmail?: string
 ): Promise<void> => {
   const from = process.env.GMAIL_SENDER
   if (!from) {
@@ -71,7 +100,7 @@ export const sendOrderEmail = async (
   const subject = `Comandă #${orderNumber}`
   const body = `Ați primit o nouă comandă #${orderNumber}. PDF în atașament.`
 
-  const raw = buildRawEmail(from, recipientEmail, subject, body, filename, pdfBuffer)
+  const raw = buildRawEmail(from, recipientEmail, subject, body, filename, pdfBuffer, ccEmail)
 
   const oauth2Client = getOAuth2Client()
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
@@ -107,7 +136,8 @@ export const sendInventoryEmail = async (
   username: string,
   dateStr: string,
   recipientEmail: string,
-  pdfPath: string
+  pdfPath: string,
+  ccEmail?: string
 ): Promise<void> => {
   const from = process.env.GMAIL_SENDER
   if (!from) {
@@ -119,7 +149,7 @@ export const sendInventoryEmail = async (
   const subject = `Inventar ${username} - ${dateStr}`
   const body = `Inventarul pentru ${username} din data ${dateStr}. PDF în atașament.`
 
-  const raw = buildRawEmail(from, recipientEmail, subject, body, filename, pdfBuffer)
+  const raw = buildRawEmail(from, recipientEmail, subject, body, filename, pdfBuffer, ccEmail)
 
   const oauth2Client = getOAuth2Client()
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client })

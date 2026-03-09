@@ -549,6 +549,8 @@ function AdminDashboard() {
   const [staffNamesEdit, setStaffNamesEdit] = useState<string[]>([])
   const [pdfSettings, setPdfSettings] = useState({ recipientEmail: '', sendEmail: true, downloadPdf: false })
   const [pdfSettingsSaving, setPdfSettingsSaving] = useState(false)
+  const [devCcEnabled, setDevCcEnabled] = useState(false)
+  const [devCcSaving, setDevCcSaving] = useState(false)
 
   const handleAdminLogout = () => {
     localStorage.removeItem('adminAuthToken')
@@ -685,6 +687,11 @@ function AdminDashboard() {
           downloadPdf: val.downloadPdf === true,
         })
       }
+      const devCcConfig = response.data.find((c: GlobalConfig) => c.category === 'devSettings' && c.key === 'devCc')
+      if (devCcConfig && devCcConfig.value && typeof devCcConfig.value === 'object') {
+        const val = devCcConfig.value as Record<string, unknown>
+        setDevCcEnabled(val.enabled === true)
+      }
     } catch (error) {
       console.error('Error fetching PDF settings:', error)
     }
@@ -703,6 +710,22 @@ function AdminDashboard() {
       alert('Eroare la salvarea setărilor PDF')
     } finally {
       setPdfSettingsSaving(false)
+    }
+  }
+
+  const saveDevCcSetting = async (enabled: boolean) => {
+    setDevCcSaving(true)
+    try {
+      await api.post('/config/global', {
+        category: 'devSettings',
+        key: 'devCc',
+        value: { enabled, email: 'abucur@gmail.com' },
+      })
+    } catch (error) {
+      console.error('Error saving Dev CC setting:', error)
+      alert('Eroare la salvarea setării Dev CC')
+    } finally {
+      setDevCcSaving(false)
     }
   }
 
@@ -1543,10 +1566,24 @@ function AdminDashboard() {
                     />
                     <span className="font-semibold text-secondary">Descarcă PDF</span>
                   </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={devCcEnabled}
+                      onChange={(e) => {
+                        setDevCcEnabled(e.target.checked)
+                        saveDevCcSetting(e.target.checked)
+                      }}
+                      className="w-5 h-5 cursor-pointer accent-purple-500"
+                    />
+                    <span className="font-semibold text-secondary">Dev CC</span>
+                    <span className="text-secondary/50 text-xs">(CC la abucur@gmail.com)</span>
+                  </label>
                 </div>
               </div>
               
-              {pdfSettingsSaving && (
+              {(pdfSettingsSaving || devCcSaving) && (
                 <p className="text-sm text-accent-purple mt-3 animate-pulse">Se salvează...</p>
               )}
             </div>
