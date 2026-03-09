@@ -308,7 +308,24 @@ export const getInventoryById = async (req: Request, res: Response) => {
 }
 
 // Generate PDF for existing inventory
-const RECIPIENT_EMAIL = 'abucur@gmail.com'
+const FALLBACK_EMAIL = 'abucur@gmail.com'
+
+async function getConfiguredRecipientEmail(): Promise<string> {
+  try {
+    const config = await prisma.globalConfig.findUnique({
+      where: { category_key: { category: 'pdfSettings', key: 'settings' } },
+    })
+    if (config && config.value && typeof config.value === 'object') {
+      const val = config.value as Record<string, unknown>
+      if (typeof val.recipientEmail === 'string' && val.recipientEmail) {
+        return val.recipientEmail
+      }
+    }
+  } catch (err) {
+    console.error('[Email] Eroare la citirea recipientEmail din config:', err)
+  }
+  return FALLBACK_EMAIL
+}
 
 export const generateInventoryPDF = async (req: Request, res: Response) => {
   try {
@@ -348,7 +365,8 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
       data: { pdfPath },
     })
 
-    const willSendEmail = shouldSendEmail === true && !!RECIPIENT_EMAIL
+    const recipientEmail = await getConfiguredRecipientEmail()
+    const willSendEmail = shouldSendEmail === true && !!recipientEmail
 
     res.json({ 
       success: true, 
@@ -359,8 +377,8 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
     if (willSendEmail) {
       const dateStr = inventory.date.toISOString().slice(0, 10)
       getDevCcEmail().then((ccEmail) => {
-        sendInventoryEmail(inventory.username, dateStr, RECIPIENT_EMAIL, pdfPath, ccEmail || undefined)
-          .then(() => console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${RECIPIENT_EMAIL}${ccEmail ? ` (CC: ${ccEmail})` : ''}`))
+        sendInventoryEmail(inventory.username, dateStr, recipientEmail, pdfPath, ccEmail || undefined)
+          .then(() => console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${recipientEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`))
           .catch((err) => console.error(`[Email] Eroare inventar ${inventory.username}-${dateStr}:`, err))
       })
     }

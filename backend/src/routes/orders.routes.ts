@@ -16,7 +16,24 @@ router.put('/staff-names', authenticate, updateMyStaffNames)
 router.get('/:id', getOrder)
 router.get('/', listOrders)
 
-const RECIPIENT_EMAIL = 'abucur@gmail.com'
+const FALLBACK_EMAIL = 'abucur@gmail.com'
+
+async function getConfiguredRecipientEmail(): Promise<string> {
+  try {
+    const config = await prisma.globalConfig.findUnique({
+      where: { category_key: { category: 'pdfSettings', key: 'settings' } },
+    })
+    if (config && config.value && typeof config.value === 'object') {
+      const val = config.value as Record<string, unknown>
+      if (typeof val.recipientEmail === 'string' && val.recipientEmail) {
+        return val.recipientEmail
+      }
+    }
+  } catch (err) {
+    console.error('[Email] Eroare la citirea recipientEmail din config:', err)
+  }
+  return FALLBACK_EMAIL
+}
 
 function getEmailErrorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -34,7 +51,7 @@ router.post('/:id/generate-pdf', async (req, res) => {
     const { sendEmail: shouldSendEmail, recipientEmail } = req.body || {}
     const { filepath: pdfPath, orderNumber } = await generatePDF(id)
     
-    const targetEmail = recipientEmail || RECIPIENT_EMAIL
+    const targetEmail = recipientEmail || await getConfiguredRecipientEmail()
     const willSendEmail = shouldSendEmail !== false && !!targetEmail
 
     // Respond immediately - email will be sent in background
