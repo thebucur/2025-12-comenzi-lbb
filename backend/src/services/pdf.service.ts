@@ -31,17 +31,17 @@ const removeDiacritics = (text: string | null | undefined): string => {
     .replace(/Ț/g, 'T')
 }
 
-const getDateHighlightColor = (dateInput?: string | Date | null): string | null => {
+const getDateHighlightColor = (dateInput?: string | Date | null, referenceDate?: string | Date | null): string | null => {
   if (!dateInput) return null
 
   const parsed = dateInput instanceof Date ? dateInput : new Date(dateInput)
   if (isNaN(parsed.getTime())) return null
 
-  const today = new Date()
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const ref = referenceDate ? (referenceDate instanceof Date ? referenceDate : new Date(referenceDate)) : new Date()
+  const refStart = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate())
   const targetStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
 
-  const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
+  const diffDays = Math.floor((refStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
 
   if (diffDays === 1) return '#ffff00' // yellow for yesterday
   if (diffDays >= 2) return '#ef4444' // red for two days ago or older
@@ -1219,7 +1219,7 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
               if (hasInventar) {
                 const dateShort = formatDateShort(dataEntry.receptionDate)
                 invText = `${dateShort}  ${dataEntry.quantity} ${formatUnit(dataEntry.unit)}`
-                dateHighlight = getDateHighlightColor(dataEntry.receptionDate)
+                dateHighlight = getDateHighlightColor(dataEntry.receptionDate, inventory.date)
               }
               
               // Build NEC text
@@ -1291,7 +1291,7 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
                 if (hasInventar) {
                   const dateShort = formatDateShort(dataEntry.receptionDate)
                   invText = `${dateShort}  ${dataEntry.quantity} ${formatUnit(dataEntry.unit)}`
-                  dateHighlight = getDateHighlightColor(dataEntry.receptionDate)
+                  dateHighlight = getDateHighlightColor(dataEntry.receptionDate, inventory.date)
                 }
                 
                 // Build NEC text

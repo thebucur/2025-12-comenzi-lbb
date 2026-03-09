@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { INVENTORY_CATEGORIES } from '../../constants/inventoryProducts'
-import { formatBucharestDate, toBucharestDateString, getTodayString } from '../../utils/date'
+import { formatBucharestDate, toBucharestDateString } from '../../utils/date'
 
 function InventoryView() {
   const { id } = useParams<{ id: string }>()
@@ -94,20 +94,20 @@ function InventoryView() {
     return unit
   }
 
-  // Get date highlight color (same logic as PDF)
+  // Get date highlight color relative to the inventory date (not today)
   const getDateHighlightColor = (dateInput?: string | Date | null): string | null => {
-    if (!dateInput) return null
+    if (!dateInput || !inventory?.date) return null
 
     const parsed = dateInput instanceof Date ? dateInput : new Date(dateInput)
     if (isNaN(parsed.getTime())) return null
 
-    const todayStr = getTodayString()
+    const refStr = toBucharestDateString(new Date(inventory.date))
     const targetStr = toBucharestDateString(parsed)
-    const todayStart = new Date(todayStr + 'T00:00:00')
+    const refStart = new Date(refStr + 'T00:00:00')
     const targetStart = new Date(targetStr + 'T00:00:00')
 
     const MS_PER_DAY = 24 * 60 * 60 * 1000
-    const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
+    const diffDays = Math.floor((refStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
 
     if (diffDays === 1) return '#ffff00' // yellow for yesterday
     if (diffDays >= 2) return '#ef4444' // red for two days ago or older
