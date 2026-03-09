@@ -32,6 +32,7 @@ interface OrderData {
   advance: number | null
   cakeType: string
   weight: string
+  customWeight: string | null
   shape: string | null
   floors: string | null
   otherProducts: string | null
