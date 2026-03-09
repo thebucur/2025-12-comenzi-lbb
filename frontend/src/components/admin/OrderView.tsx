@@ -405,7 +405,7 @@ function AdminOrderView() {
               </div>
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Greutate</p>
-                <p className="font-bold text-secondary text-lg">{order.weight}</p>
+                <p className="font-bold text-secondary text-lg">{order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight}</p>
               </div>
               {order.shape && (
                 <div className="bg-primary/50 p-4 rounded-2xl">
