@@ -228,7 +228,7 @@ export async function interpretInventoryDictation(
 
   const catalog = await getProductCatalog()
 
-  const systemPrompt = INVENTORY_SYSTEM_PROMPT.replaceAll('TODAY_DATE', todayDate)
+  const systemPrompt = INVENTORY_SYSTEM_PROMPT.replace(/TODAY_DATE/g, todayDate)
 
   const isRemovalTranscript = detectRemovalIntent(transcript)
 
