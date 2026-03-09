@@ -7,6 +7,7 @@ import PhotoUpload from './components/PhotoUpload'
 import UserOrdersView from './components/UserOrdersView'
 import UserOrderDetails from './components/UserOrderDetails'
 import InventoryForm from './components/InventoryForm'
+import InventoryTST from './components/InventoryTST'
 import UserInventoryHistory from './components/UserInventoryHistory'
 
 function App() {
@@ -74,6 +75,10 @@ function App() {
           <Route
             path="/inventory"
             element={requireAuth(<InventoryForm />)}
+          />
+          <Route
+            path="/inventarTST"
+            element={requireAuth(<InventoryTST />)}
           />
           <Route
             path="/my-inventories"

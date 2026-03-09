@@ -32,6 +32,25 @@ export const uploadPhotos = upload.fields([
 // Fallback to accept anything (kept for compatibility)
 export const uploadAny = upload.any()
 
+const audioFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  if (file.mimetype.startsWith('audio/') || file.mimetype === 'application/ogg') {
+    cb(null, true)
+  } else {
+    cb(new Error('Only audio files are allowed'))
+  }
+}
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: audioFilter,
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB - Whisper API limit
+    files: 1,
+  },
+})
+
+export const uploadAudio = audioUpload.single('audio')
+
 export default upload
 
 
