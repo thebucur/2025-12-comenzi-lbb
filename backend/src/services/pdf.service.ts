@@ -13,6 +13,17 @@ const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUN
 const PDF_DIR = process.env.PDF_DIR || path.join(STORAGE_BASE, 'pdfs')
 const FONTS_DIR = process.env.FONTS_DIR || path.join(STORAGE_BASE, 'fonts')
 const MS_PER_DAY = 1000 * 60 * 60 * 24
+const BUCHAREST_TIMEZONE = 'Europe/Bucharest'
+
+const formatBucharestDateRo = (dateInput: string | Date): string => {
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  return new Intl.DateTimeFormat('ro-RO', {
+    timeZone: BUCHAREST_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
 
 // Helper function to replace Romanian diacritics with non-diacritic letters
 const removeDiacritics = (text: string | null | undefined): string => {
@@ -339,7 +350,7 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
   addField('Locație', order.location || undefined)
   addField('Adresă', order.address || undefined)
   addField('Preia comanda', order.staffName)
-  const pickupDateValue = order.pickupDate ? new Date(order.pickupDate).toLocaleDateString('ro-RO') : undefined
+  const pickupDateValue = order.pickupDate ? formatBucharestDateRo(order.pickupDate) : undefined
   const pickupTimeValue = order.pickupTime ? ` ora ${order.pickupTime}` : ''
   const pickupDateHighlight = getDateHighlightColor(order.pickupDate)
   addField('Data', pickupDateValue ? pickupDateValue + pickupTimeValue : undefined, pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined)

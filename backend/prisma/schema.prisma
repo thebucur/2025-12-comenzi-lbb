@@ -75,14 +75,15 @@ model OrderCounter {
 }
 
 model User {
-  id             String       @id @default(uuid())
-  username       String       @unique
-  password       String       // Hashed password
-  staffNames     Json?        // Local staff names (array of strings) - "cine preia comanda" per user
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  pickedUpOrders Order[]      @relation("PickedUpOrders")
-  inventories    Inventory[]
+  id                 String       @id @default(uuid())
+  username           String       @unique
+  password           String       // Hashed password
+  staffNames         Json?        // Local staff names (array of strings) - "cine preia comanda" per user
+  isDeliveryLocation Boolean      @default(false) // Dacă e bifat, username-ul apare în lista de locații de livrare
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  pickedUpOrders     Order[]      @relation("PickedUpOrders")
+  inventories        Inventory[]
 }
 
 model GlobalConfig {

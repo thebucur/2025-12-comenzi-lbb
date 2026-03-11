@@ -1,6 +1,7 @@
 export type DeliveryMethod = 'ridicare' | 'livrare'
 
-export type Location = 'TIMKEN' | 'WINMARKT' | 'AFI PLOIESTI' | 'REPUBLICII' | 'CARAIMAN'
+// Locațiile de livrare sunt derivate din usernames (magazine) cu isDeliveryLocation=true
+export type Location = string
 
 export type CakeType = 
   | 'MOUSSE DE CIOCOLATĂ NEAGRĂ'

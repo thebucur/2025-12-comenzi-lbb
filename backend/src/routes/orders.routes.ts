@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { createOrder, getOrder, listOrders, getNextOrderNumber, getUserOrders, getMyStaffNames, updateMyStaffNames } from '../controllers/orders.controller'
+import { createOrder, getOrder, listOrders, getNextOrderNumber, getUserOrders, getMyStaffNames, updateMyStaffNames, getDeliveryLocations } from '../controllers/orders.controller'
 import { generatePDF } from '../services/pdf.service'
 import { sendOrderEmail } from '../services/email.service'
 import prisma from '../lib/prisma'
@@ -10,6 +10,7 @@ const router = Router()
 
 router.post('/', createOrder)
 router.get('/next-number', getNextOrderNumber)
+router.get('/delivery-locations', authenticate, getDeliveryLocations)
 router.get('/my-orders', authenticate, getUserOrders)
 router.get('/staff-names', authenticate, getMyStaffNames)
 router.put('/staff-names', authenticate, updateMyStaffNames)

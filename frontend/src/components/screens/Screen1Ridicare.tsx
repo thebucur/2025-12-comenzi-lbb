@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useOrder } from '../../context/OrderContext'
-import { Location } from '../../types/order.types'
 import { getTodayString, toBucharestDateString } from '../../utils/date'
 import api from '../../services/api'
 
-const locations: Location[] = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
 const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
 
 function Screen1Ridicare() {
@@ -12,12 +10,32 @@ function Screen1Ridicare() {
   const userId = localStorage.getItem('userId') || 'default'
   const staffNamesKey = `staffNames_${userId}`
   
+  // Locații de livrare = usernames cu "Este locatie de livrare" bifat în admin
+  const [deliveryLocations, setDeliveryLocations] = useState<string[]>([])
+  
   // Load staff names: fetch from API first, fallback to localStorage, then defaults
   const [staffNames, setStaffNames] = useState<string[]>(defaultStaffNames)
   
   const [showStaffSettings, setShowStaffSettings] = useState(false)
   const [newStaffName, setNewStaffName] = useState('')
   const [showTomorrowAlert, setShowTomorrowAlert] = useState(false)
+
+  // Fetch delivery locations (usernames marked as delivery location in admin)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await api.get<{ locations: string[] }>('/orders/delivery-locations')
+        if (!cancelled && Array.isArray(res.data?.locations)) {
+          setDeliveryLocations(res.data.locations)
+        }
+      } catch {
+        if (!cancelled) setDeliveryLocations([])
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   // Fetch staff names from backend on mount
   useEffect(() => {
@@ -147,25 +165,29 @@ function Screen1Ridicare() {
         </div>
       </div>
 
-      {/* Location Grid (only for ridicare) */}
+      {/* Location Grid (only for ridicare) - locații din usernames cu "Este locatie de livrare" */}
       {order.deliveryMethod === 'ridicare' && (
         <div className="card-neumorphic">
           <h3 className="text-xl font-bold text-secondary mb-6">📍 Locație ridicare</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {locations.map((location) => (
-              <button
-                key={location}
-                onClick={() => updateOrder({ location })}
-                className={`p-6 rounded-2xl font-bold transition-all duration-300 ${
-                  order.location === location
-                    ? 'btn-active scale-105'
-                    : 'btn-neumorphic hover:scale-102'
-                }`}
-              >
-                {location}
-              </button>
-            ))}
-          </div>
+          {deliveryLocations.length === 0 ? (
+            <p className="text-secondary/70">Nu există locații de livrare configurate. În admin, bifați „Este locatie de livrare” la utilizatorii care sunt magazine.</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {deliveryLocations.map((location) => (
+                <button
+                  key={location}
+                  onClick={() => updateOrder({ location })}
+                  className={`p-6 rounded-2xl font-bold transition-all duration-300 ${
+                    order.location === location
+                      ? 'btn-active scale-105'
+                      : 'btn-neumorphic hover:scale-102'
+                  }`}
+                >
+                  {location}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

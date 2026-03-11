@@ -298,7 +298,7 @@ function AdminOrderView() {
           <h1 className="text-5xl font-bold text-gradient mb-2">Comandă #{order.orderNumber}</h1>
           <p className={`text-secondary/60 text-lg ${createdDateClass}`}>
             Creată la {formatBucharestDate(order.createdAt)} 
-            {' '}{new Date(order.createdAt).toLocaleTimeString('ro-RO')}
+            {' '}{formatBucharestTime(order.createdAt)}
           </p>
         </div>
 
