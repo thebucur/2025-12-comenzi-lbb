@@ -14,12 +14,32 @@ function Screen1Ridicare() {
   const userId = localStorage.getItem('userId') || 'default'
   const staffNamesKey = `staffNames_${userId}`
   
+  // Locații de livrare = usernames cu "Este locatie de livrare" bifat în admin
+  const [deliveryLocations, setDeliveryLocations] = useState<string[]>([])
+  
   // Load staff names: fetch from API first, fallback to localStorage, then defaults
   const [staffNames, setStaffNames] = useState<string[]>(defaultStaffNames)
   
   const [showStaffSettings, setShowStaffSettings] = useState(false)
   const [newStaffName, setNewStaffName] = useState('')
   const [showTomorrowAlert, setShowTomorrowAlert] = useState(false)
+
+  // Fetch delivery locations (usernames marked as delivery location in admin)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await api.get<{ locations: string[] }>('/orders/delivery-locations')
+        if (!cancelled && Array.isArray(res.data?.locations)) {
+          setDeliveryLocations(res.data.locations)
+        }
+      } catch {
+        if (!cancelled) setDeliveryLocations([])
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   // Fetch staff names from backend on mount
   useEffect(() => {
@@ -149,12 +169,12 @@ function Screen1Ridicare() {
         </div>
       </div>
 
-      {/* Location Grid (only for ridicare) */}
+      {/* Location Grid (only for ridicare) - locații din usernames cu "Este locatie de livrare" */}
       {order.deliveryMethod === 'ridicare' && (
         <div className="card-neumorphic">
           <h3 className="text-xl font-bold text-secondary mb-6">📍 Locație ridicare</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {locations.map((location) => (
+            {(deliveryLocations.length > 0 ? deliveryLocations : locations).map((location) => (
               <button
                 key={location}
                 onClick={() => updateOrder({ location })}
@@ -168,6 +188,11 @@ function Screen1Ridicare() {
               </button>
             ))}
           </div>
+          {deliveryLocations.length === 0 && (
+            <p className="text-secondary/60 text-sm mt-4">
+              Folosesc lista locală/configurată. Pentru listă globală din admin, bifați „Este locatie de livrare” la utilizatorii-magazin.
+            </p>
+          )}
         </div>
       )}
 

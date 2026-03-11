@@ -95,6 +95,7 @@ export const listUsers = async (req: Request, res: Response) => {
       select: {
         id: true,
         username: true,
+        isDeliveryLocation: true,
         ...(includeStaffNames === 'true' && { staffNames: true }),
         createdAt: true,
         updatedAt: true,
@@ -155,7 +156,7 @@ export const createUser = async (req: Request, res: Response) => {
     console.log('createUser called, prisma:', prisma ? 'OK' : 'UNDEFINED')
     console.log('prisma.user:', prisma?.user ? 'OK' : 'UNDEFINED')
     
-    const { username, password, location, email } = req.body
+    const { username, password, isDeliveryLocation } = req.body
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' })
@@ -187,6 +188,7 @@ export const createUser = async (req: Request, res: Response) => {
     const userData = {
       username: username.trim(),
       password: hashedPassword,
+      isDeliveryLocation: Boolean(isDeliveryLocation),
     }
     
     console.log('Creating user with data:', { ...userData, password: '[HIDDEN]' })
@@ -195,6 +197,7 @@ export const createUser = async (req: Request, res: Response) => {
       select: {
         id: true,
         username: true,
+        isDeliveryLocation: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -237,10 +240,11 @@ export const createUser = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const { username, password } = req.body
+    const { username, password, isDeliveryLocation } = req.body
 
     const updateData: any = {}
     if (username) updateData.username = username
+    if (typeof isDeliveryLocation === 'boolean') updateData.isDeliveryLocation = isDeliveryLocation
     // Only update password if it's provided and not empty
     if (password && password.trim()) {
       const bcrypt = require('bcrypt')
@@ -253,6 +257,7 @@ export const updateUser = async (req: Request, res: Response) => {
       select: {
         id: true,
         username: true,
+        isDeliveryLocation: true,
         createdAt: true,
         updatedAt: true,
       },

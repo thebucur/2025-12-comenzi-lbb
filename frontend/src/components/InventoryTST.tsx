@@ -1,18 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { INVENTORY_CATEGORIES } from '../constants/inventoryProducts'
 import { 
-  getTodayInventory, 
-  submitInventory, 
-  saveInventoryDraft,
-  InventoryEntryData
+  InventoryEntryData,
+  DictatedEntry
 } from '../services/inventory.api'
 import api from '../services/api'
 import { getTodayString, formatBucharestDate, toBucharestDateString } from '../utils/date'
+import VoiceDictationModule from './VoiceDictationModule'
 
 interface ProductFormData {
-  id?: string // Unique ID for stable keys
+  id?: string
   category: string
   productName: string
   isCustomProduct: boolean
@@ -31,10 +30,10 @@ interface InventoryCategory {
   units: string[]
   defaultUnit: string
   displayOrder: number
-  products: InventoryProduct[] // Product objects with predefinedValues
+  products: InventoryProduct[]
 }
 
-function InventoryForm() {
+function InventoryTST() {
   const navigate = useNavigate()
   const username = localStorage.getItem('authToken') || 'Unknown'
   const today = formatBucharestDate(new Date())
@@ -42,43 +41,31 @@ function InventoryForm() {
   const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [productEntries, setProductEntries] = useState<ProductFormData[]>([])
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [hasExistingSubmission, setHasExistingSubmission] = useState(false)
-  const [showEditConfirmation, setShowEditConfirmation] = useState(false)
-  const [autoSaving, setAutoSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [isSavingAndClosing, setIsSavingAndClosing] = useState(false)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const initialLoadRef = useRef(true)
   const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const bottomBarRef = useRef<HTMLDivElement | null>(null)
   const [bottomBarReady, setBottomBarReady] = useState(false)
   
-  // Predefined values lookup map: categoryName-productName -> predefinedValues[]
   const predefinedValuesMap = useRef<Map<string, number[]>>(new Map())
   
-  // State for tracking which input field should show the popup
   const [focusedRequiredQuantityField, setFocusedRequiredQuantityField] = useState<{
     category: string
     productName: string
   } | null>(null)
 
-  // Load categories from API
   useEffect(() => {
     loadCategories()
   }, [])
 
-  // Load today's inventory after categories are loaded
   useEffect(() => {
     if (categories.length > 0) {
-      loadTodayInventory()
+      setProductEntries(createAllDefaultProducts())
+      setLoading(false)
     }
   }, [categories])
 
   const loadCategories = async () => {
     try {
       const response = await api.get('/inventory-products/categories/public')
-      // Transform API response to match expected format
       const transformedCategories: InventoryCategory[] = response.data.map((cat: any) => ({
         id: cat.id,
         name: cat.name,
@@ -92,7 +79,6 @@ function InventoryForm() {
         })).sort((a: InventoryProduct, b: InventoryProduct) => a.name.localeCompare(b.name))
       })).sort((a: InventoryCategory, b: InventoryCategory) => a.displayOrder - b.displayOrder)
       
-      // Build predefined values lookup map
       predefinedValuesMap.current.clear()
       transformedCategories.forEach(category => {
         category.products.forEach(product => {
@@ -106,7 +92,6 @@ function InventoryForm() {
       setCategories(transformedCategories)
     } catch (error) {
       console.error('Error loading categories from API, using fallback:', error)
-      // Fallback to hardcoded categories if API fails
       const fallbackCategories: InventoryCategory[] = INVENTORY_CATEGORIES.map((cat, index) => ({
         id: cat.id,
         name: cat.name,
@@ -120,85 +105,43 @@ function InventoryForm() {
     }
   }
 
-  // Auto-save effect - saves draft after 1 second of inactivity
-  useEffect(() => {
-    // Skip auto-save on initial load
-    if (initialLoadRef.current) {
-      initialLoadRef.current = false
-      return
-    }
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    // Set new timeout for auto-save
-    saveTimeoutRef.current = setTimeout(async () => {
-      await autoSaveDraft()
-    }, 1000) // Save 1 second after last change
-
-    // Cleanup on unmount
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [productEntries])
-
-  // Detect if near bottom of page to retract the bar
   useEffect(() => {
     if (!bottomBarReady) return
 
     const bottomBar = bottomBarRef.current
     if (!bottomBar) return
 
-    console.log('Setting up scroll detection for bottom bar')
     let animationFrameId: number | null = null
     let cleanupFunctions: (() => void)[] = []
     let checkScrollPosition: (() => void) | null = null
 
     const getScrollInfo = () => {
-      // Try multiple ways to get scroll information
       const rootElement = document.getElementById('root')
       
-      // Method 1: #root element
       if (rootElement) {
         const scrollHeight = rootElement.scrollHeight
         const clientHeight = rootElement.clientHeight
         const scrollTop = rootElement.scrollTop
         
         if (scrollHeight > clientHeight) {
-          return {
-            scrollTop,
-            scrollHeight,
-            clientHeight,
-            element: rootElement
-          }
+          return { scrollTop, scrollHeight, clientHeight, element: rootElement }
         }
       }
       
-      // Method 2: document.documentElement (html element)
       const docScrollHeight = document.documentElement.scrollHeight
       const docClientHeight = window.innerHeight
       const docScrollTop = document.documentElement.scrollTop || window.pageYOffset || 0
       
       if (docScrollHeight > docClientHeight) {
-        return {
-          scrollTop: docScrollTop,
-          scrollHeight: docScrollHeight,
-          clientHeight: docClientHeight,
-          element: document.documentElement
-        }
+        return { scrollTop: docScrollTop, scrollHeight: docScrollHeight, clientHeight: docClientHeight, element: document.documentElement }
       }
       
-      // Method 3: document.body
       return {
         scrollTop: document.body.scrollTop || window.pageYOffset || 0,
         scrollHeight: document.body.scrollHeight || document.documentElement.scrollHeight,
         clientHeight: window.innerHeight || document.documentElement.clientHeight,
         element: document.body
-        }
+      }
     }
 
     checkScrollPosition = () => {
@@ -215,25 +158,20 @@ function InventoryForm() {
 
         const scrollInfo = getScrollInfo()
         const { scrollTop, scrollHeight, clientHeight } = scrollInfo
-        
-        // Consider "near bottom" if within 300px of the bottom
         const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
         const nearBottom = distanceFromBottom < 300
 
         if (nearBottom) {
-          // Move down to reveal submit button
           const barHeight = bar.offsetHeight || 100
           bar.style.transform = `translate3d(0, ${barHeight}px, 0)`
           bar.style.transition = 'transform 0.3s ease-out'
         } else {
-          // Keep at bottom
           bar.style.transform = 'translate3d(0, 0, 0)'
           bar.style.transition = 'transform 0.3s ease-out'
         }
       })
     }
 
-    // Listen for scroll on all possible scrollable elements
     const rootElement = document.getElementById('root')
     
     if (rootElement) {
@@ -251,7 +189,6 @@ function InventoryForm() {
       document.removeEventListener('scroll', checkScrollPosition!)
     })
     
-    // Initial check
     setTimeout(() => {
       if (checkScrollPosition) checkScrollPosition()
     }, 200)
@@ -264,26 +201,6 @@ function InventoryForm() {
     }
   }, [bottomBarReady])
 
-  // Auto-save function
-  const autoSaveDraft = async () => {
-    try {
-      setAutoSaving(true)
-      const validEntries = productEntries.filter(e => 
-        e.entries.some(entry => (entry.quantity && entry.quantity > 0) || (entry.requiredQuantity && entry.requiredQuantity > 0))
-      )
-      
-      if (validEntries.length > 0) {
-        await saveInventoryDraft({ entries: validEntries })
-        setLastSaved(new Date())
-      }
-    } catch (error) {
-      console.error('Failed to auto-save draft:', error)
-    } finally {
-      setAutoSaving(false)
-    }
-  }
-
-  // Helper function to create all default products from loaded categories
   const createAllDefaultProducts = (): ProductFormData[] => {
     const allProducts: ProductFormData[] = []
     categories.forEach(category => {
@@ -308,64 +225,6 @@ function InventoryForm() {
     return allProducts
   }
 
-  const loadTodayInventory = async () => {
-    try {
-      const response = await getTodayInventory()
-      
-      // Always start with all default products
-      const allDefaultProducts = createAllDefaultProducts()
-      
-      if (response.inventory) {
-        setHasExistingSubmission(true)
-        
-        // Convert loaded inventory to form data
-        const loadedEntries = response.inventory.entries.map(entry => ({
-          id: entry.isCustomProduct 
-            ? `${entry.category}-${entry.productName}-${Date.now()}-${Math.random()}`
-            : `${entry.category}-${entry.productName}`,
-          category: entry.category,
-          productName: entry.productName,
-          isCustomProduct: entry.isCustomProduct,
-          entries: entry.entries.map(e => ({
-            receptionDate: e.receptionDate,
-            quantity: e.quantity,
-            unit: e.unit,
-            requiredQuantity: e.requiredQuantity || 0,
-            requiredUnit: e.requiredUnit || e.unit
-          }))
-        }))
-
-        // Merge loaded entries with default products
-        // For default products that have saved data, use the saved data
-        // For default products without saved data, keep the default
-        const mergedProducts = allDefaultProducts.map(defaultProduct => {
-          const loadedProduct = loadedEntries.find(
-            lp => lp.category === defaultProduct.category && 
-                  lp.productName === defaultProduct.productName &&
-                  !lp.isCustomProduct
-          )
-          return loadedProduct || defaultProduct
-        })
-
-        // Add custom products that are not in default list
-        const customProducts = loadedEntries.filter(lp => lp.isCustomProduct)
-        mergedProducts.push(...customProducts)
-
-        setProductEntries(mergedProducts)
-      } else {
-        // No saved inventory, use all default products
-        setProductEntries(allDefaultProducts)
-      }
-    } catch (error) {
-      console.error('Failed to load inventory:', error)
-      // On error, still show all default products
-      const allDefaultProducts = createAllDefaultProducts()
-      setProductEntries(allDefaultProducts)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const getProductEntry = (category: string, productName: string): ProductFormData | undefined => {
     return productEntries.find(
       e => e.category === category && e.productName === productName
@@ -375,7 +234,6 @@ function InventoryForm() {
   const addProductEntry = (category: string, productName: string, unit: string, isCustom = false, afterIndex?: number) => {
     const existing = getProductEntry(category, productName)
     if (existing) {
-      // Add another entry to existing product
       const updated = productEntries.map(e => {
         if (e.category === category && e.productName === productName) {
           const newEntry = {
@@ -387,23 +245,17 @@ function InventoryForm() {
           }
           
           if (afterIndex !== undefined && afterIndex >= 0) {
-            // Insert after specific index
             const newEntries = [...e.entries]
             newEntries.splice(afterIndex + 1, 0, newEntry)
             return { ...e, entries: newEntries }
           } else {
-            // Add to end
-            return {
-              ...e,
-              entries: [...e.entries, newEntry]
-            }
+            return { ...e, entries: [...e.entries, newEntry] }
           }
         }
         return e
       })
       setProductEntries(updated)
     } else {
-      // Add new product entry
       setProductEntries([
         ...productEntries,
         {
@@ -458,7 +310,7 @@ function InventoryForm() {
       if (e.category === category && e.productName === productName) {
         const newEntries = e.entries.filter((_, i) => i !== entryIndex)
         if (newEntries.length === 0) {
-          return null // Will be filtered out below
+          return null
         }
         return { ...e, entries: newEntries }
       }
@@ -472,18 +324,16 @@ function InventoryForm() {
     date.setDate(date.getDate() + days)
     const adjustedDateStr = toBucharestDateString(date)
     const todayStr = getTodayString()
-    // Don't allow dates in the future
     return adjustedDateStr > todayStr ? todayStr : adjustedDateStr
   }
 
   const formatDateShort = (dateString: string): string => {
     const date = new Date(dateString)
     const day = date.getDate()
-    const month = date.getMonth() + 1 // Month is 0-indexed, so add 1
+    const month = date.getMonth() + 1
     return `${day}.${month.toString().padStart(2, '0')}`
   }
 
-  // Get background color for date based on how old it is (matches PDF color coding)
   const getDateBackgroundColor = (dateString: string): string | null => {
     const MS_PER_DAY = 1000 * 60 * 60 * 24
     const parsed = new Date(dateString)
@@ -494,109 +344,24 @@ function InventoryForm() {
     
     const diffDays = Math.floor((todayStart.getTime() - targetStart.getTime()) / MS_PER_DAY)
     
-    if (diffDays === 1) return '#ffff00' // yellow for yesterday
-    if (diffDays >= 2) return '#ef4444' // red for two days ago or older
-    return null // no color for today or future dates
+    if (diffDays === 1) return '#ffff00'
+    if (diffDays >= 2) return '#ef4444'
+    return null
   }
 
-  // Get predefined values for a product
   const getPredefinedValues = (category: string, productName: string): number[] => {
     const key = `${category}-${productName}`
     return predefinedValuesMap.current.get(key) || []
   }
 
-  // Handle predefined value selection
   const handlePredefinedValueSelect = (value: number, category: string, productName: string) => {
     updateProductEntry(category, productName, 0, 'requiredQuantity', value)
     setFocusedRequiredQuantityField(null)
   }
 
-  // Function to download PDF
-  const downloadPDF = async (inventoryId: string, username: string, date: string) => {
-    try {
-      // Fetch the PDF with authentication using the API endpoint
-      const response = await api.get(`/inventory/pdf/${inventoryId}`, {
-        responseType: 'blob',
-      })
-      
-      // Create a blob from the response
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      
-      // Create a temporary URL and trigger download
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      
-      // Generate filename
-      const dateStr = toBucharestDateString(date)
-      link.download = `inventory-${username}-${dateStr}.pdf`
-      
-      // Trigger download
-      document.body.appendChild(link)
-      link.click()
-      
-      // Cleanup
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Failed to download PDF:', error)
-      // Don't show error to user, just log it
-    }
-  }
-
-  const handleSubmit = async () => {
-    if (hasExistingSubmission && !showEditConfirmation) {
-      setShowEditConfirmation(true)
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      // Filter to include entries with quantity > 0 OR requiredQuantity > 0
-      // This ensures necesar-only items are saved
-      const validEntries = productEntries
-        .map(e => ({
-          ...e,
-          entries: e.entries.filter(entry => 
-            (entry.quantity && entry.quantity > 0) || 
-            (entry.requiredQuantity && entry.requiredQuantity > 0)
-          )
-        }))
-        .filter(e => e.entries.length > 0)
-
-      if (validEntries.length === 0) {
-        alert('Please add at least one product with inventory quantity or necesar quantity')
-        setSubmitting(false)
-        return
-      }
-
-      const response = await submitInventory({ entries: validEntries })
-      
-      // Download PDF if inventory was created/updated
-      if (response.inventory?.id) {
-        await downloadPDF(
-          response.inventory.id,
-          response.inventory.username,
-          response.inventory.date
-        )
-      }
-      
-      alert('Inventory submitted successfully!')
-      navigate('/')
-    } catch (error) {
-      console.error('Failed to submit inventory:', error)
-      alert('Failed to submit inventory. Please try again.')
-    } finally {
-      setSubmitting(false)
-      setShowEditConfirmation(false)
-    }
-  }
-
-  // Function to scroll to next category
   const handleNextCategory = () => {
     if (categories.length === 0) return
     
-    // Get scroll information from the appropriate element
     const getScrollElement = () => {
       const rootElement = document.getElementById('root')
       if (rootElement && rootElement.scrollHeight > rootElement.clientHeight) {
@@ -606,7 +371,6 @@ function InventoryForm() {
           scrollTo: (top: number) => rootElement.scrollTo({ top, behavior: 'smooth' })
         }
       }
-      // Fallback to window/document
       return {
         element: document.documentElement,
         scrollTop: window.pageYOffset || document.documentElement.scrollTop,
@@ -615,8 +379,6 @@ function InventoryForm() {
     }
     
     const scrollInfo = getScrollElement()
-    
-    // Find the currently visible category based on scroll position
     let currentVisibleIndex = -1
     
     for (let i = 0; i < categories.length; i++) {
@@ -624,9 +386,7 @@ function InventoryForm() {
       const categoryElement = categoryRefs.current[category.id]
       
       if (categoryElement) {
-        // Get element position - rect.top is relative to viewport
         const rect = categoryElement.getBoundingClientRect()
-        // Element is visible if it's in the viewport (with some tolerance)
         if (rect.top >= -50 && rect.top <= window.innerHeight / 2) {
           currentVisibleIndex = i
           break
@@ -634,7 +394,6 @@ function InventoryForm() {
       }
     }
     
-    // If no category is currently visible, start from the first one
     const startIndex = currentVisibleIndex >= 0 ? currentVisibleIndex : -1
     const nextIndex = (startIndex + 1) % categories.length
     
@@ -642,38 +401,102 @@ function InventoryForm() {
     const categoryElement = categoryRefs.current[nextCategory.id]
     
     if (categoryElement) {
-      // Calculate scroll position
       const rect = categoryElement.getBoundingClientRect()
       const scrollToPosition = scrollInfo.scrollTop + rect.top - 20
-      
-      // Scroll to the calculated position
       scrollInfo.scrollTo(Math.max(0, scrollToPosition))
     }
   }
 
-  // Function to save and close (save draft and navigate to home)
-  const handleSaveAndClose = async () => {
-    setIsSavingAndClosing(true)
-    try {
-      // Save draft first
-      const validEntries = productEntries.filter(e => 
-        e.entries.some(entry => (entry.quantity && entry.quantity > 0) || (entry.requiredQuantity && entry.requiredQuantity > 0))
-      )
-      
-      if (validEntries.length > 0) {
-        await saveInventoryDraft({ entries: validEntries })
-      }
-      
-      // Navigate to home
-      navigate('/')
-    } catch (error) {
-      console.error('Failed to save draft:', error)
-      // Still navigate even if save fails
-      navigate('/')
-    } finally {
-      setIsSavingAndClosing(false)
-    }
+  const handleReset = () => {
+    setProductEntries(createAllDefaultProducts())
   }
+
+  const handleDictationEntries = useCallback((dictatedEntries: DictatedEntry[]) => {
+    setProductEntries(prev => {
+      const updated = [...prev]
+
+      for (const entry of dictatedEntries) {
+        const existingIdx = updated.findIndex(
+          p => p.category === entry.category && p.productName === entry.productName && !p.isCustomProduct
+        )
+
+        if (entry.action === 'remove') {
+          if (existingIdx >= 0) {
+            const existing = updated[existingIdx]
+            if (entry.isNecesar) {
+              if (existing.entries[0]) {
+                const removeQty = entry.quantity || 0
+                if (removeQty === 0) {
+                  existing.entries[0].requiredQuantity = 0
+                } else {
+                  existing.entries[0].requiredQuantity = Math.max(0, (existing.entries[0].requiredQuantity || 0) - removeQty)
+                }
+              }
+            } else {
+              if (entry.quantity === 0) {
+                existing.entries = existing.entries.map(e => ({ ...e, quantity: 0 }))
+              } else {
+                let remaining = entry.quantity
+                for (let i = existing.entries.length - 1; i >= 0 && remaining > 0; i--) {
+                  const sub = Math.min(existing.entries[i].quantity, remaining)
+                  existing.entries[i].quantity -= sub
+                  remaining -= sub
+                }
+              }
+            }
+            updated[existingIdx] = { ...existing, entries: [...existing.entries] }
+          }
+          continue
+        }
+
+        if (existingIdx >= 0) {
+          const existing = updated[existingIdx]
+          if (entry.isNecesar) {
+            const firstEntry = existing.entries[0]
+            if (firstEntry) {
+              firstEntry.requiredQuantity = entry.quantity
+              firstEntry.requiredUnit = entry.unit
+            }
+          } else {
+            const cat = categories.find(c => c.name === entry.category)
+            const hasDataInFirst = existing.entries[0] && existing.entries[0].quantity > 0
+            if (hasDataInFirst) {
+              existing.entries.push({
+                receptionDate: entry.receptionDate,
+                quantity: entry.quantity,
+                unit: entry.unit,
+                requiredQuantity: 0,
+                requiredUnit: cat?.defaultUnit || entry.unit,
+              })
+            } else if (existing.entries[0]) {
+              existing.entries[0].receptionDate = entry.receptionDate
+              existing.entries[0].quantity = entry.quantity
+              existing.entries[0].unit = entry.unit
+            }
+          }
+          updated[existingIdx] = { ...existing, entries: [...existing.entries] }
+        } else {
+          const cat = categories.find(c => c.name === entry.category)
+          const newProduct: ProductFormData = {
+            id: `${entry.category}-${entry.productName}-${Date.now()}-${Math.random()}`,
+            category: entry.category,
+            productName: entry.productName,
+            isCustomProduct: true,
+            entries: [{
+              receptionDate: entry.receptionDate,
+              quantity: entry.isNecesar ? 0 : entry.quantity,
+              unit: entry.isNecesar ? (cat?.defaultUnit || entry.unit) : entry.unit,
+              requiredQuantity: entry.isNecesar ? entry.quantity : 0,
+              requiredUnit: entry.isNecesar ? entry.unit : (cat?.defaultUnit || entry.unit),
+            }],
+          }
+          updated.push(newProduct)
+        }
+      }
+
+      return updated
+    })
+  }, [categories])
 
   if (loading) {
     return (
@@ -689,24 +512,34 @@ function InventoryForm() {
       <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-pink/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
 
       <div className="container mx-auto px-4 py-8 pb-24 md:pb-8 relative z-10">
-        {/* Title - centered */}
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gradient">
-            INVENTAR/NECESAR {username} - {today}
+            SANDBOX INVENTAR {username} - {today}
           </h1>
+          <p className="text-secondary/60 mt-1 text-sm">Pagină de test cu dictare vocală — nu salvează nimic pe server</p>
         </div>
 
-        {/* Categories with back button aligned */}
         <div className="space-y-6 max-w-7xl mx-auto">
-          {/* Back button - aligned with cards */}
-          <div className="mb-6">
+          <div className="mb-6 flex items-center gap-3">
             <button
               onClick={() => navigate('/')}
               className="btn-neumorphic px-6 py-3 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all duration-300"
             >
               ← ÎNAPOI
             </button>
+            <button
+              onClick={handleReset}
+              className="px-6 py-3 rounded-xl bg-rose-100 hover:bg-rose-200 font-bold text-sm text-rose-600 hover:scale-105 transition-all duration-300"
+            >
+              RESETARE
+            </button>
           </div>
+
+          {/* Voice Dictation Module */}
+          <VoiceDictationModule
+            categories={categories}
+            onEntriesConfirmed={handleDictationEntries}
+          />
 
           {categories.map((category) => {
             const categoryProducts = productEntries.filter(e => e.category === category.name)
@@ -721,27 +554,20 @@ function InventoryForm() {
                   <h3 className="text-xl font-bold text-secondary">
                     {category.name}
                   </h3>
-                  {/* Headers for Date, INVENTAR and NECESAR aligned with category header - hidden on mobile */}
                   <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-                    {/* Spacer for Date column */}
                     <div style={{ width: '150px' }}></div>
-                    {/* INVENTAR header */}
                     <div className="flex items-center justify-center" style={{ width: '154px' }}>
                       <span className="text-sm font-bold text-secondary whitespace-nowrap">INVENTAR</span>
                     </div>
-                    {/* Spacer for + button */}
                     <div className="w-7"></div>
-                    {/* NECESAR header */}
                     <div className="flex items-center justify-center px-2" style={{ width: '180px' }}>
                       <span className="text-sm font-bold text-secondary whitespace-nowrap">NECESAR</span>
                     </div>
                   </div>
                 </div>
 
-                {/* All products - vertical list */}
                 <div className="space-y-2">
                   {categoryProducts.map((product, productIndex) => {
-                    // Ensure product has at least one entry
                     if (!product.entries || product.entries.length === 0) {
                       return null
                     }
@@ -750,14 +576,12 @@ function InventoryForm() {
 
                     return (
                       <div key={productId} className="relative">
-                        {/* Separator line between products */}
                         {productIndex > 0 && (
                           <div className="border-t border-secondary/20 my-2"></div>
                         )}
                         
-                        {/* Mobile: Product name and NECESAR wrapper */}
+                        {/* Mobile layout */}
                         <div className="md:hidden">
-                          {/* Product name - only once */}
                           <div className="mb-2">
                             {product.isCustomProduct ? (
                               <input
@@ -774,9 +598,7 @@ function InventoryForm() {
                             )}
                           </div>
 
-                          {/* All inventory rows */}
                           {product.entries.map((entry, entryIndex) => {
-                            // Ensure entry has required fields
                             const receptionDate = entry.receptionDate || getTodayString()
                             const unit = entry.unit || category.defaultUnit
                             const quantity = entry.quantity || 0
@@ -786,15 +608,10 @@ function InventoryForm() {
                                 key={`${productId}-${entryIndex}`}
                                 className="mb-2"
                               >
-                                {/* Single row: Date, Unit, Quantity, Add/Remove button */}
                                 <div className="flex items-center gap-1.5 w-full">
-                                  {/* Date controls */}
                                   <button
                                     onClick={() => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'receptionDate',
+                                      product.category, product.productName, entryIndex, 'receptionDate',
                                       adjustDate(receptionDate, -1)
                                     )}
                                     className="rounded-lg bg-primary/50 hover:bg-primary flex items-center justify-center text-secondary font-bold transition-colors flex-shrink-0 text-base"
@@ -806,26 +623,18 @@ function InventoryForm() {
                                     type="date"
                                     value={receptionDate}
                                     onChange={(e) => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'receptionDate',
-                                      e.target.value
+                                      product.category, product.productName, entryIndex, 'receptionDate', e.target.value
                                     )}
                                     max={getTodayString()}
                                     className="hidden"
-                                    id={`date-mobile-${product.category}-${product.productName}-${entryIndex}`}
+                                    id={`date-mobile-tst-${product.category}-${product.productName}-${entryIndex}`}
                                   />
                                   <label
-                                    htmlFor={`date-mobile-${product.category}-${product.productName}-${entryIndex}`}
+                                    htmlFor={`date-mobile-tst-${product.category}-${product.productName}-${entryIndex}`}
                                     className="rounded-lg border-2 border-secondary/20 hover:border-secondary/50 cursor-pointer text-xs font-bold text-center flex-shrink-0"
                                     style={{ 
-                                      width: '60px', 
-                                      height: '40px', 
-                                      padding: '6px 4px', 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center',
+                                      width: '60px', height: '40px', padding: '6px 4px', 
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       backgroundColor: getDateBackgroundColor(receptionDate) || 'white',
                                       color: getDateBackgroundColor(receptionDate) === '#ef4444' ? 'white' : '#2B2D42'
                                     }}
@@ -834,10 +643,7 @@ function InventoryForm() {
                                   </label>
                                   <button
                                     onClick={() => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'receptionDate',
+                                      product.category, product.productName, entryIndex, 'receptionDate',
                                       adjustDate(receptionDate, 1)
                                     )}
                                     className="rounded-lg bg-primary/50 hover:bg-primary flex items-center justify-center text-secondary font-bold transition-colors flex-shrink-0 text-base"
@@ -846,7 +652,6 @@ function InventoryForm() {
                                     +
                                   </button>
 
-                                  {/* Quantity input */}
                                   <input
                                     type="text"
                                     inputMode="decimal"
@@ -854,28 +659,17 @@ function InventoryForm() {
                                     onChange={(e) => {
                                       const value = e.target.value.replace(/[^0-9,]/g, '')
                                       const numValue = parseFloat(value.replace(',', '.')) || 0
-                                      updateProductEntry(
-                                        product.category,
-                                        product.productName,
-                                        entryIndex,
-                                        'quantity',
-                                        numValue
-                                      )
+                                      updateProductEntry(product.category, product.productName, entryIndex, 'quantity', numValue)
                                     }}
                                     placeholder="0"
                                     className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-sm font-bold bg-white flex-1 min-w-0"
                                     style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
                                   />
 
-                                  {/* Unit dropdown */}
                                   <select
                                     value={unit}
                                     onChange={(e) => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'unit',
-                                      e.target.value
+                                      product.category, product.productName, entryIndex, 'unit', e.target.value
                                     )}
                                     className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-sm font-bold bg-white flex-1 min-w-0"
                                     style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
@@ -885,7 +679,6 @@ function InventoryForm() {
                                     ))}
                                   </select>
 
-                                  {/* Add/Remove button */}
                                   {entryIndex === 0 ? (
                                     <button
                                       onClick={() => addProductEntry(product.category, product.productName, category.defaultUnit, false, entryIndex)}
@@ -910,7 +703,6 @@ function InventoryForm() {
                             )
                           })}
 
-                          {/* NECESAR row - after all inventory rows, only for first entry data */}
                           {product.entries.length > 0 && (() => {
                             const predefinedValues = getPredefinedValues(product.category, product.productName)
                             const showPopup = focusedRequiredQuantityField?.category === product.category && 
@@ -926,13 +718,7 @@ function InventoryForm() {
                                     onChange={(e) => {
                                       const value = e.target.value.replace(/[^0-9,]/g, '')
                                       const numValue = parseFloat(value.replace(',', '.')) || 0
-                                      updateProductEntry(
-                                        product.category,
-                                        product.productName,
-                                        0,
-                                        'requiredQuantity',
-                                        numValue
-                                      )
+                                      updateProductEntry(product.category, product.productName, 0, 'requiredQuantity', numValue)
                                     }}
                                     onFocus={() => {
                                       if (predefinedValues.length > 0) {
@@ -940,19 +726,15 @@ function InventoryForm() {
                                       }
                                     }}
                                     onBlur={(e) => {
-                                      // Only close if not clicking on a button
                                       const relatedTarget = e.relatedTarget as HTMLElement
                                       if (!relatedTarget || !relatedTarget.closest('.predefined-values-popup')) {
-                                        setTimeout(() => {
-                                          setFocusedRequiredQuantityField(null)
-                                        }, 150)
+                                        setTimeout(() => { setFocusedRequiredQuantityField(null) }, 150)
                                       }
                                     }}
                                     placeholder="0"
                                     className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-sm font-bold bg-white w-full"
                                     style={{ height: '40px', padding: '6px 8px' }}
                                   />
-                                  {/* Predefined values popup */}
                                   {showPopup && predefinedValues.length > 0 && (
                                     <div 
                                       className="absolute flex gap-2 p-2 rounded-xl backdrop-blur-md predefined-values-popup"
@@ -984,13 +766,7 @@ function InventoryForm() {
                                 </div>
                                 <select
                                   value={product.entries[0].requiredUnit || category.defaultUnit}
-                                  onChange={(e) => updateProductEntry(
-                                    product.category,
-                                    product.productName,
-                                    0,
-                                    'requiredUnit',
-                                    e.target.value
-                                  )}
+                                  onChange={(e) => updateProductEntry(product.category, product.productName, 0, 'requiredUnit', e.target.value)}
                                   className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-sm font-bold bg-white flex-1 min-w-0"
                                   style={{ height: '40px', padding: '6px 8px', maxWidth: '80px' }}
                                 >
@@ -1006,7 +782,6 @@ function InventoryForm() {
                         {/* Desktop layout */}
                         <div className="relative hidden md:block" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
                           {product.entries.map((entry, entryIndex) => {
-                            // Ensure entry has required fields
                             const receptionDate = entry.receptionDate || getTodayString()
                             const unit = entry.unit || category.defaultUnit
                             const quantity = entry.quantity || 0
@@ -1019,12 +794,10 @@ function InventoryForm() {
                                 className="rounded-xl relative"
                                 style={{ padding: '8px 12px' }}
                               >
-                                {/* Desktop Grid layout for perfect alignment */}
                                 <div className="hidden md:grid items-center" style={{ 
                                   gridTemplateColumns: '1fr 150px 154px 28px 180px',
                                   gap: '8px'
                                 }}>
-                                {/* Product name column */}
                                 <div className="min-w-0">
                                   {entryIndex === 0 && (
                                     product.isCustomProduct ? (
@@ -1043,14 +816,10 @@ function InventoryForm() {
                                   )}
                                 </div>
 
-                                {/* Date column */}
                                 <div className="flex items-center" style={{ gap: '4px' }}>
                                   <button
                                     onClick={() => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'receptionDate',
+                                      product.category, product.productName, entryIndex, 'receptionDate',
                                       adjustDate(receptionDate, -1)
                                     )}
                                     className="rounded-lg bg-primary/50 hover:bg-primary flex items-center justify-center text-secondary font-bold transition-colors text-xs"
@@ -1062,26 +831,18 @@ function InventoryForm() {
                                     type="date"
                                     value={receptionDate}
                                     onChange={(e) => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'receptionDate',
-                                      e.target.value
+                                      product.category, product.productName, entryIndex, 'receptionDate', e.target.value
                                     )}
                                     max={getTodayString()}
                                     className="hidden"
-                                    id={`date-${product.category}-${product.productName}-${entryIndex}`}
+                                    id={`date-tst-${product.category}-${product.productName}-${entryIndex}`}
                                   />
                                   <label
-                                    htmlFor={`date-${product.category}-${product.productName}-${entryIndex}`}
+                                    htmlFor={`date-tst-${product.category}-${product.productName}-${entryIndex}`}
                                     className="rounded-lg border-2 border-secondary/20 hover:border-secondary/50 cursor-pointer text-xs font-medium text-center"
                                     style={{ 
-                                      width: '55px', 
-                                      height: '28px', 
-                                      padding: '4px 6px', 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center',
+                                      width: '55px', height: '28px', padding: '4px 6px', 
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       backgroundColor: getDateBackgroundColor(receptionDate) || 'white',
                                       color: getDateBackgroundColor(receptionDate) === '#ef4444' ? 'white' : '#2B2D42'
                                     }}
@@ -1090,10 +851,7 @@ function InventoryForm() {
                                   </label>
                                   <button
                                     onClick={() => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'receptionDate',
+                                      product.category, product.productName, entryIndex, 'receptionDate',
                                       adjustDate(receptionDate, 1)
                                     )}
                                     className="rounded-lg bg-primary/50 hover:bg-primary flex items-center justify-center text-secondary font-bold transition-colors text-xs"
@@ -1103,7 +861,6 @@ function InventoryForm() {
                                   </button>
                                 </div>
 
-                                {/* INVENTAR column */}
                                 <div className="flex items-center" style={{ gap: '4px' }}>
                                   <input
                                     type="text"
@@ -1112,13 +869,7 @@ function InventoryForm() {
                                     onChange={(e) => {
                                       const value = e.target.value.replace(/[^0-9,]/g, '')
                                       const numValue = parseFloat(value.replace(',', '.')) || 0
-                                      updateProductEntry(
-                                        product.category,
-                                        product.productName,
-                                        entryIndex,
-                                        'quantity',
-                                        numValue
-                                      )
+                                      updateProductEntry(product.category, product.productName, entryIndex, 'quantity', numValue)
                                     }}
                                     placeholder="0"
                                     className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-xs bg-white"
@@ -1127,11 +878,7 @@ function InventoryForm() {
                                   <select
                                     value={unit}
                                     onChange={(e) => updateProductEntry(
-                                      product.category,
-                                      product.productName,
-                                      entryIndex,
-                                      'unit',
-                                      e.target.value
+                                      product.category, product.productName, entryIndex, 'unit', e.target.value
                                     )}
                                     className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
                                     style={{ width: '70px', height: '28px', padding: '4px 8px' }}
@@ -1142,7 +889,6 @@ function InventoryForm() {
                                   </select>
                                 </div>
 
-                                {/* Button column */}
                                 <div className="flex items-center justify-center">
                                   {entryIndex === 0 ? (
                                     <button
@@ -1165,7 +911,6 @@ function InventoryForm() {
                                   )}
                                 </div>
 
-                                {/* NECESAR column - only show on first row */}
                                 {entryIndex === 0 ? (() => {
                                   const predefinedValues = getPredefinedValues(product.category, product.productName)
                                   const showPopup = focusedRequiredQuantityField?.category === product.category && 
@@ -1180,13 +925,7 @@ function InventoryForm() {
                                           onChange={(e) => {
                                             const value = e.target.value.replace(/[^0-9,]/g, '')
                                             const numValue = parseFloat(value.replace(',', '.')) || 0
-                                            updateProductEntry(
-                                              product.category,
-                                              product.productName,
-                                              entryIndex,
-                                              'requiredQuantity',
-                                              numValue
-                                            )
+                                            updateProductEntry(product.category, product.productName, entryIndex, 'requiredQuantity', numValue)
                                           }}
                                           onFocus={() => {
                                             if (predefinedValues.length > 0) {
@@ -1194,19 +933,15 @@ function InventoryForm() {
                                             }
                                           }}
                                           onBlur={(e) => {
-                                            // Only close if not clicking on a button
                                             const relatedTarget = e.relatedTarget as HTMLElement
                                             if (!relatedTarget || !relatedTarget.closest('.predefined-values-popup')) {
-                                              setTimeout(() => {
-                                                setFocusedRequiredQuantityField(null)
-                                              }, 150)
+                                              setTimeout(() => { setFocusedRequiredQuantityField(null) }, 150)
                                             }
                                           }}
                                           placeholder="0"
                                           className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-center text-xs bg-white"
                                           style={{ width: '48px', height: '28px', padding: '4px 6px' }}
                                         />
-                                        {/* Predefined values popup */}
                                         {showPopup && predefinedValues.length > 0 && (
                                           <div 
                                             className="absolute flex gap-2 z-50 p-2 rounded-xl backdrop-blur-md predefined-values-popup"
@@ -1238,11 +973,7 @@ function InventoryForm() {
                                       <select
                                         value={requiredUnit}
                                         onChange={(e) => updateProductEntry(
-                                          product.category,
-                                          product.productName,
-                                          entryIndex,
-                                          'requiredUnit',
-                                          e.target.value
+                                          product.category, product.productName, entryIndex, 'requiredUnit', e.target.value
                                         )}
                                         className="rounded-lg border-2 border-secondary/20 focus:border-secondary/50 text-xs bg-white"
                                         style={{ width: '70px', height: '28px', padding: '4px 8px' }}
@@ -1265,7 +996,6 @@ function InventoryForm() {
                     )
                   })}
 
-                  {/* Add Product button at the end of each category */}
                   <div className="mt-4 pt-2">
                     <button
                       onClick={() => {
@@ -1282,71 +1012,6 @@ function InventoryForm() {
             )
           })}
         </div>
-
-        {/* Action Buttons */}
-        <div className="max-w-7xl mx-auto mt-8">
-          {/* Auto-save status */}
-          <div className="text-center mb-4">
-            {autoSaving ? (
-              <div className="text-sm text-secondary/60 font-bold flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Se salvează...
-              </div>
-            ) : lastSaved ? (
-              <div className="text-sm text-secondary/60 font-bold">
-                ✓ Salvat automat la {lastSaved.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </div>
-            ) : null}
-          </div>
-          
-          <div className="flex flex-col items-center gap-4">
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="btn-active px-6 md:px-12 py-3 md:py-4 rounded-2xl font-bold text-base md:text-xl hover:scale-105 transition-all duration-300 shadow-glow-purple w-full md:w-auto"
-            >
-              {submitting ? 'SE TRIMITE...' : 'TRIMITE INVENTAR'}
-            </button>
-            <button
-              onClick={() => navigate('/my-inventories')}
-              className="px-6 py-2.5 rounded-xl bg-purple-100/90 hover:bg-purple-200/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg border border-purple-200/50"
-            >
-              ISTORIC INVENTAR
-            </button>
-          </div>
-        </div>
-
-        {/* Edit Confirmation Modal */}
-        {showEditConfirmation && (
-          <div className="fixed inset-0 bg-secondary/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="glass-card max-w-md w-full p-8 animate-float">
-              <h3 className="text-2xl font-bold text-gradient mb-6 text-center">
-                Editare Inventar
-              </h3>
-              <p className="text-center text-secondary/70 mb-6">
-                Inventarul pentru {today} a fost deja transmis. Doriti sa-l editati?
-              </p>
-              
-              <div className="flex flex-col gap-4">
-                <button
-                  onClick={handleSubmit}
-                  className="btn-active px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300"
-                >
-                  DA
-                </button>
-                <button
-                  onClick={() => setShowEditConfirmation(false)}
-                  className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-lg text-secondary hover:scale-105 transition-all duration-300"
-                >
-                  NU
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Mobile Floating Bottom Bar - Rendered via Portal */}
         {typeof window !== 'undefined' && createPortal(
@@ -1390,28 +1055,17 @@ function InventoryForm() {
                   URMĂTOAREA CATEGORIE
                 </button>
                 <button
-                  onClick={handleSaveAndClose}
-                  disabled={isSavingAndClosing}
-                  className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  onClick={() => navigate('/')}
+                  className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-secondary font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg"
                 >
-                  {isSavingAndClosing ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      SE SALVEAZĂ...
-                    </>
-                  ) : (
-                    'SALVEAZĂ ȘI ÎNCHIDE'
-                  )}
+                  ÎNCHIDE
                 </button>
               </div>
               <button
-                onClick={() => navigate('/my-inventories')}
-                className="w-full px-4 py-2.5 rounded-xl bg-purple-100/90 hover:bg-purple-200/90 text-secondary font-bold text-xs transition-all duration-300 shadow-md hover:shadow-lg border border-purple-200/50"
+                onClick={handleReset}
+                className="w-full px-4 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-600 font-bold text-xs transition-all duration-300 shadow-md hover:shadow-lg"
               >
-                ISTORIC INVENTAR
+                RESETARE
               </button>
             </div>
           </div>,
@@ -1422,5 +1076,4 @@ function InventoryForm() {
   )
 }
 
-export default InventoryForm
-
+export default InventoryTST

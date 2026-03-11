@@ -343,6 +343,20 @@ export const listOrders = async (req: Request, res: Response) => {
   }
 }
 
+export const getDeliveryLocations = async (_req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { isDeliveryLocation: true },
+      select: { username: true },
+      orderBy: { username: 'asc' },
+    })
+    res.json({ locations: users.map((u) => u.username) })
+  } catch (error) {
+    console.error('Error fetching delivery locations:', error)
+    res.status(500).json({ error: 'Failed to fetch delivery locations' })
+  }
+}
+
 export const getNextOrderNumber = async (req: Request, res: Response) => {
   try {
     // Get the singleton counter without incrementing; if missing, initialize using existing data

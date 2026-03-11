@@ -69,6 +69,7 @@ interface User {
   id: string
   username: string
   staffNames?: string[]
+  isDeliveryLocation?: boolean
   createdAt: string
 }
 
@@ -543,6 +544,7 @@ function AdminDashboard() {
   const [userFormData, setUserFormData] = useState({
     username: '',
     password: '',
+    isDeliveryLocation: false,
   })
   const [usersSubTab, setUsersSubTab] = useState<'global' | 'local'>('global')
   const [editingStaffUserId, setEditingStaffUserId] = useState<string | null>(null)
@@ -818,7 +820,7 @@ function AdminDashboard() {
 
   const handleCreateUser = () => {
     setEditingUser(null)
-    setUserFormData({ username: '', password: '' })
+    setUserFormData({ username: '', password: '', isDeliveryLocation: false })
     setShowUserModal(true)
   }
 
@@ -827,6 +829,7 @@ function AdminDashboard() {
     setUserFormData({ 
       username: user.username, 
       password: '', 
+      isDeliveryLocation: Boolean(user.isDeliveryLocation),
     })
     setShowUserModal(true)
   }
@@ -834,8 +837,9 @@ function AdminDashboard() {
   const handleSaveUser = async () => {
     try {
       if (editingUser) {
-        const userUpdateData: { username: string; password?: string } = {
+        const userUpdateData: { username: string; password?: string; isDeliveryLocation: boolean } = {
           username: userFormData.username,
+          isDeliveryLocation: userFormData.isDeliveryLocation,
         }
         if (userFormData.password && userFormData.password.trim()) {
           userUpdateData.password = userFormData.password
@@ -849,6 +853,7 @@ function AdminDashboard() {
         await api.post('/admin/users', {
           username: userFormData.username,
           password: userFormData.password,
+          isDeliveryLocation: userFormData.isDeliveryLocation,
         })
       }
       setShowUserModal(false)
@@ -1857,6 +1862,21 @@ function AdminDashboard() {
                     placeholder="••••••••"
                   />
                 </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="isDeliveryLocation"
+                    checked={userFormData.isDeliveryLocation}
+                    onChange={(e) => setUserFormData({ ...userFormData, isDeliveryLocation: e.target.checked })}
+                    className="w-5 h-5 rounded border-2 border-secondary/30 accent-accent-purple"
+                  />
+                  <label htmlFor="isDeliveryLocation" className="font-bold text-secondary cursor-pointer">
+                    Este locație de livrare
+                  </label>
+                </div>
+                <p className="text-secondary/60 text-sm">
+                  Dacă este bifat, locația (username-ul) apare în lista de locații de ridicare pentru toate magazinele.
+                </p>
               </div>
               <div className="flex gap-4 mt-8">
                 <button

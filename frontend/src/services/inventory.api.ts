@@ -87,3 +87,28 @@ export const getInventoryPDFUrl = (inventoryId: string): string => {
   return `${baseURL}/api/inventory/pdf/${inventoryId}`
 }
 
+export interface DictatedEntry {
+  productName: string
+  category: string
+  receptionDate: string
+  quantity: number
+  unit: string
+  isNecesar: boolean
+  action: 'add' | 'remove'
+}
+
+export interface ProcessInventoryVoiceResponse {
+  transcript: string
+  entries: DictatedEntry[]
+}
+
+export const processInventoryVoice = async (audioBlob: Blob): Promise<ProcessInventoryVoiceResponse> => {
+  const formData = new FormData()
+  const ext = audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('ogg') ? 'ogg' : 'webm'
+  formData.append('audio', audioBlob, `recording.${ext}`)
+  const response = await api.post<ProcessInventoryVoiceResponse>('/ai/process-inventory-voice', formData, {
+    timeout: 120000,
+  })
+  return response.data
+}
+

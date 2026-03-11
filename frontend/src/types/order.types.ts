@@ -1,5 +1,6 @@
 export type DeliveryMethod = 'ridicare' | 'livrare'
 
+// Locațiile de livrare sunt derivate din usernames (magazine) cu isDeliveryLocation=true
 export type Location = string
 
 export type CakeType = 
