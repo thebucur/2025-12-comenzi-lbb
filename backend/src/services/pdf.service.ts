@@ -25,6 +25,24 @@ const formatBucharestDateRo = (dateInput: string | Date): string => {
   }).format(date)
 }
 
+/** Format date + time in Bucharest (DD.MM.YYYY ora HH:MM) for PDF - matches app view */
+const formatBucharestDateTimeRo = (dateInput: string | Date): string => {
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  const d = new Intl.DateTimeFormat('ro-RO', {
+    timeZone: BUCHAREST_TIMEZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+  const t = new Intl.DateTimeFormat('ro-RO', {
+    timeZone: BUCHAREST_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+  return `${d} ora ${t}`
+}
+
 // Helper function to replace Romanian diacritics with non-diacritic letters
 const removeDiacritics = (text: string | null | undefined): string => {
   if (!text) return ''
@@ -332,11 +350,8 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     doc.moveDown(0.3) // add a small spacer for readability
   }
 
-  // Header: Comanda nr. xxx / <modalitate livrare> / data - ora
-  const pickupDateObj = order.pickupDate ? new Date(order.pickupDate) : null
-  const deliveryDate = pickupDateObj
-    ? `${String(pickupDateObj.getDate()).padStart(2, '0')}.${String(pickupDateObj.getMonth() + 1).padStart(2, '0')}.${pickupDateObj.getFullYear()}`
-    : ''
+  // Header: Comanda nr. xxx / <modalitate livrare> / data - ora (Bucharest timezone)
+  const deliveryDate = order.pickupDate ? formatBucharestDateRo(order.pickupDate) : ''
   const deliveryTime = order.pickupTime || ''
   const deliveryMethodText = order.deliveryMethod === 'ridicare'
     ? (order.location || 'Ridicare')
@@ -360,10 +375,7 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
   doc.moveDown(0.4)
   addField('Comanda dată în', order.createdByUsername || undefined)
   addField('Preluată de', order.staffName)
-  const createdAtDate = order.createdAt ? new Date(order.createdAt) : null
-  const createdAtFormatted = createdAtDate
-    ? `${String(createdAtDate.getDate()).padStart(2, '0')}.${String(createdAtDate.getMonth() + 1).padStart(2, '0')}.${createdAtDate.getFullYear()} ora ${String(createdAtDate.getHours()).padStart(2, '0')}:${String(createdAtDate.getMinutes()).padStart(2, '0')}`
-    : undefined
+  const createdAtFormatted = order.createdAt ? formatBucharestDateTimeRo(order.createdAt) : undefined
   addField('Preluată pe', createdAtFormatted)
   addField('Client', order.clientName)
   addField('Telefon', `07${order.phoneNumber}`)
@@ -964,12 +976,14 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
     const headerFontSize = 7
     const lineHeight = 12  // Row height
     
-    // Format date as "DD.MM" (e.g., "22.12")
+    // Format date as "DD.MM" in Bucharest (e.g., "22.12")
     const formatDateShort = (dateStr: string): string => {
       const date = new Date(dateStr)
-      const day = date.getDate()
-      const month = date.getMonth() + 1 // Month is 0-indexed, so add 1
-      return `${day}.${month.toString().padStart(2, '0')}`
+      return new Intl.DateTimeFormat('ro-RO', {
+        timeZone: BUCHAREST_TIMEZONE,
+        day: '2-digit',
+        month: '2-digit',
+      }).format(date)
     }
     
     // Convert unit abbreviations for PDF display
@@ -979,9 +993,8 @@ export const generateInventoryPDF = async (inventory: any): Promise<string> => {
       return unit
     }
     
-    // Header - Title (left) and Version (right)
-    const inventoryDate = new Date(inventory.date)
-    const titleDate = `${inventoryDate.getDate()}.${(inventoryDate.getMonth() + 1).toString().padStart(2, '0')}`
+    // Header - Title (left) and Version (right) - date in Bucharest
+    const titleDate = formatDateShort(inventory.date)
     const headerText = removeDiacritics(`INVENTAR ${inventory.username.toUpperCase()} ${titleDate}`)
     // Use the version derived from the filename to keep the label in sync with the generated file name
     const versionText = `version v${displayVersion}`
