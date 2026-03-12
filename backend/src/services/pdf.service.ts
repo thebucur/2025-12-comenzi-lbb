@@ -25,6 +25,16 @@ const formatBucharestDateRo = (dateInput: string | Date): string => {
   }).format(date)
 }
 
+const formatBucharestWeekdayRo = (dateInput: string | Date): string => {
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  const weekday = new Intl.DateTimeFormat('ro-RO', {
+    timeZone: BUCHAREST_TIMEZONE,
+    weekday: 'long',
+  }).format(date)
+  // Capitalize first letter (e.g. "luni" -> "Luni")
+  return weekday ? weekday.charAt(0).toUpperCase() + weekday.slice(1) : weekday
+}
+
 /** Format date + time in Bucharest (DD.MM.YYYY ora HH:MM) for PDF - matches app view */
 const formatBucharestDateTimeRo = (dateInput: string | Date): string => {
   const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
@@ -352,12 +362,13 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
 
   // Header: Comanda nr. xxx / <modalitate livrare> / data - ora (Bucharest timezone)
   const deliveryDate = order.pickupDate ? formatBucharestDateRo(order.pickupDate) : ''
+  const deliveryWeekday = order.pickupDate ? formatBucharestWeekdayRo(order.pickupDate) : ''
   const deliveryTime = order.pickupTime || ''
   const deliveryMethodText = order.deliveryMethod === 'ridicare'
     ? (order.location || 'Ridicare')
     : 'LA ADRESA'
   const dateTimePart = deliveryDate
-    ? `${deliveryDate}${deliveryTime ? ` - ${deliveryTime}` : ''}`
+    ? `${deliveryWeekday ? `${deliveryWeekday} ` : ''}${deliveryDate}${deliveryTime ? ` - ${deliveryTime}` : ''}`
     : ''
   const headerParts = [`Comanda nr. ${order.orderNumber}`, deliveryMethodText]
   if (dateTimePart) headerParts.push(dateTimePart)
