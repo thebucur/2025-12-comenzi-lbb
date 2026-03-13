@@ -186,12 +186,17 @@ function InventoryView() {
     if (!inventory) return
     setSendingEmail(true)
     try {
-      await api.post(`/inventory/${inventory.id}/generate-pdf`, { sendEmail: true })
+      const res = await api.post(`/inventory/${inventory.id}/generate-pdf`, { sendEmail: true })
       const dateStr = toBucharestDateString(inventory.date)
-      setPrintResult({ type: 'success', message: `Inventarul ${inventory.username} din ${dateStr} a fost trimis pe email cu succes!` })
+      const data = res.data as { emailSent?: boolean; emailError?: string }
+      if (data.emailSent === false && data.emailError) {
+        setPrintResult({ type: 'error', message: `Email netrimis: ${data.emailError}` })
+      } else {
+        setPrintResult({ type: 'success', message: `Inventarul ${inventory.username} din ${dateStr} a fost trimis pe email cu succes!` })
+      }
     } catch (err: any) {
       console.error('Error sending inventory email:', err)
-      setPrintResult({ type: 'error', message: err.response?.data?.error || 'Eroare la trimiterea inventarului pe email' })
+      setPrintResult({ type: 'error', message: err.response?.data?.error || err.response?.data?.emailError || 'Eroare la trimiterea inventarului pe email' })
     } finally {
       setSendingEmail(false)
     }

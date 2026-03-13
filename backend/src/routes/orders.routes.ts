@@ -37,12 +37,14 @@ async function getConfiguredRecipientEmail(): Promise<string> {
 }
 
 function getEmailErrorMessage(err: unknown): string {
-  if (err instanceof Error) {
-    const msg = err.message
-    const resp = (err as { response?: string; responseCode?: number })?.response
-    if (typeof resp === 'string') return `${msg} (${resp})`
-    return msg
+  if (err && typeof err === 'object' && 'response' in err) {
+    const res = (err as { response?: { data?: { error?: string; error_description?: string; message?: string } } }).response
+    const data = res?.data
+    if (data?.error_description) return data.error_description
+    if (data?.error) return data.error
+    if (data?.message) return data.message
   }
+  if (err instanceof Error) return err.message
   return String(err)
 }
 
@@ -55,16 +57,28 @@ router.post('/:id/generate-pdf', async (req, res) => {
     const targetEmail = recipientEmail || await getConfiguredRecipientEmail()
     const willSendEmail = shouldSendEmail !== false && !!targetEmail
 
-    // Respond immediately - email will be sent in background
-    res.json({ success: true, pdfPath, emailQueued: willSendEmail })
+    let emailSent = false
+    let emailError: string | undefined
 
     if (willSendEmail) {
-      getDevCcEmail().then((ccEmail) => {
-        sendOrderEmail(orderNumber, targetEmail, pdfPath, ccEmail || undefined)
-          .then(() => console.log(`[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`))
-          .catch((err) => console.error(`[Email] Eroare comanda #${orderNumber}:`, getEmailErrorMessage(err), err))
-      })
+      try {
+        const ccEmail = await getDevCcEmail().catch(() => null)
+        await sendOrderEmail(orderNumber, targetEmail, pdfPath, ccEmail ?? undefined)
+        emailSent = true
+        console.log(`[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`)
+      } catch (err) {
+        emailError = getEmailErrorMessage(err)
+        console.error(`[Email] Eroare comanda #${orderNumber}:`, emailError, err)
+      }
     }
+
+    res.json({
+      success: true,
+      pdfPath,
+      emailQueued: willSendEmail,
+      emailSent: willSendEmail ? emailSent : undefined,
+      emailError: emailError ?? undefined,
+    })
   } catch (error) {
     console.error('Error generating PDF:', error)
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')

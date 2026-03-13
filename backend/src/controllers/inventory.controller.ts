@@ -368,20 +368,29 @@ export const generateInventoryPDF = async (req: Request, res: Response) => {
     const recipientEmail = await getConfiguredRecipientEmail()
     const willSendEmail = shouldSendEmail === true && !!recipientEmail
 
-    res.json({ 
-      success: true, 
-      pdfPath,
-      emailQueued: willSendEmail,
-    })
+    let emailSent = false
+    let emailError: string | undefined
 
     if (willSendEmail) {
-      const dateStr = inventory.date.toISOString().slice(0, 10)
-      getDevCcEmail().then((ccEmail) => {
-        sendInventoryEmail(inventory.username, dateStr, recipientEmail, pdfPath, ccEmail || undefined)
-          .then(() => console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${recipientEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`))
-          .catch((err) => console.error(`[Email] Eroare inventar ${inventory.username}-${dateStr}:`, err))
-      })
+      try {
+        const dateStr = inventory.date.toISOString().slice(0, 10)
+        const ccEmail = await getDevCcEmail().catch(() => null)
+        await sendInventoryEmail(inventory.username, dateStr, recipientEmail, pdfPath, ccEmail ?? undefined)
+        emailSent = true
+        console.log(`[Email] Trimis cu succes inventar ${inventory.username}-${dateStr} către ${recipientEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`)
+      } catch (err) {
+        emailError = err instanceof Error ? err.message : String(err)
+        console.error(`[Email] Eroare inventar ${inventory.username}-${inventory.date.toISOString().slice(0, 10)}:`, emailError, err)
+      }
     }
+
+    res.json({
+      success: true,
+      pdfPath,
+      emailQueued: willSendEmail,
+      emailSent: willSendEmail ? emailSent : undefined,
+      emailError: emailError ?? undefined,
+    })
   } catch (error) {
     console.error('Error generating inventory PDF:', error)
     res.status(500).json({ error: 'Failed to generate PDF' })

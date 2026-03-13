@@ -148,11 +148,16 @@ function AdminOrderView() {
     if (!id || !order) return
     setSendingEmail(true)
     try {
-      await api.post(`/orders/${id}/generate-pdf`, { sendEmail: true })
-      setPrintResult({ type: 'success', message: `Comanda #${order.orderNumber} a fost trimisă pe email cu succes!` })
+      const res = await api.post(`/orders/${id}/generate-pdf`, { sendEmail: true })
+      const data = res.data as { emailSent?: boolean; emailError?: string }
+      if (data.emailSent === false && data.emailError) {
+        setPrintResult({ type: 'error', message: `Email netrimis: ${data.emailError}` })
+      } else {
+        setPrintResult({ type: 'success', message: `Comanda #${order.orderNumber} a fost trimisă pe email cu succes!` })
+      }
     } catch (err: any) {
       console.error('Error sending order email:', err)
-      setPrintResult({ type: 'error', message: err.response?.data?.error || 'Eroare la trimiterea comenzii pe email' })
+      setPrintResult({ type: 'error', message: err.response?.data?.error || err.response?.data?.emailError || 'Eroare la trimiterea comenzii pe email' })
     } finally {
       setSendingEmail(false)
     }
