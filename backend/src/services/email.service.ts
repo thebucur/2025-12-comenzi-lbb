@@ -120,6 +120,16 @@ export const sendOrderEmail = async (
     } catch (err) {
       lastError = err
       const msg = err instanceof Error ? err.message : String(err)
+      const isInvalidGrant =
+        /invalid_grant|Token has been expired or revoked/i.test(msg) ||
+        (err && typeof err === 'object' && 'response' in err &&
+          typeof (err as { response?: { data?: { error?: string } } }).response?.data?.error === 'string' &&
+          (err as { response: { data: { error: string } } }).response.data.error === 'invalid_grant')
+      if (isInvalidGrant) {
+        console.error(
+          '[Email] Gmail OAuth2 refresh token expirat sau revocat. Obține un token nou: cd backend && npx tsx scripts/get-gmail-token.ts, apoi actualizează GMAIL_REFRESH_TOKEN în Railway.'
+        )
+      }
       if (attempt < maxAttempts && /ECONNRESET|ETIMEDOUT|socket/i.test(msg)) {
         console.warn(`[Email] [Gmail API] Eroare conexiune (încercare ${attempt}), reîncerc...`, msg)
         await new Promise((r) => setTimeout(r, 2000))
@@ -169,6 +179,16 @@ export const sendInventoryEmail = async (
     } catch (err) {
       lastError = err
       const msg = err instanceof Error ? err.message : String(err)
+      const isInvalidGrant =
+        /invalid_grant|Token has been expired or revoked/i.test(msg) ||
+        (err && typeof err === 'object' && 'response' in err &&
+          typeof (err as { response?: { data?: { error?: string } } }).response?.data?.error === 'string' &&
+          (err as { response: { data: { error: string } } }).response.data.error === 'invalid_grant')
+      if (isInvalidGrant) {
+        console.error(
+          '[Email] Gmail OAuth2 refresh token expirat sau revocat. Obține un token nou: cd backend && npx tsx scripts/get-gmail-token.ts, apoi actualizează GMAIL_REFRESH_TOKEN în Railway.'
+        )
+      }
       if (attempt < maxAttempts && /ECONNRESET|ETIMEDOUT|socket/i.test(msg)) {
         console.warn(`[Email] [Gmail API] Eroare conexiune (încercare ${attempt}), reîncerc...`, msg)
         await new Promise((r) => setTimeout(r, 2000))
