@@ -23,4 +23,4 @@ COPY backend/scripts ./scripts
 RUN npx tsc && npm prune --production
 
 # Start: wait for DB, push schema, run server
-CMD ["sh", "-c", "node scripts/wait-for-db.js && npx prisma db push --schema=./prisma/schema.prisma --skip-generate && node dist/server.js"]
+CMD ["sh", "-c", "node scripts/wait-for-db.js && npx prisma db push --schema=./prisma/schema.prisma --skip-generate --accept-data-loss && node dist/server.js"]
