@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { useEffect, useState, useRef, Fragment } from 'react'
+import { useEffect, useState, useRef, useMemo, Fragment } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
@@ -7,6 +7,7 @@ import { getInventoriesByDate } from '../../services/inventory.api'
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import { getTodayString, formatBucharestDate, formatBucharestDateTime, formatBucharestTime, toBucharestDateString } from '../../utils/date'
 import InventoryProductsManager from './InventoryProductsManager'
+import ReportsView from './ReportsView'
 
 // Helper component for date group checkbox with indeterminate state
 function DateGroupCheckbox({ 
@@ -63,6 +64,11 @@ interface Order {
     username: string
   } | null
   photos?: Photo[]
+  cakeType?: string | null
+  otherProducts?: string | null
+  decorType?: string | null
+  decorDetails?: string | null
+  observations?: string | null
 }
 
 interface User {
@@ -521,13 +527,14 @@ function SortimentDecorManager({ category, configs, defaultItems, onRefresh }: S
 function AdminDashboard() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tabFromUrl = searchParams.get('tab') as 'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | null
-  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts'>(
-    tabFromUrl && ['orders', 'users', 'globalConfig', 'inventory', 'inventoryProducts'].includes(tabFromUrl) 
+  const tabFromUrl = searchParams.get('tab') as 'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | 'reports' | null
+  const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | 'reports'>(
+    tabFromUrl && ['orders', 'users', 'globalConfig', 'inventory', 'inventoryProducts', 'reports'].includes(tabFromUrl) 
       ? tabFromUrl 
       : 'orders'
   )
   const [orders, setOrders] = useState<Order[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
   const [inventoryDataByDate, setInventoryDataByDate] = useState<Map<string, any>>(new Map())
@@ -554,6 +561,56 @@ function AdminDashboard() {
   const [devCcEnabled, setDevCcEnabled] = useState(false)
   const [devCcSaving, setDevCcSaving] = useState(false)
 
+  const normalizeSearchText = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[șş]/gi, 's')
+      .replace(/[țţ]/gi, 't')
+      .replace(/[ăâ]/gi, 'a')
+      .replace(/[î]/gi, 'i')
+      .toLowerCase()
+
+  const normalizeCompactSearchText = (value: string) =>
+    normalizeSearchText(value).replace(/[^a-z0-9]/g, '')
+
+  const getPhoneSearchVariants = (phoneValue: string | null | undefined) => {
+    const digits = String(phoneValue || '').replace(/\D/g, '')
+    if (!digits) return []
+
+    const variants = new Set<string>()
+    variants.add(digits)
+
+    // Stored formats can vary (8 digits, 9 digits with 0, full 10 digits with 07)
+    if (digits.length === 8) {
+      variants.add(`0${digits}`)
+      variants.add(`07${digits}`)
+      variants.add(`40${digits}`)
+      variants.add(`407${digits}`)
+    } else if (digits.length === 9 && digits.startsWith('0')) {
+      const withoutLeadingZero = digits.slice(1)
+      variants.add(withoutLeadingZero)
+      variants.add(`7${withoutLeadingZero}`)
+      variants.add(`40${withoutLeadingZero}`)
+      variants.add(`4${digits}`)
+    } else if (digits.length === 10 && digits.startsWith('07')) {
+      const last8 = digits.slice(2)
+      variants.add(last8)
+      variants.add(`0${last8}`)
+      variants.add(`40${last8}`)
+      variants.add(`4${digits}`)
+    } else if (digits.startsWith('40')) {
+      const maybeLocal = digits.replace(/^40/, '')
+      variants.add(maybeLocal)
+      if (maybeLocal.length === 8) {
+        variants.add(`07${maybeLocal}`)
+        variants.add(`0${maybeLocal}`)
+      }
+    }
+
+    return Array.from(variants)
+  }
+
   const handleAdminLogout = () => {
     localStorage.removeItem('adminAuthToken')
     window.dispatchEvent(new Event('adminAuthChange'))
@@ -562,8 +619,8 @@ function AdminDashboard() {
 
   // Update activeTab when URL parameter changes
   useEffect(() => {
-    const tabFromUrl = searchParams.get('tab') as 'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | null
-    if (tabFromUrl && ['orders', 'users', 'globalConfig', 'inventory', 'inventoryProducts'].includes(tabFromUrl)) {
+    const tabFromUrl = searchParams.get('tab') as 'orders' | 'users' | 'globalConfig' | 'inventory' | 'inventoryProducts' | 'reports' | null
+    if (tabFromUrl && ['orders', 'users', 'globalConfig', 'inventory', 'inventoryProducts', 'reports'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl)
     }
   }, [searchParams])
@@ -603,6 +660,69 @@ function AdminDashboard() {
       setLoading(false)
     }
   }
+
+  const filteredOrders = useMemo(() => {
+    if (!searchQuery.trim()) return orders
+    const query = normalizeSearchText(searchQuery.trim())
+    const compactQuery = normalizeCompactSearchText(searchQuery.trim())
+    return orders.filter((order) => {
+      const searchableValues = (function collectValues(obj: any): string[] {
+        const vals: string[] = []
+        for (const val of Object.values(obj)) {
+          if (val == null) continue
+          if (typeof val === 'string') vals.push(normalizeSearchText(val))
+          else if (typeof val === 'number') vals.push(String(val))
+          else if (Array.isArray(val)) val.forEach(item => {
+            if (typeof item === 'string') vals.push(normalizeSearchText(item))
+            else if (typeof item === 'object' && item) vals.push(...collectValues(item))
+          })
+          else if (typeof val === 'object') vals.push(...collectValues(val))
+        }
+        return vals
+      })(order)
+
+      // Add extra phone variants so searches like "07...", "07 12...", "0712-..." work.
+      searchableValues.push(...getPhoneSearchVariants(order.phoneNumber))
+
+      return searchableValues.some((value) => {
+        const compactValue = normalizeCompactSearchText(value)
+        return value.includes(query) || (compactQuery.length > 0 && compactValue.includes(compactQuery))
+      })
+    })
+  }, [orders, searchQuery])
+
+  const productSuggestions = useMemo(() => {
+    const trimmedQuery = searchQuery.trim()
+    if (!trimmedQuery) return []
+
+    const normalizedQuery = normalizeSearchText(trimmedQuery)
+    const seen = new Set<string>()
+    const suggestions: string[] = []
+
+    const addIfMatch = (value?: string | null) => {
+      if (!value) return
+      value
+        .split(/[,\n;|]/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .forEach((part) => {
+          const key = part.toLowerCase()
+          if (!seen.has(key) && normalizeSearchText(part).includes(normalizedQuery)) {
+            seen.add(key)
+            suggestions.push(part)
+          }
+        })
+    }
+
+    orders.forEach((order) => {
+      addIfMatch(order.cakeType)
+      addIfMatch(order.otherProducts)
+      addIfMatch(order.decorType)
+      addIfMatch(order.decorDetails)
+    })
+
+    return suggestions.slice(0, 8)
+  }, [orders, searchQuery])
 
   const handleDownloadFoaieDeZahar = async (orderId: string, orderNumber: number) => {
     try {
@@ -1182,6 +1302,19 @@ function AdminDashboard() {
             >
               📦 Produse
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('reports')
+                setSearchParams({ tab: 'reports' })
+              }}
+              className={`px-3 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base transition-all duration-300 ${
+                activeTab === 'reports'
+                  ? 'btn-active scale-105'
+                  : 'bg-primary/50 text-secondary hover:scale-102'
+              }`}
+            >
+              📊 Rapoarte
+            </button>
           </div>
         </div>
 
@@ -1228,12 +1361,68 @@ function AdminDashboard() {
               </div>
             )}
 
+            {/* Search Bar */}
+            <div className="card-neumorphic !py-3 !px-4 sm:!px-6">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-secondary/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Caută comenzi... (nume, telefon, detalii, observații etc.)"
+                  className="w-full pl-9 sm:pl-11 pr-20 py-2.5 sm:py-3 rounded-xl bg-primary/60 border border-primary text-secondary placeholder:text-secondary/40 text-sm sm:text-base font-medium focus:outline-none focus:ring-2 focus:ring-accent-purple/50 focus:border-accent-purple/50 transition-all"
+                />
+                {searchQuery.trim() && productSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-2 w-full rounded-xl border border-primary/60 bg-white shadow-neumorphic overflow-hidden">
+                    {productSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => setSearchQuery(suggestion)}
+                        className="w-full px-3 py-2 text-left text-sm text-secondary hover:bg-primary/30 transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {searchQuery && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    <span className="text-xs text-secondary/50 whitespace-nowrap">
+                      {filteredOrders.length}/{orders.length}
+                    </span>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="p-1 rounded-lg hover:bg-secondary/10 transition-colors text-secondary/50 hover:text-secondary"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Orders List */}
             <div className="card-neumorphic overflow-hidden">
               {orders.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="text-6xl mb-4">📭</div>
                   <p className="text-2xl font-bold text-secondary/50">Nu există comenzi</p>
+                </div>
+              ) : filteredOrders.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <p className="text-xl font-bold text-secondary/50">Niciun rezultat pentru „{searchQuery}"</p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="mt-4 btn-neumorphic px-4 py-2 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all"
+                  >
+                    Șterge căutarea
+                  </button>
                 </div>
               ) : (
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -1250,13 +1439,13 @@ function AdminDashboard() {
                         <th className="px-1 sm:px-2 py-2 text-left font-bold text-secondary text-xs" style={{ width: '5%' }}>
                           <input
                             type="checkbox"
-                            checked={orders.every((o) => selectedOrders.has(o.id)) && orders.length > 0}
+                            checked={filteredOrders.every((o) => selectedOrders.has(o.id)) && filteredOrders.length > 0}
                             onChange={() => {
-                              const allSelected = orders.every((o) => selectedOrders.has(o.id))
+                              const allSelected = filteredOrders.every((o) => selectedOrders.has(o.id))
                               if (allSelected) {
                                 setSelectedOrders(new Set())
                               } else {
-                                setSelectedOrders(new Set(orders.map((o) => o.id)))
+                                setSelectedOrders(new Set(filteredOrders.map((o) => o.id)))
                               }
                             }}
                             className="w-3 h-3 sm:w-4 sm:h-4 cursor-pointer"
@@ -1266,7 +1455,7 @@ function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-primary/25 border-y border-primary/30">
-                      {groupOrdersByDate(orders).map(({ dateKey, dateKeyMobile, orders: dateOrders }) => {
+                      {groupOrdersByDate(filteredOrders).map(({ dateKey, dateKeyMobile, orders: dateOrders }) => {
                         const allDateOrdersSelected = dateOrders.every((o) => selectedOrders.has(o.id))
                         const someDateOrdersSelected = dateOrders.some((o) => selectedOrders.has(o.id))
                         
@@ -1830,6 +2019,10 @@ function AdminDashboard() {
         {/* Inventory Products Tab */}
         {activeTab === 'inventoryProducts' && (
           <InventoryProductsManager />
+        )}
+
+        {activeTab === 'reports' && (
+          <ReportsView />
         )}
 
         {/* User Modal */}
