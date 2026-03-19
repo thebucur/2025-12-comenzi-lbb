@@ -14,6 +14,7 @@ datasource db {
 model Order {
   id                    String   @id @default(uuid())
   orderNumber           Int      @unique
+  idempotencyKey        String?  @unique
   
   // Screen 1 - Ridicare
   deliveryMethod        String

@@ -35,6 +35,8 @@ export type Coating = 'GLAZURĂ' | 'FRIȘCĂ' | 'CREMĂ' | 'NAKED' | 'DOAR CAPAC
 export type DecorType = string
 
 export interface Order {
+  idempotencyKey: string
+
   // Screen 1 - Ridicare
   deliveryMethod: DeliveryMethod | null
   location: Location | null

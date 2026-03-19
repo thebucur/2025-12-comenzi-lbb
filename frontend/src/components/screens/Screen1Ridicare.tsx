@@ -100,6 +100,8 @@ function Screen1Ridicare() {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const date = e.target.value
+    const todayStr = getTodayString()
+    if (date < todayStr) return
     updateOrder({ pickupDate: date })
     
     if (isTodayOrTomorrow(date) && !order.tomorrowVerification) {

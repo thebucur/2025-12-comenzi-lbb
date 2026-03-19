@@ -149,6 +149,7 @@ function Screen4Finalizare() {
       
       // Prepare order data with proper formatting
       const orderData = {
+        idempotencyKey: order.idempotencyKey,
         deliveryMethod: order.deliveryMethod,
         location: order.location || null,
         address: order.address || null,

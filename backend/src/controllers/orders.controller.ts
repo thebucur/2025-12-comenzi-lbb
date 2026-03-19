@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { linkSessionToOrder } from './upload.controller'
 import type { AuthRequest } from '../middleware/auth.middleware'
+import { getBucharestTodayString } from '../utils/date'
 
 export const createOrder = async (req: Request, res: Response) => {
   try {
@@ -83,6 +84,34 @@ export const createOrder = async (req: Request, res: Response) => {
       })
     }
 
+    // Reject pickup dates in the past (compare in Bucharest timezone)
+    const todayStr = getBucharestTodayString()
+    const pickupStr = pickupDateObj.toISOString().slice(0, 10)
+    if (pickupStr < todayStr) {
+      console.error('pickupDate in the past:', pickupStr, 'today:', todayStr)
+      return res.status(400).json({
+        error: 'pickupDate in the past',
+        message: 'Data ridicării nu poate fi în trecut.',
+      })
+    }
+
+    // Idempotency: if this key was already used, return the existing order
+    const idempotencyKey = orderData.idempotencyKey ? String(orderData.idempotencyKey).trim() : null
+    if (idempotencyKey) {
+      const existing = await prisma.order.findUnique({
+        where: { idempotencyKey },
+        include: {
+          photos: {
+            select: { id: true, url: true, path: true, isFoaieDeZahar: true, createdAt: true },
+          },
+        },
+      })
+      if (existing) {
+        console.log(`[createOrder] Idempotency hit – returning existing order #${existing.orderNumber} for key ${idempotencyKey}`)
+        return res.status(201).json({ ...existing, orderNumber: existing.orderNumber })
+      }
+    }
+
     // Atomically reserve the next order number in a transaction to avoid duplicates
     console.log('Reserving next order number...')
     const { orderNumber, orderCreateData, orderId } = await prisma.$transaction(async (tx) => {
@@ -132,6 +161,7 @@ export const createOrder = async (req: Request, res: Response) => {
       
       const preparedData = {
         orderNumber: nextOrderNumber,
+        idempotencyKey: idempotencyKey || undefined,
         deliveryMethod: String(orderData.deliveryMethod),
         location: orderData.location ? String(orderData.location) : null,
         address: orderData.address ? String(orderData.address) : null,

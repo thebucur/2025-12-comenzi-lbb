@@ -2,32 +2,35 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import { Order } from '../types/order.types'
 
-const initialOrder: Order = {
-  deliveryMethod: null,
-  location: null,
-  address: '',
-  staffName: null,
-  clientName: '',
-  phoneNumber: '',
-  pickupDate: '',
-  pickupTime: '',
-  tomorrowVerification: false,
-  advance: null,
-  noCake: false,
-  cakeType: null,
-  weight: null,
-  customWeight: '',
-  shape: null,
-  floors: null,
-  otherProducts: '',
-  coating: null,
-  colors: [],
-  decorType: null,
-  decorDetails: '',
-  observations: '',
-  photos: [],
-  foaieDeZaharPhoto: null,
-  orderNumber: null,
+function freshOrder(): Order {
+  return {
+    idempotencyKey: crypto.randomUUID(),
+    deliveryMethod: null,
+    location: null,
+    address: '',
+    staffName: null,
+    clientName: '',
+    phoneNumber: '',
+    pickupDate: '',
+    pickupTime: '',
+    tomorrowVerification: false,
+    advance: null,
+    noCake: false,
+    cakeType: null,
+    weight: null,
+    customWeight: '',
+    shape: null,
+    floors: null,
+    otherProducts: '',
+    coating: null,
+    colors: [],
+    decorType: null,
+    decorDetails: '',
+    observations: '',
+    photos: [],
+    foaieDeZaharPhoto: null,
+    orderNumber: null,
+  }
 }
 
 interface OrderContextType {
@@ -40,14 +43,14 @@ interface OrderContextType {
 const OrderContext = createContext<OrderContextType | undefined>(undefined)
 
 export function OrderProvider({ children }: { children: ReactNode }) {
-  const [order, setOrder] = useState<Order>(initialOrder)
+  const [order, setOrder] = useState<Order>(freshOrder)
 
   const updateOrder = (updates: Partial<Order>) => {
     setOrder((prev) => ({ ...prev, ...updates }))
   }
 
   const resetOrder = () => {
-    setOrder(initialOrder)
+    setOrder(freshOrder())
   }
 
   const validateStep = (step: number): boolean => {
