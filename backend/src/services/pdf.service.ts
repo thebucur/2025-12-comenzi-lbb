@@ -378,35 +378,6 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
 
   const columnStartY = doc.y
 
-  // Order Details
-  doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii comanda:'), margins.left, doc.y, {
-    underline: true,
-    width: leftColumnWidth,
-  })
-  doc.moveDown(0.4)
-  addField('Comanda dată în', order.createdByUsername || undefined)
-  addField('Preluată de', order.staffName)
-  const createdAtFormatted = order.createdAt ? formatBucharestDateTimeRo(order.createdAt) : undefined
-  addField('Preluată pe', createdAtFormatted)
-  addField('Client', order.clientName)
-  addField('Telefon', `07${order.phoneNumber}`)
-  addField('Metodă', order.deliveryMethod === 'ridicare' ? 'Ridicare' : 'Livrare')
-  if (order.deliveryMethod === 'ridicare') {
-    addField('Locație', order.location || undefined)
-  } else if (order.deliveryMethod === 'livrare' && order.address) {
-    addField('Adresa', order.address)
-  }
-  const pickupDateValue = order.pickupDate ? formatBucharestDateRo(order.pickupDate) : undefined
-  const pickupTimeValue = order.pickupTime ? ` ora ${order.pickupTime}` : ''
-  const pickupDateHighlight = getDateHighlightColor(order.pickupDate)
-  addField(
-    'Data',
-    pickupDateValue ? pickupDateValue + pickupTimeValue : undefined,
-    pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined
-  )
-  if (order.advance) addField('Avans', `${order.advance} RON`)
-  doc.moveDown()
-
   // Cake Details
   doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii tort:'), margins.left, doc.y, {
     underline: true,
@@ -416,8 +387,8 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
   if (order.noCake) {
     addField('Tort', 'NU ARE TORT')
   } else {
-    addField('Tip', order.cakeType)
-    addField('Greutate', order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight)
+    addField('Tip', order.cakeType, { highlightColor: '#90EE90' })
+    addField('Greutate', order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight, { highlightColor: '#90EE90' })
     addField('Formă', order.shape || undefined)
     addField('Etaje', order.floors || undefined)
   }
@@ -476,11 +447,40 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     if (order.colors.length > 0) {
       addField('Culori', order.colors.join(', '))
     }
-    addField('Tip decor', order.decorType)
+    addField('Tip decor', order.decorType, { highlightColor: '#90EE90' })
     addField('Detalii', order.decorDetails || undefined)
     addField('Observații', order.observations || undefined)
     doc.moveDown(0.5)
   }
+
+  // Order Details
+  doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii comanda:'), margins.left, doc.y, {
+    underline: true,
+    width: leftColumnWidth,
+  })
+  doc.moveDown(0.4)
+  addField('Comanda dată în', order.createdByUsername || undefined)
+  addField('Preluată de', order.staffName)
+  const createdAtFormatted = order.createdAt ? formatBucharestDateTimeRo(order.createdAt) : undefined
+  addField('Preluată pe', createdAtFormatted)
+  addField('Client', order.clientName)
+  addField('Telefon', `07${order.phoneNumber}`)
+  addField('Metodă', order.deliveryMethod === 'ridicare' ? 'Ridicare' : 'Livrare')
+  if (order.deliveryMethod === 'ridicare') {
+    addField('Locație', order.location || undefined)
+  } else if (order.deliveryMethod === 'livrare' && order.address) {
+    addField('Adresa', order.address)
+  }
+  const pickupDateValue = order.pickupDate ? formatBucharestDateRo(order.pickupDate) : undefined
+  const pickupTimeValue = order.pickupTime ? ` ora ${order.pickupTime}` : ''
+  const pickupDateHighlight = getDateHighlightColor(order.pickupDate)
+  addField(
+    'Data',
+    pickupDateValue ? pickupDateValue + pickupTimeValue : undefined,
+    pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined
+  )
+  if (order.advance) addField('Avans', `${order.advance} RON`)
+  doc.moveDown()
 
   // Photos (only regular photos, exclude foaie de zahar)
   const photosToRender = regularPhotos.slice(0, 3)
