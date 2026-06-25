@@ -29,12 +29,7 @@ model Order {
   advance               Float?
   
   // Screen 2 - Sortiment
-  noCake                Boolean  @default(false)
-  cakeType              String?
-  weight                String?
-  customWeight          String?
-  shape                 String?
-  floors                String?
+  cakes                 OrderCake[]
   otherProducts         String?
   
   // Screen 3 - Decor
@@ -43,6 +38,9 @@ model Order {
   decorType             String?
   decorDetails          String?
   observations          String?
+  
+  // Patiserie (sends a second email at print)
+  hasPastry             Boolean  @default(false)
   
   // PDF
   pdfPath               String?
@@ -55,8 +53,24 @@ model Order {
   pickedUpBy            User?    @relation("PickedUpOrders", fields: [pickedUpByUserId], references: [id])
   
   photos                Photo[]
+  uploadSessions        UploadSession[]
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model OrderCake {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  position      Int
+  cakeType      String?
+  weight        String?
+  customWeight  String?
+  shape         String?
+  floors        String?
+  createdAt     DateTime @default(now())
+
+  @@index([orderId, position])
 }
 
 model Photo {
@@ -66,7 +80,43 @@ model Photo {
   url             String
   path            String?
   isFoaieDeZahar  Boolean  @default(false)
+  isOtherProducts Boolean  @default(false)
   createdAt       DateTime @default(now())
+
+  linkedFromUploads UploadPhoto[]
+}
+
+model UploadSession {
+  id        String   @id
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  photos    UploadPhoto[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+model UploadPhoto {
+  id              String        @id @default(uuid())
+  uploadSessionId String
+  uploadSession   UploadSession @relation(fields: [uploadSessionId], references: [id], onDelete: Cascade)
+
+  url             String
+  path            String?
+  filename        String
+  isFoaieDeZahar  Boolean       @default(false)
+  isOtherProducts Boolean       @default(false)
+
+  linkedPhotoId   String?
+  linkedPhoto     Photo?        @relation(fields: [linkedPhotoId], references: [id], onDelete: SetNull)
+  linkedAt        DateTime?
+
+  createdAt       DateTime      @default(now())
+
+  @@index([uploadSessionId, createdAt])
+  @@index([linkedAt])
+  @@index([isFoaieDeZahar])
 }
 
 model OrderCounter {

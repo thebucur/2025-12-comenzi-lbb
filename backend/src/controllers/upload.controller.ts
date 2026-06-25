@@ -10,18 +10,38 @@ import prisma from '../lib/prisma'
 const STORAGE_BASE = process.env.STORAGE_BASE || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd()
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(STORAGE_BASE, 'uploads')
 
-// Store session to order mapping (in production, use Redis or database)
-const sessionToOrderMap = new Map<string, string>()
-
-// Store pending photos by session ID (photos uploaded before order creation)
 interface PendingPhoto {
   url: string
   path: string
   filename: string
   isFoaieDeZahar?: boolean
+  isOtherProducts?: boolean
 }
-const pendingPhotosBySession = new Map<string, PendingPhoto[]>()
-const pendingFoaieDeZaharBySession = new Map<string, PendingPhoto>()
+
+const PENDING_UPLOAD_TTL_DAYS = Number(process.env.PENDING_UPLOAD_TTL_DAYS || 7)
+
+async function ensureUploadSession(sessionId: string) {
+  return prisma.uploadSession.upsert({
+    where: { id: sessionId },
+    create: { id: sessionId },
+    update: {},
+    select: { id: true, orderId: true },
+  })
+}
+
+async function cleanupOldPendingUploads(): Promise<void> {
+  const cutoff = new Date(Date.now() - PENDING_UPLOAD_TTL_DAYS * 24 * 60 * 60 * 1000)
+  try {
+    await prisma.uploadPhoto.deleteMany({
+      where: {
+        linkedAt: null,
+        createdAt: { lt: cutoff },
+      },
+    })
+  } catch (err) {
+    console.warn('[cleanupOldPendingUploads] failed:', err instanceof Error ? err.message : err)
+  }
+}
 
 export const uploadPhoto = async (req: Request, res: Response) => {
   try {
@@ -32,9 +52,15 @@ export const uploadPhoto = async (req: Request, res: Response) => {
     }
 
     const { sessionId } = req.params
+    const isOtherProducts =
+      req.query.otherProducts === 'true' ||
+      req.body?.otherProducts === true ||
+      req.body?.otherProducts === 'true'
 
     // Ensure upload directory exists
     await fs.mkdir(UPLOAD_DIR, { recursive: true })
+    // Best-effort cleanup to avoid unbounded growth
+    await cleanupOldPendingUploads()
 
     const results: PendingPhoto[] = []
 
@@ -68,9 +94,10 @@ export const uploadPhoto = async (req: Request, res: Response) => {
         // Return URL (in production, this would be a cloud storage URL)
         const url = `/uploads/${filename}`
 
-        // Check if we have an order ID for this session
-        const orderId = sessionToOrderMap.get(sessionId)
-        if (orderId) {
+        // Persist session + pending uploads in DB so it works across instances
+        const uploadSession = await ensureUploadSession(sessionId)
+
+        if (uploadSession.orderId) {
           // Order already exists, save photo immediately with retry logic
           let retries = 3
           let saved = false
@@ -79,12 +106,13 @@ export const uploadPhoto = async (req: Request, res: Response) => {
             try {
               await prisma.photo.create({
                 data: {
-                  orderId,
+                  orderId: uploadSession.orderId,
                   url,
                   path: filepath,
+                  isOtherProducts,
                 },
               })
-              console.log(`Photo saved immediately for order ${orderId}`)
+              console.log(`Photo saved immediately for order ${uploadSession.orderId}`)
               saved = true
             } catch (dbError: any) {
               retries--
@@ -96,14 +124,19 @@ export const uploadPhoto = async (req: Request, res: Response) => {
           }
         } else {
           // Order doesn't exist yet, store photo as pending
-          if (!pendingPhotosBySession.has(sessionId)) {
-            pendingPhotosBySession.set(sessionId, [])
-          }
-          pendingPhotosBySession.get(sessionId)!.push({ url, path: filepath, filename })
+          await prisma.uploadPhoto.create({
+            data: {
+              uploadSessionId: sessionId,
+              url,
+              path: filepath,
+              filename,
+              isFoaieDeZahar: false,
+              isOtherProducts,
+            },
+          })
           console.log(`Photo stored as pending for session ${sessionId}`, {
             url,
             path: filepath,
-            totalPending: pendingPhotosBySession.get(sessionId)!.length,
           })
         }
 
@@ -156,167 +189,89 @@ export const uploadPhoto = async (req: Request, res: Response) => {
 
 export const linkSessionToOrder = async (sessionId: string, orderId: string) => {
   console.log(`Linking session ${sessionId} to order ${orderId}`)
-  sessionToOrderMap.set(sessionId, orderId)
-  
-  // Link all pending photos for this session to the order
-  const pendingPhotos = pendingPhotosBySession.get(sessionId)
-  console.log(`Found ${pendingPhotos?.length || 0} pending photos for session ${sessionId}`)
-  
-  if (pendingPhotos && pendingPhotos.length > 0) {
-    console.log(`Linking ${pendingPhotos.length} pending photos to order ${orderId}`, {
-      photos: pendingPhotos.map(p => ({ url: p.url, path: p.path })),
-    })
-    
-    // Use transaction with retry logic to ensure data consistency
-    let retries = 3
-    let success = false
-    
-    while (retries > 0 && !success) {
-      try {
-        // Use transaction to ensure all photos are saved or none
-        await prisma.$transaction(async (tx) => {
-          // Save all pending photos to database (without isFoaieDeZahar for regular photos)
-          for (const photo of pendingPhotos) {
-            await tx.photo.create({
-              data: {
-                orderId,
-                url: photo.url,
-                path: photo.path,
-              },
-            })
-          }
-        }, {
-          maxWait: 5000, // Wait max 5s to start transaction
-          timeout: 10000, // Transaction timeout 10s
-        })
-        
-        console.log(`Successfully linked ${pendingPhotos.length} photos to order ${orderId}`)
-        success = true
-        
-        // Verify photos were saved
-        const verifyPhotos = await prisma.photo.findMany({
-          where: { orderId },
-          select: { id: true, url: true, path: true },
-        })
-        console.log(`Verified ${verifyPhotos.length} photos in database for order ${orderId}`)
-        
-        // Clear pending photos for this session
-        pendingPhotosBySession.delete(sessionId)
-      } catch (error: any) {
-        retries--
-        console.error(`Error linking pending photos to order (${retries} retries left):`, error)
-        
-        if (retries === 0) {
-          console.error('Failed to link photos after all retries. Photos remain in pending state.')
-          // Don't throw - order is already created
-          // Photos remain in pending state and can be retried manually
-        } else {
-          // Wait before retry with exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 2000 * (4 - retries)))
-        }
-      }
-    }
-  } else {
-    console.log(`No pending photos found for session ${sessionId}`)
-  }
 
-  // Link pending foaie de zahar photo if exists
-  const pendingFoaieDeZahar = pendingFoaieDeZaharBySession.get(sessionId)
-  if (pendingFoaieDeZahar) {
-    console.log(`Linking pending foaie de zahar photo to order ${orderId}`, {
-      url: pendingFoaieDeZahar.url,
-      path: pendingFoaieDeZahar.path,
-      isFoaieDeZahar: pendingFoaieDeZahar.isFoaieDeZahar,
-    })
-    
-    // Use retry logic for foaie de zahar as well
-    let retries = 3
-    let success = false
-    
-    while (retries > 0 && !success) {
-      try {
-        // Try to save the foaie de zahar photo with the flag
-        const createdPhoto = await prisma.photo.create({
-          data: {
-            orderId,
-            url: pendingFoaieDeZahar.url,
-            path: pendingFoaieDeZahar.path,
-            isFoaieDeZahar: true,
-          },
-        })
-        
-        console.log(`Successfully linked foaie de zahar photo to order ${orderId}`, {
-          photoId: createdPhoto.id,
-          isFoaieDeZahar: createdPhoto.isFoaieDeZahar,
-        })
-        
-        // Verify it was saved correctly
-        const verifyPhoto = await prisma.photo.findUnique({
-          where: { id: createdPhoto.id },
-          select: { id: true, isFoaieDeZahar: true, url: true },
-        })
-        console.log(`Verified foaie de zahar photo in DB:`, verifyPhoto)
-        
-        // Clear pending foaie de zahar photo for this session
-        pendingFoaieDeZaharBySession.delete(sessionId)
-        success = true
-      } catch (error: any) {
-        retries--
-        console.error(`Error linking pending foaie de zahar photo to order (${retries} retries left):`, error)
-        console.error('Error details:', {
-          code: error?.code,
-          message: error?.message,
-          meta: error?.meta,
-        })
-        
-        // If it's a column not found error (P2022), try saving without the flag
-        if (error?.code === 'P2022') {
-          console.log('isFoaieDeZahar column not found, saving as regular photo')
-          try {
-            await prisma.photo.create({
+  // Persist session→order mapping in DB (works across instances)
+  await prisma.uploadSession.upsert({
+    where: { id: sessionId },
+    create: { id: sessionId, orderId },
+    update: { orderId },
+    select: { id: true },
+  })
+
+  // Consume all pending uploads from DB and attach to order in a single transaction
+  let retries = 3
+  while (retries > 0) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const pending = await tx.uploadPhoto.findMany({
+            where: { uploadSessionId: sessionId, linkedAt: null },
+            orderBy: { createdAt: 'asc' },
+          })
+
+          console.log(`Found ${pending.length} pending photos for session ${sessionId}`)
+          if (pending.length === 0) return
+
+          for (const p of pending) {
+            const created = await tx.photo.create({
               data: {
                 orderId,
-                url: pendingFoaieDeZahar.url,
-                path: pendingFoaieDeZahar.path,
+                url: p.url,
+                path: p.path,
+                isFoaieDeZahar: p.isFoaieDeZahar,
+                isOtherProducts: p.isOtherProducts,
               },
+              select: { id: true },
             })
-            pendingFoaieDeZaharBySession.delete(sessionId)
-            success = true
-          } catch (fallbackError) {
-            console.error('Error saving foaie de zahar as regular photo:', fallbackError)
+
+            await tx.uploadPhoto.update({
+              where: { id: p.id },
+              data: { linkedAt: new Date(), linkedPhotoId: created.id },
+            })
           }
-        }
-        
-        if (!success && retries > 0) {
-          // Wait before retry with exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 2000 * (4 - retries)))
-        }
+        },
+        { maxWait: 5000, timeout: 15000 },
+      )
+
+      return
+    } catch (err) {
+      retries--
+      console.error(`Error linking pending photos to order (${retries} retries left):`, err)
+      if (retries > 0) {
+        await new Promise((r) => setTimeout(r, 2000 * (4 - retries)))
       }
     }
-    
-    if (!success) {
-      console.error('Failed to link foaie de zahar photo after all retries. Photo remains in pending state.')
-    }
-  } else {
-    console.log(`No pending foaie de zahar photo found for session ${sessionId}`)
   }
 }
 
 export const getPhotosBySession = (sessionId: string): PendingPhoto[] => {
-  return pendingPhotosBySession.get(sessionId) || []
+  // Kept for backward-compat in code paths; session photos are persisted in DB now.
+  // Prefer `getPhotosBySessionId` endpoint.
+  return []
 }
 
 export const getPhotosBySessionId = async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params
-    const pendingPhotos = getPhotosBySession(sessionId)
+    await ensureUploadSession(sessionId)
+    const pendingPhotos = await prisma.uploadPhoto.findMany({
+      where: { uploadSessionId: sessionId, linkedAt: null, isFoaieDeZahar: false, isOtherProducts: false },
+      select: { id: true, url: true, path: true, filename: true },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    const pendingOtherProductPhotos = await prisma.uploadPhoto.findMany({
+      where: { uploadSessionId: sessionId, linkedAt: null, isFoaieDeZahar: false, isOtherProducts: true },
+      select: { id: true, url: true, path: true, filename: true },
+      orderBy: { createdAt: 'asc' },
+    })
     
     // Verify files exist before returning URLs (important for Railway's ephemeral filesystem)
     const verifiedPhotos = []
     for (const photo of pendingPhotos) {
       try {
         // Check if file exists on disk
-        const fileExists = await fs.access(photo.path).then(() => true).catch(() => false)
+        const fileExists = photo.path ? await fs.access(photo.path).then(() => true).catch(() => false) : false
         if (fileExists) {
           verifiedPhotos.push({
             url: photo.url,
@@ -324,27 +279,44 @@ export const getPhotosBySessionId = async (req: Request, res: Response) => {
           })
         } else {
           console.warn(`Photo file not found on disk, skipping: ${photo.path} (URL: ${photo.url})`)
-          // Remove from pending photos since file doesn't exist
-          const sessionPhotos = pendingPhotosBySession.get(sessionId) || []
-          const updatedPhotos = sessionPhotos.filter(p => p.path !== photo.path)
-          if (updatedPhotos.length === 0) {
-            pendingPhotosBySession.delete(sessionId)
-          } else {
-            pendingPhotosBySession.set(sessionId, updatedPhotos)
-          }
+          await prisma.uploadPhoto.delete({ where: { id: photo.id } })
         }
       } catch (error) {
         console.error(`Error verifying photo file ${photo.path}:`, error)
       }
     }
     
+    const verifiedOtherProductPhotos = []
+    for (const photo of pendingOtherProductPhotos) {
+      try {
+        const fileExists = photo.path ? await fs.access(photo.path).then(() => true).catch(() => false) : false
+        if (fileExists) {
+          verifiedOtherProductPhotos.push({
+            url: photo.url,
+            filename: photo.filename,
+          })
+        } else {
+          console.warn(`Other product photo file not found on disk, skipping: ${photo.path} (URL: ${photo.url})`)
+          await prisma.uploadPhoto.delete({ where: { id: photo.id } })
+        }
+      } catch (error) {
+        console.error(`Error verifying other product photo file ${photo.path}:`, error)
+      }
+    }
+    
     // Also check for foaie de zahar and verify it exists
-    const pendingFoaieDeZahar = pendingFoaieDeZaharBySession.get(sessionId)
+    const pendingFoaieDeZahar = await prisma.uploadPhoto.findFirst({
+      where: { uploadSessionId: sessionId, linkedAt: null, isFoaieDeZahar: true },
+      select: { id: true, url: true, path: true, filename: true },
+      orderBy: { createdAt: 'desc' },
+    })
     let foaieDeZahar = null
     
     if (pendingFoaieDeZahar) {
       try {
-        const fileExists = await fs.access(pendingFoaieDeZahar.path).then(() => true).catch(() => false)
+        const fileExists = pendingFoaieDeZahar.path
+          ? await fs.access(pendingFoaieDeZahar.path).then(() => true).catch(() => false)
+          : false
         if (fileExists) {
           foaieDeZahar = {
             url: pendingFoaieDeZahar.url,
@@ -352,18 +324,19 @@ export const getPhotosBySessionId = async (req: Request, res: Response) => {
           }
         } else {
           console.warn(`Foaie de zahar file not found on disk, skipping: ${pendingFoaieDeZahar.path} (URL: ${pendingFoaieDeZahar.url})`)
-          // Remove from pending since file doesn't exist
-          pendingFoaieDeZaharBySession.delete(sessionId)
+          await prisma.uploadPhoto.delete({ where: { id: pendingFoaieDeZahar.id } })
         }
       } catch (error) {
         console.error(`Error verifying foaie de zahar file ${pendingFoaieDeZahar.path}:`, error)
-        pendingFoaieDeZaharBySession.delete(sessionId)
+        await prisma.uploadPhoto.delete({ where: { id: pendingFoaieDeZahar.id } }).catch(() => {})
       }
     }
     
     console.log(`Getting photos for session ${sessionId}:`, {
       pendingCount: pendingPhotos.length,
       verifiedCount: verifiedPhotos.length,
+      otherProductPendingCount: pendingOtherProductPhotos.length,
+      otherProductVerifiedCount: verifiedOtherProductPhotos.length,
       hasFoaieDeZahar: !!foaieDeZahar,
       foaieDeZaharUrl: foaieDeZahar?.url,
       removedCount: pendingPhotos.length - verifiedPhotos.length,
@@ -371,6 +344,7 @@ export const getPhotosBySessionId = async (req: Request, res: Response) => {
     
     res.json({ 
       photos: verifiedPhotos, 
+      otherProductPhotos: verifiedOtherProductPhotos,
       count: verifiedPhotos.length,
       foaieDeZahar 
     })
@@ -384,11 +358,13 @@ export const markPhotosAsSent = async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params
     // Photos are already stored, just confirm they're ready
-    const pendingPhotos = getPhotosBySession(sessionId)
+    const pendingPhotosCount = await prisma.uploadPhoto.count({
+      where: { uploadSessionId: sessionId, linkedAt: null, isFoaieDeZahar: false },
+    })
     res.json({ 
       success: true, 
       message: 'Pozele au fost trimise',
-      count: pendingPhotos.length 
+      count: pendingPhotosCount,
     })
   } catch (error) {
     console.error('Error marking photos as sent:', error)
@@ -408,6 +384,7 @@ export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
 
     // Ensure upload directory exists
     await fs.mkdir(UPLOAD_DIR, { recursive: true })
+    await cleanupOldPendingUploads()
 
     try {
       // Save file WITHOUT compression - original size
@@ -423,9 +400,8 @@ export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
 
       const photoData: PendingPhoto = { url, path: filepath, filename, isFoaieDeZahar: true }
 
-      // Check if we have an order ID for this session
-      const orderId = sessionToOrderMap.get(sessionId)
-      if (orderId) {
+      const uploadSession = await ensureUploadSession(sessionId)
+      if (uploadSession.orderId) {
         // Order already exists, try to save photo immediately with flag and retry logic
         let retries = 3
         let saved = false
@@ -434,13 +410,13 @@ export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
           try {
             await prisma.photo.create({
               data: {
-                orderId,
+                orderId: uploadSession.orderId,
                 url,
                 path: filepath,
                 isFoaieDeZahar: true,
               },
             })
-            console.log(`Foaie de zahar photo saved immediately for order ${orderId}`)
+            console.log(`Foaie de zahar photo saved immediately for order ${uploadSession.orderId}`)
             saved = true
           } catch (dbError: any) {
             // If column doesn't exist, save without the flag
@@ -449,7 +425,7 @@ export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
               try {
                 await prisma.photo.create({
                   data: {
-                    orderId,
+                    orderId: uploadSession.orderId,
                     url,
                     path: filepath,
                   },
@@ -470,8 +446,16 @@ export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
           }
         }
       } else {
-        // Order doesn't exist yet, store photo as pending (replace any existing one)
-        pendingFoaieDeZaharBySession.set(sessionId, photoData)
+        // Order doesn't exist yet, store photo as pending in DB (keep newest as the one that matters)
+        await prisma.uploadPhoto.create({
+          data: {
+            uploadSessionId: sessionId,
+            url: photoData.url,
+            path: photoData.path,
+            filename: photoData.filename,
+            isFoaieDeZahar: true,
+          },
+        })
         console.log(`Foaie de zahar photo stored as pending for session ${sessionId}`)
       }
 
@@ -507,6 +491,4 @@ export const uploadFoaieDeZahar = async (req: Request, res: Response) => {
     })
   }
 }
-
-export { sessionToOrderMap, pendingFoaieDeZaharBySession }
 

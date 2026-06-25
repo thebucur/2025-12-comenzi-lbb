@@ -38,11 +38,15 @@ function Wizard({ onLogout }: WizardProps) {
     requestAnimationFrame(() => requestAnimationFrame(scrollToTop))
   }, [currentStep])
 
+  const hasAnyCake = order.cakes.some(
+    (c) => c.cakeType || c.weight || c.customWeight?.trim() || c.shape || c.floors,
+  )
+
   const handleNext = () => {
     if (validateStep(currentStep) && currentStep < 4) {
-      // Skip step 3 (decoration) if noCake is true
+      // Skip step 3 (decoration) when there are no cakes
       let newStep = currentStep + 1
-      if (currentStep === 2 && order.noCake) {
+      if (currentStep === 2 && !hasAnyCake) {
         newStep = 4 // Skip to finalization
       }
       setCurrentStep(newStep)
@@ -56,10 +60,10 @@ function Wizard({ onLogout }: WizardProps) {
 
   const handlePrevious = () => {
     if (currentStep > 1) {
-      // Skip step 3 (decoration) when going back if noCake is true
+      // Skip step 3 (decoration) when going back if there are no cakes
       let newStep = currentStep - 1
-      if (currentStep === 4 && order.noCake) {
-        newStep = 2 // Skip back to sortiment
+      if (currentStep === 4 && !hasAnyCake) {
+        newStep = 2 // Skip back to produse
       }
       setCurrentStep(newStep)
       setSearchParams(
@@ -115,7 +119,7 @@ function Wizard({ onLogout }: WizardProps) {
     window.dispatchEvent(new CustomEvent('uploadSessionCleared'))
     
     // Explicitly clear photos first, then reset the order
-    updateOrder({ photos: [], foaieDeZaharPhoto: null })
+    updateOrder({ photos: [], otherProductPhotos: [], foaieDeZaharPhoto: null })
     
     // Reset the order (clears all order data)
     resetOrder()

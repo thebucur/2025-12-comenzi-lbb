@@ -34,6 +34,16 @@ export type Coating = 'GLAZURĂ' | 'FRIȘCĂ' | 'CREMĂ' | 'NAKED' | 'DOAR CAPAC
 
 export type DecorType = string
 
+/** Single cake on the order. Local `id` is for React keys only. */
+export interface OrderCake {
+  id: string
+  cakeType: CakeType | string | null
+  weight: Weight | null
+  customWeight: string
+  shape: Shape | string | null
+  floors: Floors | string | null
+}
+
 export interface Order {
   idempotencyKey: string
 
@@ -49,13 +59,8 @@ export interface Order {
   tomorrowVerification: boolean
   advance: number | null
   
-  // Screen 2 - Sortiment
-  noCake: boolean
-  cakeType: CakeType | null
-  weight: Weight | null
-  customWeight: string
-  shape: Shape | null
-  floors: Floors | null
+  // Screen 2 - Produse (tabs)
+  cakes: OrderCake[]
   otherProducts: string
   
   // Screen 3 - Decor
@@ -65,7 +70,11 @@ export interface Order {
   decorDetails: string
   observations: string
   photos: string[]
+  otherProductPhotos: string[]
   foaieDeZaharPhoto: string | null
+
+  // Patiserie checkbox — when true, the print email is sent twice
+  hasPastry: boolean
   
   // Screen 4 - Finalizare
   orderNumber: string | null
@@ -77,21 +86,3 @@ export interface OrderContextType {
   resetOrder: () => void
   validateStep: (step: number) => boolean
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

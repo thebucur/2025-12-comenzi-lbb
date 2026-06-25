@@ -6,6 +6,7 @@ import path from 'path'
 import https from 'https'
 import sharp from 'sharp'
 import crypto from 'crypto'
+import { formatPhoneDisplay } from '../utils/phone'
 
 // Use Railway persistent volume for production, local directory for development
 // Railway volume should be mounted at /app/storage
@@ -232,9 +233,11 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
             url: true,
             path: true,
             isFoaieDeZahar: true,
+            isOtherProducts: true,
             createdAt: true,
           },
         },
+        cakes: { orderBy: { position: 'asc' } },
       },
     })
 
@@ -248,11 +251,24 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
       console.log(`  Photo ${index + 1}: isFoaieDeZahar = ${photo.isFoaieDeZahar} (type: ${typeof photo.isFoaieDeZahar})`)
     })
 
-    // Filter out foaie de zahar photos from regular photos
-    let regularPhotos = order.photos.filter(photo => photo.isFoaieDeZahar !== true)
-    let foaieDeZaharPhoto = order.photos.find(photo => photo.isFoaieDeZahar === true) || null
+    // Filter photos by category
+    const foaieDeZaharPhoto = order.photos.find(photo => photo.isFoaieDeZahar === true) || null
+    let cakePhotos = order.photos.filter(
+      photo => photo.isFoaieDeZahar !== true && photo.isOtherProducts !== true,
+    )
+    let otherProductPhotos = order.photos.filter(
+      photo => photo.isFoaieDeZahar !== true && photo.isOtherProducts === true,
+    )
+
+    const orderCakes = (order as { cakes?: Array<{ cakeType: string | null; weight: string | null; customWeight: string | null; shape: string | null; floors: string | null }> }).cakes ?? []
+
+    // Legacy orders: photos without flag on pastry-only orders belong to "alte produse"
+    if (otherProductPhotos.length === 0 && orderCakes.length === 0 && cakePhotos.length > 0) {
+      otherProductPhotos = cakePhotos
+      cakePhotos = []
+    }
     
-    console.log(`Filtered: ${regularPhotos.length} regular photos, ${foaieDeZaharPhoto ? '1' : '0'} foaie de zahar photo`)
+    console.log(`Filtered: ${cakePhotos.length} cake photos, ${otherProductPhotos.length} other product photos, ${foaieDeZaharPhoto ? '1' : '0'} foaie de zahar photo`)
 
     console.log(`Order found: ${order.orderNumber}`)
 
@@ -378,50 +394,111 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
 
   const columnStartY = doc.y
 
-  // Cake Details
-  doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii tort:'), margins.left, doc.y, {
-    underline: true,
-    width: leftColumnWidth,
-  })
-  doc.moveDown(0.4)
-  if (order.noCake) {
-    addField('Tort', 'NU ARE TORT')
-  } else {
-    addField('Tip', order.cakeType, { highlightColor: '#90EE90' })
-    addField('Greutate', order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight, { highlightColor: '#90EE90' })
-    addField('Formă', order.shape || undefined)
-    addField('Etaje', order.floors || undefined)
+  type PhotoRow = { url: string; path: string | null }
+
+  const resolveImagePath = (photoPath: string | null): string | null => {
+    if (!photoPath) return null
+    if (existsSync(photoPath)) return photoPath
+    if (!path.isAbsolute(photoPath)) {
+      const absolutePath = path.join(process.cwd(), photoPath)
+      if (existsSync(absolutePath)) return absolutePath
+    }
+    return null
   }
-  
-  // Special handling for "Alte produse" with yellow background
-  if (order.otherProducts) {
+
+  const renderPhotoColumn = async (
+    photosToRender: PhotoRow[],
+    startY: number,
+    label: string,
+  ): Promise<number> => {
+    if (photosToRender.length === 0) return startY
+
+    const slice = photosToRender.slice(0, 3)
+    const photoColumnX = margins.left + leftColumnWidth + columnGap
+    const photoLabel = removeDiacritics(label)
+    const photoHeadingHeight = doc
+      .font(fontBold)
+      .fontSize(13)
+      .heightOfString(photoLabel, { width: rightColumnWidth })
+
+    const availableHeight = doc.page.height - margins.bottom - startY
+    const photoGap = 4
+    const cellHeight = Math.max((availableHeight - photoGap * (slice.length - 1)) / slice.length, 28)
+    const imageMaxHeight = cellHeight
+
+    doc.font(fontBold).fontSize(13).text(photoLabel, photoColumnX, startY, {
+      underline: true,
+      width: rightColumnWidth,
+    })
+
+    let lastCellBottom = startY + photoHeadingHeight + 8
+
+    for (let i = 0; i < slice.length; i++) {
+      const photo = slice[i]
+      const resolvedPath = resolveImagePath(photo.path)
+      const cellY = startY + photoHeadingHeight + 8 + i * (cellHeight + photoGap)
+      const fallbackText = removeDiacritics(photo.url || 'Imagine indisponibila')
+
+      if (resolvedPath) {
+        try {
+          const metadata = await sharp(resolvedPath).metadata()
+          const aspectRatio = (metadata.width || 1) / (metadata.height || 1)
+          let targetWidth = rightColumnWidth
+          let targetHeight = targetWidth / aspectRatio
+
+          if (targetHeight > imageMaxHeight) {
+            targetHeight = imageMaxHeight
+            targetWidth = targetHeight * aspectRatio
+          }
+
+          const imageX = photoColumnX + (rightColumnWidth - targetWidth) / 2
+          const imageY = cellY
+
+          doc.image(resolvedPath, imageX, imageY, {
+            width: targetWidth,
+            height: targetHeight,
+          })
+          lastCellBottom = Math.max(lastCellBottom, imageY + targetHeight)
+        } catch (error) {
+          console.error(`Error embedding image ${resolvedPath}:`, error)
+          doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
+            width: rightColumnWidth,
+            align: 'center',
+          })
+          lastCellBottom = Math.max(lastCellBottom, cellY + imageMaxHeight)
+        }
+      } else {
+        console.log(`Image path not found, showing URL: ${photo.url}`)
+        doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
+          width: rightColumnWidth,
+          align: 'center',
+        })
+        lastCellBottom = Math.max(lastCellBottom, cellY + imageMaxHeight)
+      }
+    }
+
+    return lastCellBottom
+  }
+
+  const addOtherProductsField = (value: string) => {
     const cleanLabel = removeDiacritics('Alte produse')
-    const cleanValue = removeDiacritics(order.otherProducts)
-    
+    const cleanValue = removeDiacritics(value)
+
     const x = margins.left
     const y = doc.y
-    
-    // Calculate the height needed for the text
-    const labelWidth = doc.font(fontBold).fontSize(12).widthOfString(`${cleanLabel}: `)
+
     const fullText = `${cleanLabel}: ${cleanValue}`
     const textHeight = doc.font(fontRegular).fontSize(12).heightOfString(fullText, {
       width: leftColumnWidth,
     })
-    
-    // Add padding for the background
+
     const padding = 4
-    
-    // Save graphics state
+
     doc.save()
-    
-    // Draw yellow background rectangle
     doc.rect(x - padding, y - padding, leftColumnWidth + padding * 2, textHeight + padding * 2)
     doc.fillAndStroke('#FFFF00', '#FFFF00')
-    
-    // Restore graphics state
     doc.restore()
-    
-    // Now draw the text on top
+
     doc.fillColor(labelColor)
     doc.font(fontBold).fontSize(12).text(`${cleanLabel}: `, x, y, {
       continued: true,
@@ -433,11 +510,41 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     })
     doc.moveDown(0.3)
   }
+
+  // --- Section 1: Tort ---
+  const tortSectionStartY = columnStartY
+
+  doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii tort:'), margins.left, doc.y, {
+    underline: true,
+    width: leftColumnWidth,
+  })
+  doc.moveDown(0.4)
+  if (orderCakes.length === 0) {
+    addField('Tort', 'NU ARE TORT')
+  } else {
+    orderCakes.forEach((cake, idx) => {
+      if (idx > 0) {
+        doc.moveDown(0.3)
+        doc.font(fontBold).fontSize(12).text(removeDiacritics(`Tort ${idx + 1}:`), margins.left, doc.y, {
+          width: leftColumnWidth,
+        })
+        doc.moveDown(0.2)
+      }
+      addField('Tip', cake.cakeType, { highlightColor: '#90EE90' })
+      addField(
+        'Greutate',
+        cake.weight === 'ALTĂ GREUTATE' ? cake.customWeight : cake.weight,
+        { highlightColor: '#90EE90' },
+      )
+      addField('Formă', cake.shape || undefined)
+      addField('Etaje', cake.floors || undefined)
+    })
+  }
   
   doc.moveDown(0.5)
 
-  // Decor Details - Only show if not noCake
-  if (!order.noCake) {
+  // Decor Details - Only show when there is at least one cake
+  if (orderCakes.length > 0) {
     doc.font(fontBold).fontSize(13).text(removeDiacritics('Detalii decor:'), margins.left, doc.y, {
       underline: true,
       width: leftColumnWidth,
@@ -464,7 +571,7 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
   const createdAtFormatted = order.createdAt ? formatBucharestDateTimeRo(order.createdAt) : undefined
   addField('Preluată pe', createdAtFormatted)
   addField('Client', order.clientName)
-  addField('Telefon', `07${order.phoneNumber}`)
+  addField('Telefon', formatPhoneDisplay(order.phoneNumber))
   addField('Metodă', order.deliveryMethod === 'ridicare' ? 'Ridicare' : 'Livrare')
   if (order.deliveryMethod === 'ridicare') {
     addField('Locație', order.location || undefined)
@@ -480,84 +587,38 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     pickupDateHighlight ? { highlightColor: pickupDateHighlight } : undefined
   )
   if (order.advance) addField('Avans', `${order.advance} RON`)
-  doc.moveDown()
 
-  // Photos (only regular photos, exclude foaie de zahar)
-  const photosToRender = regularPhotos.slice(0, 3)
+  const tortSectionLeftEndY = doc.y
+  const tortSectionRightEndY = await renderPhotoColumn(cakePhotos, tortSectionStartY, 'Poze tort:')
+  doc.y = Math.max(tortSectionLeftEndY, tortSectionRightEndY) + 12
 
-  if (photosToRender.length > 0) {
-    const photoColumnX = margins.left + leftColumnWidth + columnGap
-    const photoLabel = removeDiacritics('Poze:')
-    const photoHeadingHeight = doc
-      .font(fontBold)
-      .fontSize(13)
-      .heightOfString(photoLabel, { width: rightColumnWidth })
+  // --- Section 2: Alte produse (continues after tort) ---
+  const hasOtherProductsSection =
+    Boolean(order.otherProducts?.trim()) || otherProductPhotos.length > 0
 
-    // Ensure we always start the photo column aligned with the first section
-    const startY = columnStartY
-    const availableHeight = doc.page.height - margins.bottom - startY
-    const photoGap = 4
-    const maxPhotos = photosToRender.length
-    const cellHeight = Math.max((availableHeight - photoGap * (maxPhotos - 1)) / maxPhotos, 28)
-    const imageMaxHeight = cellHeight
+  if (hasOtherProductsSection) {
+    const otherSectionStartY = doc.y
 
-    doc.font(fontBold).fontSize(13).text(photoLabel, photoColumnX, startY, {
+    doc.font(fontBold).fontSize(13).text(removeDiacritics('Alte produse:'), margins.left, doc.y, {
       underline: true,
-      width: rightColumnWidth,
+      width: leftColumnWidth,
     })
+    doc.moveDown(0.4)
 
-    // Helper to resolve an image path, handling relative paths
-    const resolveImagePath = (photoPath: string | null): string | null => {
-      if (!photoPath) return null
-      if (existsSync(photoPath)) return photoPath
-      if (!path.isAbsolute(photoPath)) {
-        const absolutePath = path.join(process.cwd(), photoPath)
-        if (existsSync(absolutePath)) return absolutePath
-      }
-      return null
+    if (order.otherProducts?.trim()) {
+      addOtherProductsField(order.otherProducts)
     }
 
-    for (let i = 0; i < photosToRender.length; i++) {
-      const photo = photosToRender[i]
-      const resolvedPath = resolveImagePath(photo.path)
-      const cellY = startY + photoHeadingHeight + 8 + i * (cellHeight + photoGap)
-      const fallbackText = removeDiacritics(photo.url || 'Imagine indisponibila')
-
-      if (resolvedPath) {
-        try {
-          const metadata = await sharp(resolvedPath).metadata()
-          const aspectRatio = (metadata.width || 1) / (metadata.height || 1)
-          let targetWidth = rightColumnWidth
-          let targetHeight = targetWidth / aspectRatio
-
-          if (targetHeight > imageMaxHeight) {
-            targetHeight = imageMaxHeight
-            targetWidth = targetHeight * aspectRatio
-          }
-
-          const imageX = photoColumnX + (rightColumnWidth - targetWidth) / 2
-          const imageY = cellY
-
-          doc.image(resolvedPath, imageX, imageY, {
-            width: targetWidth,
-            height: targetHeight,
-          })
-        } catch (error) {
-          console.error(`Error embedding image ${resolvedPath}:`, error)
-          doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
-            width: rightColumnWidth,
-            align: 'center',
-          })
-        }
-      } else {
-        console.log(`Image path not found, showing URL: ${photo.url}`)
-        doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
-          width: rightColumnWidth,
-          align: 'center',
-        })
-      }
-    }
+    const otherSectionLeftEndY = doc.y
+    const otherSectionRightEndY = await renderPhotoColumn(
+      otherProductPhotos,
+      otherSectionStartY,
+      'Poze alte produse:',
+    )
+    doc.y = Math.max(otherSectionLeftEndY, otherSectionRightEndY) + 8
   }
+
+  doc.moveDown()
 
   // Add "ARE FOAIE DE ZAHAR" text at the very bottom of the page if photo exists
   // This should be the last thing added to the PDF

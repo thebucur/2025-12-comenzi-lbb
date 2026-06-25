@@ -30,8 +30,9 @@ const getAbsoluteUrl = (relativeUrl: string): string => {
 function PhotoUpload() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const [searchParams] = useSearchParams()
-  const uploadType = searchParams.get('type') // 'foaie-de-zahar' or null for regular photos
+  const uploadType = searchParams.get('type') // 'foaie-de-zahar', 'other-products', or null for cake photos
   const isFoaieDeZahar = uploadType === 'foaie-de-zahar'
+  const isOtherProducts = uploadType === 'other-products'
   
   const [photos, setPhotos] = useState<string[]>([])
   const [foaieDeZaharUrl, setFoaieDeZaharUrl] = useState<string | null>(null)
@@ -257,7 +258,9 @@ function PhotoUpload() {
           // Use different endpoint based on upload type
           const uploadEndpoint = isFoaieDeZahar 
             ? `/upload/${sessionId}/foaie-de-zahar`
-            : `/upload/${sessionId}`
+            : isOtherProducts
+              ? `/upload/${sessionId}?otherProducts=true`
+              : `/upload/${sessionId}`
           
           // Don't set Content-Type header manually - let axios set it with proper boundary
           const response = await api.post(uploadEndpoint, formData, {

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { useOrder } from '../../context/OrderContext'
-import { CakeType, Weight, Shape, Floors } from '../../types/order.types'
+import { CakeType, Weight, Shape, Floors, OrderCake } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
+import PhotoUploader from '../PhotoUploader'
 
 // Default values (fallback if config not available)
 const defaultCakeTypes: CakeType[] = [
@@ -29,224 +30,212 @@ const defaultWeights: Weight[] = ['1 KG', '1.5 KG', '2 KG', '2.5 KG', '3 KG', 'A
 const defaultShapes: Shape[] = ['ROTUND', 'DREPTUNGHIULAR', 'ALTĂ FORMĂ']
 const defaultFloors: Floors[] = ['1', '2', '3', '4', '5']
 
+const CAKE_TAB = 0
+const OTHER_TAB = 1
+
 function Screen2Sortiment() {
   const { order, updateOrder } = useOrder()
   const config = useInstallationConfig()
-  const [showOtherProducts, setShowOtherProducts] = useState(false)
+
+  const cake = order.cakes[0]
+  const [activeTab, setActiveTab] = useState<number>(CAKE_TAB)
 
   const getWeightSortValue = (weight: string) => {
     const match = weight.match(/[\d]+(?:[.,]\d+)?/)
     return match ? parseFloat(match[0].replace(',', '.')) : Number.POSITIVE_INFINITY
   }
 
-  const sortedWeights = [...((config?.sortiment?.weights as Weight[]) || defaultWeights)].sort((a, b) => {
-    const diff = getWeightSortValue(a) - getWeightSortValue(b)
-    return diff !== 0 ? diff : a.localeCompare(b)
-  })
+  const sortedWeights = useMemo(
+    () =>
+      [...((config?.sortiment?.weights as Weight[]) || defaultWeights)].sort((a, b) => {
+        const diff = getWeightSortValue(a) - getWeightSortValue(b)
+        return diff !== 0 ? diff : a.localeCompare(b)
+      }),
+    [config?.sortiment?.weights],
+  )
 
-  // Auto-open other products if noCake is selected
-  useEffect(() => {
-    if (order.noCake) {
-      setShowOtherProducts(true)
-    }
-  }, [order.noCake])
-
-  // Use config values or fallback to defaults
   const cakeTypes = (config?.sortiment?.cakeTypes as CakeType[]) || defaultCakeTypes
   const weights = sortedWeights
   const shapes = (config?.sortiment?.shapes as Shape[]) || defaultShapes
   const floors = (config?.sortiment?.floors as Floors[]) || defaultFloors
 
-  const showShapeSection = order.weight === '2 KG' || order.weight === '2.5 KG' || order.weight === '3 KG' || order.weight === 'ALTĂ GREUTATE'
-  const showFloorsSection = order.weight === '3 KG' || order.weight === 'ALTĂ GREUTATE'
+  const updateCake = (patch: Partial<OrderCake>) => {
+    const next = order.cakes.map((c, i) => (i === 0 ? { ...c, ...patch } : c))
+    updateOrder({ cakes: next })
+  }
+
+  const w = cake?.weight
+  const showShapeSection =
+    w === '2 KG' || w === '2.5 KG' || w === '3 KG' || w === 'ALTĂ GREUTATE'
+  const showFloorsSection = w === '3 KG' || w === 'ALTĂ GREUTATE'
+
+  const setWeight = (weight: Weight) => {
+    const patch: Partial<OrderCake> = { weight }
+    if (
+      weight !== '2 KG' &&
+      weight !== '2.5 KG' &&
+      weight !== '3 KG' &&
+      weight !== 'ALTĂ GREUTATE'
+    ) {
+      patch.shape = null
+      patch.floors = null
+    } else if (weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
+      patch.floors = null
+    }
+    updateCake(patch)
+  }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <h2 className="text-4xl font-bold text-center text-gradient mb-12">Sortiment</h2>
+    <div className="mx-auto w-full max-w-6xl space-y-8 [scrollbar-gutter:stable]">
+      <h2 className="text-4xl font-bold text-center text-gradient mb-12">Produse</h2>
 
-      {/* Cake Types Grid */}
-      <div className="card-neumorphic">
-        <h3 className="text-xl font-bold text-secondary mb-6">🎂 Tipuri de torturi</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {cakeTypes.map((type) => (
+      <div className="card-neumorphic w-full min-w-0 max-w-full p-0 overflow-hidden">
+        {/* Tab strip */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 sm:px-6 pt-4 sm:pt-5 pb-4 border-b border-secondary/15">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 flex-1" role="tablist" aria-label="Produse comandate">
             <button
-              key={type}
-              onClick={() => {
-                updateOrder({ cakeType: type, noCake: false })
-              }}
-              className={`p-4 rounded-2xl font-semibold transition-all duration-300 text-sm ${
-                type === 'MOUSSE DE CIOCOLATĂ NEAGRĂ'
-                  ? 'md:col-span-2'
-                  : ''
-              } ${
-                order.cakeType === type && !order.noCake
-                  ? 'btn-active scale-105'
-                  : 'btn-neumorphic hover:scale-102'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === CAKE_TAB}
+              onClick={() => setActiveTab(CAKE_TAB)}
+              className={`px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base transition-all duration-300 ${
+                activeTab === CAKE_TAB ? 'btn-active scale-[1.02]' : 'bg-primary/50 text-secondary hover:scale-102'
               }`}
             >
-              {type}
+              🎂 TORT
             </button>
-          ))}
-        </div>
 
-        {/* NO CAKE Button */}
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={() => {
-              updateOrder({ 
-                noCake: true, 
-                cakeType: null, 
-                weight: null, 
-                customWeight: '',
-                shape: null, 
-                floors: null,
-                coating: null,
-                colors: [],
-                decorType: null,
-                decorDetails: '',
-                observations: '',
-                photos: []
-              })
-              setShowOtherProducts(true)
-            }}
-            className={`px-8 py-4 rounded-2xl font-bold transition-all duration-300 text-white ${
-              order.noCake
-                ? 'scale-105 shadow-lg'
-                : 'hover:scale-105'
-            }`}
-            style={{
-              backgroundColor: order.noCake ? '#FF8C42' : '#FFB366',
-              boxShadow: order.noCake ? '0 8px 20px rgba(255, 140, 66, 0.4)' : '0 4px 10px rgba(255, 179, 102, 0.3)'
-            }}
-          >
-            🚫 NU ARE TORT
-          </button>
-        </div>
-      </div>
-
-      {/* Weight Section - Hidden when noCake */}
-      {!order.noCake && (
-        <div className="card-neumorphic">
-          <h3 className="text-xl font-bold text-secondary mb-6">⚖️ Greutate</h3>
-          <div className="flex flex-wrap gap-4">
-            {weights.map((weight) => (
-              <button
-                key={weight}
-                onClick={() => {
-                  updateOrder({ weight })
-                  if (weight !== '2 KG' && weight !== '2.5 KG' && weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
-                    updateOrder({ shape: null, floors: null })
-                  }
-                  if (weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
-                    updateOrder({ floors: null })
-                  }
-                }}
-                className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
-                  order.weight === weight
-                    ? 'btn-active scale-105'
-                    : 'btn-neumorphic hover:scale-102'
-                }`}
-              >
-                {weight}
-              </button>
-            ))}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === OTHER_TAB}
+              onClick={() => setActiveTab(OTHER_TAB)}
+              className={`px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base transition-all duration-300 ${
+                activeTab === OTHER_TAB ? 'btn-active scale-[1.02]' : 'bg-primary/50 text-secondary hover:scale-102'
+              }`}
+            >
+              🍰 ALTE PRODUSE
+            </button>
           </div>
-          {order.weight === 'ALTĂ GREUTATE' && (
-            <input
-              type="text"
-              value={order.customWeight}
-              onChange={(e) => updateOrder({ customWeight: e.target.value })}
-              placeholder="Specificați greutatea (ex: 4.5 KG)"
-              className="input-neumorphic mt-6 w-full text-secondary placeholder:text-secondary/40"
-            />
+        </div>
+
+        <div className="p-4 sm:p-6 md:p-8 space-y-8">
+          {activeTab === CAKE_TAB && cake && (
+            <div className="card-neumorphic space-y-6">
+              <div>
+                <h3 className="text-xl font-bold text-secondary mb-6">🎂 Tipuri de torturi</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {cakeTypes.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => updateCake({ cakeType: type })}
+                      className={`p-4 rounded-2xl font-semibold transition-all duration-300 text-sm ${
+                        type === 'MOUSSE DE CIOCOLATĂ NEAGRĂ' ? 'md:col-span-2' : ''
+                      } ${cake.cakeType === type ? 'btn-active scale-105' : 'btn-neumorphic hover:scale-102'}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card-neumorphic">
+                <h3 className="text-xl font-bold text-secondary mb-6">⚖️ Greutate</h3>
+                <div className="flex flex-wrap gap-4">
+                  {weights.map((weight) => (
+                    <button
+                      key={weight}
+                      type="button"
+                      onClick={() => setWeight(weight)}
+                      className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
+                        w === weight ? 'btn-active scale-105' : 'btn-neumorphic hover:scale-102'
+                      }`}
+                    >
+                      {weight}
+                    </button>
+                  ))}
+                </div>
+                {w === 'ALTĂ GREUTATE' && (
+                  <input
+                    type="text"
+                    value={cake.customWeight}
+                    onChange={(e) => updateCake({ customWeight: e.target.value })}
+                    placeholder="Specificați greutatea (ex: 4.5 KG)"
+                    className="input-neumorphic mt-6 w-full text-secondary placeholder:text-secondary/40"
+                  />
+                )}
+              </div>
+
+              {showShapeSection && (
+                <div className="card-neumorphic animate-float">
+                  <h3 className="text-xl font-bold text-secondary mb-6">📐 Formă</h3>
+                  <div className="flex flex-wrap gap-4">
+                    {shapes.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => updateCake({ shape: s })}
+                        className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
+                          cake.shape === s ? 'btn-active scale-105' : 'btn-neumorphic hover:scale-102'
+                        }`}
+                      >
+                        {s === 'ROTUND' && '⭕ '}
+                        {s === 'DREPTUNGHIULAR' && '▭ '}
+                        {s === 'ALTĂ FORMĂ' && '✨ '}
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {showFloorsSection && (
+                <div className="card-neumorphic animate-float" style={{ animationDelay: '0.1s' }}>
+                  <h3 className="text-xl font-bold text-secondary mb-6">🏢 Număr Etaje</h3>
+                  <div className="flex flex-wrap gap-4">
+                    {floors.map((floor) => (
+                      <button
+                        key={floor}
+                        type="button"
+                        onClick={() => updateCake({ floors: floor })}
+                        className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
+                          cake.floors === floor ? 'btn-active scale-105' : 'btn-neumorphic hover:scale-102'
+                        }`}
+                      >
+                        {floor} {parseInt(floor, 10) === 1 ? 'ETAJ' : 'ETAJE'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === OTHER_TAB && (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold text-secondary">🍰 Alte produse</h3>
+                <p className="text-secondary/70 text-sm">
+                  Prăjituri, tarte sau alte produse. Completați doar dacă există.
+                </p>
+                <textarea
+                  value={order.otherProducts}
+                  onChange={(e) => updateOrder({ otherProducts: e.target.value })}
+                  placeholder="Introduceți produsele comandate (prăjituri, tarte, etc.)..."
+                  className="input-neumorphic w-full text-secondary placeholder:text-secondary/40 min-h-[120px]"
+                  rows={5}
+                />
+              </div>
+
+              <PhotoUploader
+                title="📸 Poze"
+                description="Atașați poze pentru această comandă (max 3)."
+                isOtherProducts
+              />
+            </div>
           )}
         </div>
-      )}
-
-      {/* Shape Section (only if 2kg or more) - Hidden when noCake */}
-      {!order.noCake && showShapeSection && (
-        <div className="card-neumorphic animate-float">
-          <h3 className="text-xl font-bold text-secondary mb-6">📐 Formă</h3>
-          <div className="flex flex-wrap gap-4">
-            {shapes.map((shape) => (
-              <button
-                key={shape}
-                onClick={() => updateOrder({ shape })}
-                className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
-                  order.shape === shape
-                    ? 'btn-active scale-105'
-                    : 'btn-neumorphic hover:scale-102'
-                }`}
-              >
-                {shape === 'ROTUND' && '⭕ '}
-                {shape === 'DREPTUNGHIULAR' && '▭ '}
-                {shape === 'ALTĂ FORMĂ' && '✨ '}
-                {shape}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Floors Section (only if 3kg or alta greutate) - Hidden when noCake */}
-      {!order.noCake && showFloorsSection && (
-        <div className="card-neumorphic animate-float" style={{ animationDelay: '0.1s' }}>
-          <h3 className="text-xl font-bold text-secondary mb-6">🏢 Număr Etaje</h3>
-          <div className="flex flex-wrap gap-4">
-            {floors.map((floor) => (
-              <button
-                key={floor}
-                onClick={() => updateOrder({ floors: floor })}
-                className={`px-8 py-4 rounded-full font-bold transition-all duration-300 ${
-                  order.floors === floor
-                    ? 'btn-active scale-105'
-                    : 'btn-neumorphic hover:scale-102'
-                }`}
-              >
-                {floor} {parseInt(floor) === 1 ? 'ETAJ' : 'ETAJE'}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Other Products Section - Mandatory when noCake */}
-      <div className="card-neumorphic">
-        <h3 className="text-xl font-bold text-secondary mb-6">
-          🍰 Alte produse
-          {order.noCake && <span className="text-red-500 ml-2">*</span>}
-        </h3>
-        {!showOtherProducts && !order.noCake ? (
-          <button
-            onClick={() => setShowOtherProducts(true)}
-            className="btn-neumorphic px-8 py-4 rounded-2xl font-bold text-secondary hover:scale-105 transition-all duration-300"
-          >
-            + ADAUGĂ ALTE PRODUSE
-          </button>
-        ) : (
-          <div className="space-y-4">
-            <textarea
-              value={order.otherProducts}
-              onChange={(e) => updateOrder({ otherProducts: e.target.value })}
-              placeholder={order.noCake ? "Introduceți produsele comandate (prăjituri, tarte, etc.)... *OBLIGATORIU*" : "Introduceți alte produse comandate (prăjituri, tarte, etc.)..."}
-              className="input-neumorphic w-full text-secondary placeholder:text-secondary/40 min-h-[120px]"
-              rows={5}
-            />
-            {!order.noCake && (
-              <button
-                onClick={() => {
-                  setShowOtherProducts(false)
-                  if (!order.otherProducts.trim()) {
-                    updateOrder({ otherProducts: '' })
-                  }
-                }}
-                className="text-secondary/60 hover:text-red-500 transition-colors font-semibold"
-              >
-                ✕ Șterge secțiunea
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )

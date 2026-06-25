@@ -1,6 +1,18 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, ReactNode } from 'react'
-import { Order } from '../types/order.types'
+import { Order, OrderCake } from '../types/order.types'
+import { orderStep2SortimentValid } from '../utils/cakeOrder'
+
+export function makeEmptyCake(): OrderCake {
+  return {
+    id: crypto.randomUUID(),
+    cakeType: null,
+    weight: null,
+    customWeight: '',
+    shape: null,
+    floors: null,
+  }
+}
 
 function freshOrder(): Order {
   return {
@@ -15,12 +27,7 @@ function freshOrder(): Order {
     pickupTime: '',
     tomorrowVerification: false,
     advance: null,
-    noCake: false,
-    cakeType: null,
-    weight: null,
-    customWeight: '',
-    shape: null,
-    floors: null,
+    cakes: [makeEmptyCake()],
     otherProducts: '',
     coating: null,
     colors: [],
@@ -28,7 +35,9 @@ function freshOrder(): Order {
     decorDetails: '',
     observations: '',
     photos: [],
+    otherProductPhotos: [],
     foaieDeZaharPhoto: null,
+    hasPastry: false,
     orderNumber: null,
   }
 }
@@ -53,6 +62,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setOrder(freshOrder())
   }
 
+  const hasAnyCake = (o: Order) =>
+    o.cakes.some(
+      (c) => c.cakeType || c.weight || c.customWeight?.trim() || c.shape || c.floors,
+    )
+
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
@@ -61,24 +75,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         if (order.deliveryMethod === 'livrare' && !order.address.trim()) return false
         if (!order.staffName) return false
         if (!order.clientName.trim()) return false
-        if (!order.phoneNumber.trim() || order.phoneNumber.length < 8) return false
         if (!order.pickupDate) return false
         return true
       case 2:
-        // If no cake is selected, only validate that otherProducts is filled
-        if (order.noCake) {
-          if (!order.otherProducts.trim()) return false
-          return true
-        }
-        // Normal cake validation
-        if (!order.cakeType) return false
-        if (!order.weight) return false
-        if ((order.weight === '2 KG' || order.weight === '2.5 KG' || order.weight === '3 KG' || order.weight === 'ALTĂ GREUTATE') && !order.shape) return false
-        if ((order.weight === '3 KG' || order.weight === 'ALTĂ GREUTATE') && !order.floors) return false
-        return true
+        return orderStep2SortimentValid(order)
       case 3:
-        // Skip decoration validation if no cake
-        if (order.noCake) return true
+        // Skip decoration validation if there is no cake on the order
+        if (!hasAnyCake(order)) return true
         if (!order.coating) return false
         if (!order.decorType) return false
         return true
@@ -101,4 +104,3 @@ export function useOrder() {
   }
   return context
 }
-
