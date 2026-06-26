@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useOrder } from '../../context/OrderContext'
 import { CakeType, Weight, Shape, Floors, OrderCake } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
@@ -36,9 +37,18 @@ const OTHER_TAB = 1
 function Screen2Sortiment() {
   const { order, updateOrder } = useOrder()
   const config = useInstallationConfig()
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
 
   const cake = order.cakes[0]
-  const [activeTab, setActiveTab] = useState<number>(CAKE_TAB)
+  const [activeTab, setActiveTab] = useState<number>(
+    () => (tabParam === 'alte-produse' ? OTHER_TAB : CAKE_TAB),
+  )
+
+  useEffect(() => {
+    if (tabParam === 'alte-produse') setActiveTab(OTHER_TAB)
+    else if (tabParam === 'tort') setActiveTab(CAKE_TAB)
+  }, [tabParam])
 
   const getWeightSortValue = (weight: string) => {
     const match = weight.match(/[\d]+(?:[.,]\d+)?/)
@@ -230,7 +240,7 @@ function Screen2Sortiment() {
 
               <PhotoUploader
                 title="📸 Poze"
-                description="Atașați poze pentru această comandă (max 3)."
+                description="Atașați poze pentru această comandă (max 2)."
                 isOtherProducts
               />
             </div>

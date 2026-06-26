@@ -88,7 +88,8 @@ export const sendOrderEmail = async (
   orderNumber: number,
   recipientEmail: string,
   pdfPath: string,
-  ccEmail?: string
+  ccEmail?: string,
+  options?: { subjectSuffix?: string; bodyPrefix?: string }
 ): Promise<void> => {
   const from = process.env.GMAIL_SENDER
   if (!from) {
@@ -97,8 +98,8 @@ export const sendOrderEmail = async (
 
   const pdfBuffer = await fs.readFile(pdfPath)
   const filename = `comanda-${orderNumber}.pdf`
-  const subject = `Comandă #${orderNumber}`
-  const body = `Ați primit o nouă comandă #${orderNumber}. PDF în atașament.`
+  const subject = `Comandă #${orderNumber}${options?.subjectSuffix ?? ''}`
+  const body = `${options?.bodyPrefix ?? ''}Ați primit o nouă comandă #${orderNumber}. PDF în atașament.`
 
   const raw = buildRawEmail(from, recipientEmail, subject, body, filename, pdfBuffer, ccEmail)
 

@@ -1,0 +1,13 @@
+---
+description: Monitor Railway deployments after push/deploy for errors
+alwaysApply: true
+---
+
+# Railway Deploy Monitoring
+
+When the user asks to push, commit, and/or deploy to Railway:
+
+1. After triggering deployments, always check **build logs** for both `nodejs` and `frontend` services.
+2. Then check **deploy logs** for both services to confirm they started without errors.
+3. If any build or deploy errors are found, immediately investigate and fix them, then re-deploy.
+4. Only report success to the user after both services show clean builds and healthy runtime logs.

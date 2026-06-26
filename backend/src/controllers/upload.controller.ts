@@ -19,6 +19,35 @@ interface PendingPhoto {
 }
 
 const PENDING_UPLOAD_TTL_DAYS = Number(process.env.PENDING_UPLOAD_TTL_DAYS || 7)
+const MAX_CAKE_PHOTOS = 3
+const MAX_OTHER_PRODUCT_PHOTOS = 2
+
+async function countSessionPhotos(
+  sessionId: string,
+  isOtherProducts: boolean,
+  orderId: string | null,
+): Promise<number> {
+  const pendingCount = await prisma.uploadPhoto.count({
+    where: {
+      uploadSessionId: sessionId,
+      linkedAt: null,
+      isFoaieDeZahar: false,
+      isOtherProducts,
+    },
+  })
+
+  if (!orderId) return pendingCount
+
+  const orderCount = await prisma.photo.count({
+    where: {
+      orderId,
+      isFoaieDeZahar: false,
+      isOtherProducts,
+    },
+  })
+
+  return pendingCount + orderCount
+}
 
 async function ensureUploadSession(sessionId: string) {
   return prisma.uploadSession.upsert({
@@ -57,6 +86,23 @@ export const uploadPhoto = async (req: Request, res: Response) => {
       req.body?.otherProducts === true ||
       req.body?.otherProducts === 'true'
 
+    const maxPhotos = isOtherProducts ? MAX_OTHER_PRODUCT_PHOTOS : MAX_CAKE_PHOTOS
+    const uploadSession = await ensureUploadSession(sessionId)
+    const existingCount = await countSessionPhotos(sessionId, isOtherProducts, uploadSession.orderId)
+
+    if (existingCount >= maxPhotos) {
+      return res.status(400).json({
+        error: isOtherProducts
+          ? 'Poți încărca maximum 2 poze pentru alte produse.'
+          : 'Poți încărca maximum 3 poze.',
+      })
+    }
+
+    const allowedFiles = files.slice(0, maxPhotos - existingCount)
+    if (allowedFiles.length === 0) {
+      return res.status(400).json({ error: 'Limita de poze a fost atinsă.' })
+    }
+
     // Ensure upload directory exists
     await fs.mkdir(UPLOAD_DIR, { recursive: true })
     // Best-effort cleanup to avoid unbounded growth
@@ -66,7 +112,7 @@ export const uploadPhoto = async (req: Request, res: Response) => {
 
     // Process files SEQUENTIALLY to prevent memory spikes
     // This is critical for Railway's limited memory environment
-    for (const file of files) {
+    for (const file of allowedFiles) {
       try {
         console.log(`Processing file ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
         
@@ -95,8 +141,6 @@ export const uploadPhoto = async (req: Request, res: Response) => {
         const url = `/uploads/${filename}`
 
         // Persist session + pending uploads in DB so it works across instances
-        const uploadSession = await ensureUploadSession(sessionId)
-
         if (uploadSession.orderId) {
           // Order already exists, save photo immediately with retry logic
           let retries = 3

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
+import { normalizePhoneDigits } from '../utils/phone'
 
 console.log('Admin controller loaded, prisma:', prisma ? 'initialized' : 'UNDEFINED')
 
@@ -10,6 +11,7 @@ export const getOrderDetails = async (req: Request, res: Response) => {
       where: { id },
       include: {
         photos: true,
+        cakes: { orderBy: { position: 'asc' } },
         pickedUpBy: {
           select: {
             id: true,
@@ -48,9 +50,10 @@ export const updateOrder = async (req: Request, res: Response) => {
     const updateData: Record<string, unknown> = {}
     const allowed = [
       'deliveryMethod', 'location', 'address', 'staffName', 'clientName', 'phoneNumber',
-      'pickupDate', 'pickupTime', 'tomorrowVerification', 'advance', 'noCake',
-      'cakeType', 'weight', 'customWeight', 'shape', 'floors', 'otherProducts',
+      'pickupDate', 'pickupTime', 'tomorrowVerification', 'advance',
+      'otherProducts',
       'coating', 'colors', 'decorType', 'decorDetails', 'observations', 'createdByUsername',
+      'hasPastry',
     ] as const
     for (const key of allowed) {
       if (body[key] === undefined) continue
@@ -62,7 +65,7 @@ export const updateOrder = async (req: Request, res: Response) => {
         updateData[key] = body[key] === null || body[key] === '' ? null : parseFloat(String(body[key]))
         continue
       }
-      if (key === 'tomorrowVerification' || key === 'noCake') {
+      if (key === 'tomorrowVerification' || key === 'hasPastry') {
         updateData[key] = Boolean(body[key])
         continue
       }
@@ -70,14 +73,73 @@ export const updateOrder = async (req: Request, res: Response) => {
         updateData[key] = Array.isArray(body[key]) ? (body[key] as unknown[]).map((c) => String(c)) : []
         continue
       }
+      if (key === 'phoneNumber') {
+        const digits = normalizePhoneDigits(String(body[key] ?? ''))
+        updateData[key] = digits
+        continue
+      }
       updateData[key] = body[key] === null || body[key] === '' ? null : String(body[key])
     }
 
-    const updated = await prisma.order.update({
+    // Replace cakes if the payload includes the `cakes` field
+    const incomingCakes = body.cakes
+    const shouldReplaceCakes = Array.isArray(incomingCakes)
+    type CakeRow = {
+      position: number
+      cakeType: string | null
+      weight: string | null
+      customWeight: string | null
+      shape: string | null
+      floors: string | null
+    }
+    let cakeRows: CakeRow[] = []
+    if (shouldReplaceCakes) {
+      cakeRows = (incomingCakes as unknown[])
+        .map((c, idx): CakeRow | null => {
+          if (!c || typeof c !== 'object') return null
+          const v = c as Record<string, unknown>
+          const norm = (x: unknown) =>
+            x != null && String(x).trim() !== '' ? String(x) : null
+          const cakeType = norm(v.cakeType)
+          const weight = norm(v.weight)
+          const customWeight = norm(v.customWeight)
+          const shape = norm(v.shape)
+          const floors = norm(v.floors)
+          if (!cakeType && !weight && !customWeight && !shape && !floors) return null
+          return {
+            position: typeof v.position === 'number' ? v.position : idx + 1,
+            cakeType,
+            weight,
+            customWeight,
+            shape,
+            floors,
+          }
+        })
+        .filter((c): c is CakeRow => c !== null)
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (Object.keys(updateData).length > 0) {
+        await tx.order.update({
+          where: { id },
+          data: updateData as Parameters<typeof tx.order.update>[0]['data'],
+        })
+      }
+      if (shouldReplaceCakes) {
+        await tx.orderCake.deleteMany({ where: { orderId: id } })
+        if (cakeRows.length > 0) {
+          await tx.orderCake.createMany({
+            data: cakeRows.map((row) => ({ ...row, orderId: id })),
+          })
+        }
+      }
+    })
+
+    const updated = await prisma.order.findUnique({
       where: { id },
-      data: updateData as Parameters<typeof prisma.order.update>[0]['data'],
       include: {
         photos: true,
+        cakes: { orderBy: { position: 'asc' } },
         pickedUpBy: { select: { id: true, username: true } },
       },
     })

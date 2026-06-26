@@ -4,14 +4,20 @@ import bcrypt from 'bcrypt'
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim() : ''
+    const password = typeof req.body?.password === 'string' ? req.body.password : ''
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { username },
+    const user = await prisma.user.findFirst({
+      where: {
+        username: {
+          equals: username,
+          mode: 'insensitive',
+        },
+      },
     })
 
     if (!user) {
@@ -25,7 +31,7 @@ export const login = async (req: Request, res: Response) => {
 
     // Admin user must not login from main frontend (wizard) - only via admin panel
     const loginContext = req.body?.loginContext
-    if (user.username === 'admin' && loginContext !== 'admin') {
+    if (user.username.toLowerCase() === 'admin' && loginContext !== 'admin') {
       return res.status(403).json({
         error: 'Autentificarea utilizatorului admin nu este permisă din aplicația principală.'
       })

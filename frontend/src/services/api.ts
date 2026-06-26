@@ -5,25 +5,13 @@ const getBaseURL = () => {
   let envURL: string
   
   if (import.meta.env.DEV) {
-    // Development: start with default localhost or VITE_API_URL if set
-    envURL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-    
-    const currentHostname = typeof window !== 'undefined' ? window.location.hostname : null
-    
-    // If accessing from mobile device via IP (not localhost), use that IP for API
-    if (currentHostname && currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
-      // Extract IP from current URL
-      const port = envURL.match(/:(\d+)/)?.[1] || '5000'
-      envURL = `http://${currentHostname}:${port}`
-      console.log(`Detected IP from current URL: ${envURL}`)
+    // Prefer same-origin /api so Vite's dev proxy (see vite.config) forwards to the backend.
+    // Calling http://localhost:5000 directly breaks when the backend is down, blocked, or
+    // when mixed network setups; relative /api matches the page host (localhost:3000 or LAN IP).
+    if (import.meta.env.VITE_API_URL) {
+      envURL = import.meta.env.VITE_API_URL.replace(/\/api$/, '').replace(/\/$/, '')
     } else {
-      // Check localStorage for manually set IP
-      const localIP = localStorage.getItem('localNetworkIP')
-      if (localIP) {
-        // Replace localhost with the local IP for mobile device access
-        envURL = envURL.replace('localhost', localIP).replace('127.0.0.1', localIP)
-        console.log(`Using local network IP from localStorage: ${envURL}`)
-      }
+      envURL = ''
     }
   } else {
     // Production: use VITE_API_URL if set (injected at build time)

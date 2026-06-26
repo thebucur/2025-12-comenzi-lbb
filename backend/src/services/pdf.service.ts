@@ -410,40 +410,51 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
     photosToRender: PhotoRow[],
     startY: number,
     label: string,
+    options?: {
+      columnX?: number
+      columnWidth?: number
+      maxPhotos?: number
+      bottomY?: number
+    },
   ): Promise<number> => {
     if (photosToRender.length === 0) return startY
 
-    const slice = photosToRender.slice(0, 3)
-    const photoColumnX = margins.left + leftColumnWidth + columnGap
+    const maxPhotos = options?.maxPhotos ?? 3
+    const photoColumnX = options?.columnX ?? margins.left + leftColumnWidth + columnGap
+    const colWidth = options?.columnWidth ?? rightColumnWidth
+    const bottomY = options?.bottomY ?? doc.page.height - margins.bottom
+
+    const slice = photosToRender.slice(0, maxPhotos)
     const photoLabel = removeDiacritics(label)
     const photoHeadingHeight = doc
       .font(fontBold)
       .fontSize(13)
-      .heightOfString(photoLabel, { width: rightColumnWidth })
+      .heightOfString(photoLabel, { width: colWidth })
 
-    const availableHeight = doc.page.height - margins.bottom - startY
     const photoGap = 4
+    const headingSpace = photoHeadingHeight + 8
+    const availableHeight = bottomY - startY - headingSpace
     const cellHeight = Math.max((availableHeight - photoGap * (slice.length - 1)) / slice.length, 28)
     const imageMaxHeight = cellHeight
 
     doc.font(fontBold).fontSize(13).text(photoLabel, photoColumnX, startY, {
       underline: true,
-      width: rightColumnWidth,
+      width: colWidth,
     })
 
-    let lastCellBottom = startY + photoHeadingHeight + 8
+    let lastCellBottom = startY + headingSpace
 
     for (let i = 0; i < slice.length; i++) {
       const photo = slice[i]
       const resolvedPath = resolveImagePath(photo.path)
-      const cellY = startY + photoHeadingHeight + 8 + i * (cellHeight + photoGap)
+      const cellY = startY + headingSpace + i * (cellHeight + photoGap)
       const fallbackText = removeDiacritics(photo.url || 'Imagine indisponibila')
 
       if (resolvedPath) {
         try {
           const metadata = await sharp(resolvedPath).metadata()
           const aspectRatio = (metadata.width || 1) / (metadata.height || 1)
-          let targetWidth = rightColumnWidth
+          let targetWidth = colWidth
           let targetHeight = targetWidth / aspectRatio
 
           if (targetHeight > imageMaxHeight) {
@@ -451,7 +462,7 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
             targetWidth = targetHeight * aspectRatio
           }
 
-          const imageX = photoColumnX + (rightColumnWidth - targetWidth) / 2
+          const imageX = photoColumnX + (colWidth - targetWidth) / 2
           const imageY = cellY
 
           doc.image(resolvedPath, imageX, imageY, {
@@ -462,7 +473,7 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
         } catch (error) {
           console.error(`Error embedding image ${resolvedPath}:`, error)
           doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
-            width: rightColumnWidth,
+            width: colWidth,
             align: 'center',
           })
           lastCellBottom = Math.max(lastCellBottom, cellY + imageMaxHeight)
@@ -470,7 +481,7 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
       } else {
         console.log(`Image path not found, showing URL: ${photo.url}`)
         doc.font(fontRegular).fontSize(12).text(fallbackText, photoColumnX, cellY + imageMaxHeight / 2 - 6, {
-          width: rightColumnWidth,
+          width: colWidth,
           align: 'center',
         })
         lastCellBottom = Math.max(lastCellBottom, cellY + imageMaxHeight)
@@ -589,36 +600,85 @@ export const generatePDF = async (orderId: string): Promise<{ filepath: string; 
   if (order.advance) addField('Avans', `${order.advance} RON`)
 
   const tortSectionLeftEndY = doc.y
-  const tortSectionRightEndY = await renderPhotoColumn(cakePhotos, tortSectionStartY, 'Poze tort:')
-  doc.y = Math.max(tortSectionLeftEndY, tortSectionRightEndY) + 12
+  const pageBottomY = doc.page.height - margins.bottom
 
-  // --- Section 2: Alte produse (continues after tort) ---
+  // Cake photos span the full height of the right column.
+  // Render them first so they are always anchored to this page, regardless of
+  // how tall the left column grows.
+  await renderPhotoColumn(cakePhotos, tortSectionStartY, 'Poze tort:', {
+    bottomY: pageBottomY,
+  })
+
+  // --- Section 2: Alte produse (left column, below the order details) ---
   const hasOtherProductsSection =
     Boolean(order.otherProducts?.trim()) || otherProductPhotos.length > 0
 
-  if (hasOtherProductsSection) {
-    const otherSectionStartY = doc.y
-
-    doc.font(fontBold).fontSize(13).text(removeDiacritics('Alte produse:'), margins.left, doc.y, {
-      underline: true,
-      width: leftColumnWidth,
-    })
-    doc.moveDown(0.4)
-
-    if (order.otherProducts?.trim()) {
-      addOtherProductsField(order.otherProducts)
-    }
-
-    const otherSectionLeftEndY = doc.y
-    const otherSectionRightEndY = await renderPhotoColumn(
-      otherProductPhotos,
-      otherSectionStartY,
-      'Poze alte produse:',
-    )
-    doc.y = Math.max(otherSectionLeftEndY, otherSectionRightEndY) + 8
+  // Reserve space at the bottom of the left column for the "ARE FOAIE DE ZAHAR" footer
+  let foaieFooterReserve = 0
+  if (foaieDeZaharPhoto) {
+    const footerTextHeight = doc
+      .font(fontBold)
+      .fontSize(12)
+      .heightOfString(removeDiacritics('ARE FOAIE DE ZAHAR'), { width: leftColumnWidth })
+    foaieFooterReserve = footerTextHeight + 8 /* footer padding */ + 12 /* gap */
   }
+  const leftColumnBottomY = pageBottomY - foaieFooterReserve
 
-  doc.moveDown()
+  if (hasOtherProductsSection) {
+    // Everything below is positioned with explicit Y coordinates and guarded so it
+    // can never spill onto a second page (which would scramble the layout).
+    let leftY = tortSectionLeftEndY + 12
+
+    const headingHeight = doc
+      .font(fontBold)
+      .fontSize(13)
+      .heightOfString(removeDiacritics('Alte produse:'), { width: leftColumnWidth })
+
+    // Only draw the section if at least the heading fits in the remaining space.
+    if (leftY + headingHeight <= leftColumnBottomY) {
+      doc.y = leftY
+      doc.font(fontBold).fontSize(13).text(removeDiacritics('Alte produse:'), margins.left, leftY, {
+        underline: true,
+        width: leftColumnWidth,
+      })
+      doc.moveDown(0.4)
+      leftY = doc.y
+
+      if (order.otherProducts?.trim()) {
+        const fullText = `${removeDiacritics('Alte produse')}: ${removeDiacritics(order.otherProducts)}`
+        const textHeight = doc
+          .font(fontBold)
+          .fontSize(12)
+          .heightOfString(fullText, { width: leftColumnWidth })
+        // Only render the highlighted text line if it fits without paginating.
+        if (leftY + textHeight + 8 <= leftColumnBottomY) {
+          doc.y = leftY
+          addOtherProductsField(order.otherProducts)
+          leftY = doc.y
+        }
+      }
+
+      // Decide how many "alte produse" photos fit (max 2) in the remaining space.
+      const photosStartY = leftY + 6
+      const photoHeadingApprox = 21
+      const minImageHeight = 50
+      const photoGap = 4
+      const usableForImages = leftColumnBottomY - photosStartY - photoHeadingApprox
+      let leftMaxPhotos = 0
+      if (usableForImages >= minImageHeight) leftMaxPhotos = 1
+      if (usableForImages >= minImageHeight * 2 + photoGap) leftMaxPhotos = 2
+      leftMaxPhotos = Math.min(leftMaxPhotos, 2, otherProductPhotos.length)
+
+      if (leftMaxPhotos > 0) {
+        await renderPhotoColumn(otherProductPhotos, photosStartY, 'Poze alte produse:', {
+          columnX: margins.left,
+          columnWidth: leftColumnWidth,
+          maxPhotos: leftMaxPhotos,
+          bottomY: leftColumnBottomY,
+        })
+      }
+    }
+  }
 
   // Add "ARE FOAIE DE ZAHAR" text at the very bottom of the page if photo exists
   // This should be the last thing added to the PDF

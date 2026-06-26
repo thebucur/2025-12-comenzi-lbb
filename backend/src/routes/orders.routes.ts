@@ -53,7 +53,13 @@ router.post('/:id/generate-pdf', async (req, res) => {
     const { id } = req.params
     const { sendEmail: shouldSendEmail, recipientEmail } = req.body || {}
     const { filepath: pdfPath, orderNumber } = await generatePDF(id)
-    
+
+    // Look up hasPastry to decide whether to send the email twice
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { hasPastry: true },
+    })
+
     const targetEmail = recipientEmail || await getConfiguredRecipientEmail()
     const willSendEmail = shouldSendEmail !== false && !!targetEmail
 
@@ -64,8 +70,20 @@ router.post('/:id/generate-pdf', async (req, res) => {
       try {
         const ccEmail = await getDevCcEmail().catch(() => null)
         await sendOrderEmail(orderNumber, targetEmail, pdfPath, ccEmail ?? undefined)
+        // If the order also contains pastry, send a second print email so the
+        // print shop produces an extra sheet specifically for patiserie.
+        if (order?.hasPastry) {
+          await sendOrderEmail(orderNumber, targetEmail, pdfPath, ccEmail ?? undefined, {
+            subjectSuffix: ' - PATISERIE',
+            bodyPrefix: 'Foaie suplimentară pentru patiserie. ',
+          })
+        }
         emailSent = true
-        console.log(`[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}${ccEmail ? ` (CC: ${ccEmail})` : ''}`)
+        console.log(
+          `[Email] Trimis cu succes comanda #${orderNumber} către ${targetEmail}${
+            order?.hasPastry ? ' (x2 cu patiserie)' : ''
+          }${ccEmail ? ` (CC: ${ccEmail})` : ''}`,
+        )
       } catch (err) {
         emailError = getEmailErrorMessage(err)
         console.error(`[Email] Eroare comanda #${orderNumber}:`, emailError, err)

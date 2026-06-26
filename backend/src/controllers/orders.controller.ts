@@ -3,48 +3,70 @@ import prisma from '../lib/prisma'
 import { linkSessionToOrder } from './upload.controller'
 import type { AuthRequest } from '../middleware/auth.middleware'
 import { getBucharestTodayString } from '../utils/date'
+import { normalizePhoneDigits } from '../utils/phone'
+
+interface IncomingCake {
+  cakeType?: string | null
+  weight?: string | null
+  customWeight?: string | null
+  shape?: string | null
+  floors?: string | null
+  position?: number
+}
+
+function normalizeCakes(raw: unknown): IncomingCake[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((c, idx): IncomingCake | null => {
+      if (!c || typeof c !== 'object') return null
+      const v = c as Record<string, unknown>
+      const cakeType = v.cakeType != null && String(v.cakeType).trim() !== '' ? String(v.cakeType) : null
+      const weight = v.weight != null && String(v.weight).trim() !== '' ? String(v.weight) : null
+      const customWeight = v.customWeight != null && String(v.customWeight).trim() !== '' ? String(v.customWeight) : null
+      const shape = v.shape != null && String(v.shape).trim() !== '' ? String(v.shape) : null
+      const floors = v.floors != null && String(v.floors).trim() !== '' ? String(v.floors) : null
+      // Drop empty entries
+      if (!cakeType && !weight && !customWeight && !shape && !floors) return null
+      return {
+        cakeType,
+        weight,
+        customWeight,
+        shape,
+        floors,
+        position: typeof v.position === 'number' ? v.position : idx + 1,
+      }
+    })
+    .filter((c): c is IncomingCake => c !== null)
+}
 
 export const createOrder = async (req: Request, res: Response) => {
   try {
     const orderData = req.body
     
-    // Log incoming data for debugging - v1.2 (noCake support + type)
     console.log('Received order data:', JSON.stringify(orderData, null, 2))
-    console.log('noCake value/type:', orderData.noCake, typeof orderData.noCake)
+
+    const cakes = normalizeCakes(orderData.cakes)
+    const hasAnyCake = cakes.length > 0
 
     // Validate required fields
     const baseRequiredFields = [
       'deliveryMethod',
       'staffName',
       'clientName',
-      'phoneNumber',
       'pickupDate',
     ]
 
-    // Check if noCake is true
-    const isNoCake = orderData.noCake === true || orderData.noCake === 'true' || orderData.noCake === 1 || orderData.noCake === '1'
-    console.log('Order noCake status:', isNoCake, 'Raw value:', orderData.noCake)
-
-    // Add cake-specific required fields only if noCake is false
-    const requiredFields = isNoCake
-      ? [...baseRequiredFields, 'otherProducts'] // If no cake, otherProducts is required
-      : [...baseRequiredFields, 'cakeType', 'weight', 'coating', 'decorType'] // If has cake, validate cake fields
-
-    console.log('Required fields for this order:', requiredFields)
+    const requiredFields = hasAnyCake
+      ? [...baseRequiredFields, 'coating', 'decorType']
+      : [...baseRequiredFields]
 
     let missingFields = requiredFields.filter((field) => {
       const value = orderData[field]
       return value === null || value === undefined || value === ''
     })
 
-    // Safety guard: if noCake is true/truthy, drop cake fields from missing list
-    if (isNoCake) {
-      const cakeFields = ['cakeType', 'weight', 'coating', 'decorType']
-      missingFields = missingFields.filter((f) => !cakeFields.includes(f))
-      // Ensure otherProducts is present
-      if (!orderData.otherProducts || String(orderData.otherProducts).trim() === '') {
-        missingFields = [...missingFields, 'otherProducts']
-      }
+    if (!hasAnyCake && (!orderData.otherProducts || String(orderData.otherProducts).trim() === '')) {
+      missingFields = [...missingFields, 'otherProducts']
     }
 
     if (missingFields.length > 0) {
@@ -56,6 +78,8 @@ export const createOrder = async (req: Request, res: Response) => {
         message: `Lipsesc câmpuri obligatorii: ${missingFields.join(', ')}`,
       })
     }
+
+    const phoneDigits = normalizePhoneDigits(String(orderData.phoneNumber ?? ''))
 
     // Validate colors is an array
     if (orderData.colors && !Array.isArray(orderData.colors)) {
@@ -104,6 +128,7 @@ export const createOrder = async (req: Request, res: Response) => {
           photos: {
             select: { id: true, url: true, path: true, isFoaieDeZahar: true, createdAt: true },
           },
+          cakes: { orderBy: { position: 'asc' } },
         },
       })
       if (existing) {
@@ -114,7 +139,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
     // Atomically reserve the next order number in a transaction to avoid duplicates
     console.log('Reserving next order number...')
-    const { orderNumber, orderCreateData, orderId } = await prisma.$transaction(async (tx) => {
+    const { orderNumber, orderId } = await prisma.$transaction(async (tx) => {
       // Ensure we have a single canonical counter row and sync it with existing orders
       let nextOrderNumber: number
 
@@ -151,56 +176,54 @@ export const createOrder = async (req: Request, res: Response) => {
       // Prepare order data for creation
       const createdByUsername = orderData.createdByUsername ? String(orderData.createdByUsername).trim() : null
       console.log('[createOrder] Setting createdByUsername:', createdByUsername)
-      console.log('[createOrder] Raw orderData.createdByUsername:', orderData.createdByUsername)
-      
-      // Warn if createdByUsername is missing (but don't fail - for backward compatibility)
+
       if (!createdByUsername || createdByUsername === '') {
         console.warn('[createOrder] WARNING: createdByUsername is missing or empty! Order will not appear in user history.')
-        console.warn('[createOrder] Order data keys:', Object.keys(orderData))
       }
       
-      const preparedData = {
-        orderNumber: nextOrderNumber,
-        idempotencyKey: idempotencyKey || undefined,
-        deliveryMethod: String(orderData.deliveryMethod),
-        location: orderData.location ? String(orderData.location) : null,
-        address: orderData.address ? String(orderData.address) : null,
-        staffName: String(orderData.staffName),
-        clientName: String(orderData.clientName).trim(),
-        phoneNumber: String(orderData.phoneNumber).trim(),
-        pickupDate: pickupDateObj,
-        pickupTime: orderData.pickupTime ? String(orderData.pickupTime) : null,
-        tomorrowVerification: Boolean(orderData.tomorrowVerification),
-        advance: orderData.advance ? parseFloat(orderData.advance.toString()) : null,
-        noCake: Boolean(orderData.noCake),
-        cakeType: orderData.cakeType ? String(orderData.cakeType) : null,
-        weight: orderData.weight ? String(orderData.weight) : null,
-        customWeight: orderData.customWeight ? String(orderData.customWeight) : null,
-        shape: orderData.shape ? String(orderData.shape) : null,
-        floors: orderData.floors ? String(orderData.floors) : null,
-        otherProducts: orderData.otherProducts ? String(orderData.otherProducts) : null,
-        coating: orderData.coating ? String(orderData.coating) : null,
-        colors: Array.isArray(orderData.colors) ? orderData.colors.map((c: unknown) => String(c)) : [],
-        decorType: orderData.decorType ? String(orderData.decorType) : null,
-        decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
-        observations: orderData.observations ? String(orderData.observations) : null,
-        createdByUsername: createdByUsername,
-      }
-
-      // Create order inside the same transaction so the reserved number is consumed exactly once
       const createdOrder = await tx.order.create({
-        data: preparedData,
-        include: { photos: true },
+        data: {
+          orderNumber: nextOrderNumber,
+          idempotencyKey: idempotencyKey || undefined,
+          deliveryMethod: String(orderData.deliveryMethod),
+          location: orderData.location ? String(orderData.location) : null,
+          address: orderData.address ? String(orderData.address) : null,
+          staffName: String(orderData.staffName),
+          clientName: String(orderData.clientName).trim(),
+          phoneNumber: phoneDigits,
+          pickupDate: pickupDateObj,
+          pickupTime: orderData.pickupTime ? String(orderData.pickupTime) : null,
+          tomorrowVerification: Boolean(orderData.tomorrowVerification),
+          advance: orderData.advance ? parseFloat(orderData.advance.toString()) : null,
+          otherProducts: orderData.otherProducts ? String(orderData.otherProducts) : null,
+          coating: orderData.coating ? String(orderData.coating) : null,
+          colors: Array.isArray(orderData.colors) ? orderData.colors.map((c: unknown) => String(c)) : [],
+          decorType: orderData.decorType ? String(orderData.decorType) : null,
+          decorDetails: orderData.decorDetails ? String(orderData.decorDetails) : null,
+          observations: orderData.observations ? String(orderData.observations) : null,
+          hasPastry: Boolean(orderData.hasPastry),
+          createdByUsername: createdByUsername,
+          cakes: cakes.length > 0
+            ? {
+                create: cakes.map((c, idx) => ({
+                  position: c.position ?? idx + 1,
+                  cakeType: c.cakeType,
+                  weight: c.weight,
+                  customWeight: c.customWeight,
+                  shape: c.shape,
+                  floors: c.floors,
+                })),
+              }
+            : undefined,
+        },
+        include: { photos: true, cakes: { orderBy: { position: 'asc' } } },
       })
 
       return { 
         orderNumber: createdOrder.orderNumber, 
-        orderCreateData: preparedData,
         orderId: createdOrder.id,
       }
     })
-    
-    console.log('Creating order with data:', JSON.stringify(orderCreateData, null, 2))
 
     console.log('Order created successfully with number:', orderNumber)
 
@@ -230,17 +253,11 @@ export const createOrder = async (req: Request, res: Response) => {
             createdAt: true,
           },
         },
+        cakes: { orderBy: { position: 'asc' } },
       },
     })
 
     console.log(`Order created successfully: ${orderNumber} with ${orderWithPhotos?.photos?.length || 0} photos`)
-    if (orderWithPhotos?.photos && orderWithPhotos.photos.length > 0) {
-      console.log('Photos in order:', orderWithPhotos.photos.map(p => ({ 
-        url: p.url, 
-        path: p.path, 
-        isFoaieDeZahar: p.isFoaieDeZahar 
-      })))
-    }
     res.status(201).json({ ...orderWithPhotos, orderNumber })
   } catch (error: any) {
     console.error('Error creating order:', error)
@@ -310,7 +327,7 @@ export const getOrder = async (req: Request, res: Response) => {
     const { id } = req.params
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { photos: true },
+      include: { photos: true, cakes: { orderBy: { position: 'asc' } } },
     })
 
     if (!order) {
@@ -348,6 +365,7 @@ export const listOrders = async (req: Request, res: Response) => {
             createdAt: true,
           },
         },
+        cakes: { orderBy: { position: 'asc' } },
         pickedUpBy: {
           select: {
             id: true,
@@ -356,14 +374,6 @@ export const listOrders = async (req: Request, res: Response) => {
         },
       },
       orderBy: { createdAt: 'desc' },
-    })
-
-    // Debug: Log orders with foaie de zahar
-    orders.forEach(order => {
-      const foaieDeZaharPhotos = order.photos.filter(photo => photo.isFoaieDeZahar === true)
-      if (foaieDeZaharPhotos.length > 0) {
-        console.log(`Order #${order.orderNumber} has ${foaieDeZaharPhotos.length} foaie de zahar photo(s)`)
-      }
     })
 
     res.json(orders)
@@ -433,74 +443,17 @@ export const getUserOrders = async (req: Request, res: Response) => {
 
     const username = authHeader.substring(7).trim() // Remove 'Bearer ' prefix and trim whitespace
     
-    // Log for debugging (especially useful in production/Railway)
     console.log('[getUserOrders] Request from username:', username)
-    console.log('[getUserOrders] Authorization header:', authHeader ? 'present' : 'missing')
     
-    // Calculate the cutoff date: today - 1 day
-    // Orders are visible until delivery date + 1 day
-    // So if pickupDate is yesterday, it's visible until today (yesterday + 1 day = today)
-    // If pickupDate is today, it's visible until tomorrow (today + 1 day = tomorrow)
-    // So we need: pickupDate >= (today - 1 day)
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - 1)
-    cutoffDate.setHours(0, 0, 0, 0) // Start of the day
-
-    // First, let's check what orders exist for this user (for debugging)
-    const allUserOrders = await prisma.order.findMany({
-      where: {
-        createdByUsername: username,
-      },
-      select: {
-        id: true,
-        orderNumber: true,
-        createdByUsername: true,
-        pickupDate: true,
-        createdAt: true,
-      },
-    })
-    
-    console.log(`[getUserOrders] Found ${allUserOrders.length} total orders for username "${username}"`)
-    if (allUserOrders.length > 0) {
-      console.log(`[getUserOrders] Sample orders:`, allUserOrders.slice(0, 3).map(o => ({
-        orderNumber: o.orderNumber,
-        createdByUsername: o.createdByUsername,
-        pickupDate: o.pickupDate,
-      })))
-    }
-    
-    // Also check for orders with null createdByUsername (for debugging)
-    const ordersWithNullUsername = await prisma.order.count({
-      where: {
-        createdByUsername: null,
-        pickupDate: {
-          gte: cutoffDate,
-        },
-      },
-    })
-    if (ordersWithNullUsername > 0) {
-      console.log(`[getUserOrders] WARNING: Found ${ordersWithNullUsername} orders with null createdByUsername in date range`)
-    }
-    
-    // Get sample usernames from recent orders (for debugging)
-    const sampleUsernames = await prisma.order.findMany({
-      where: {
-        createdByUsername: { not: null },
-        pickupDate: { gte: cutoffDate },
-      },
-      select: {
-        createdByUsername: true,
-      },
-      distinct: ['createdByUsername'],
-      take: 5,
-    })
-    console.log(`[getUserOrders] Sample usernames in database:`, sampleUsernames.map(o => o.createdByUsername))
+    cutoffDate.setHours(0, 0, 0, 0)
 
     const orders = await prisma.order.findMany({
       where: {
         createdByUsername: username,
         pickupDate: {
-          gte: cutoffDate, // Only orders with pickupDate >= (today - 1 day)
+          gte: cutoffDate,
         },
       },
       include: { 
@@ -513,6 +466,7 @@ export const getUserOrders = async (req: Request, res: Response) => {
             createdAt: true,
           },
         },
+        cakes: { orderBy: { position: 'asc' } },
         pickedUpBy: {
           select: {
             id: true,
@@ -584,5 +538,3 @@ export const updateMyStaffNames = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to update staff names' })
   }
 }
-
-

@@ -5,6 +5,7 @@ import { resolveColorValue } from '../constants/colors'
 import { getAbsoluteImageUrl } from '../utils/imageUrl'
 import { getDateRecencyClass } from '../utils/dateRecency'
 import { formatBucharestDate, formatBucharestTime } from '../utils/date'
+import { formatPhoneDisplay } from '../utils/phone'
 
 // Use centralized function
 const getAbsoluteUrl = getAbsoluteImageUrl
@@ -35,6 +36,11 @@ interface OrderData {
   customWeight: string | null
   shape: string | null
   floors: string | null
+  cake2Type?: string | null
+  cake2Weight?: string | null
+  cake2CustomWeight?: string | null
+  cake2Shape?: string | null
+  cake2Floors?: string | null
   otherProducts: string | null
   coating: string
   colors: string[]
@@ -144,7 +150,7 @@ function UserOrderDetails() {
               </div>
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Telefon</p>
-                <p className="font-bold text-secondary text-lg">07{order.phoneNumber}</p>
+                <p className="font-bold text-secondary text-lg">{formatPhoneDisplay(order.phoneNumber)}</p>
               </div>
               {order.createdByUsername && (
                 <div className="bg-primary/50 p-4 rounded-2xl">
@@ -196,6 +202,7 @@ function UserOrderDetails() {
           <div className="card-neumorphic space-y-4">
             <h2 className="text-3xl font-bold text-gradient mb-6">🎂 Detalii tort</h2>
             <div className="space-y-3">
+              <p className="text-sm font-bold text-secondary/80">Tort 1</p>
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
                 <p className="font-bold text-secondary text-lg">{order.cakeType}</p>
@@ -213,8 +220,37 @@ function UserOrderDetails() {
               {order.floors && (
                 <div className="bg-primary/50 p-4 rounded-2xl">
                   <p className="text-sm text-secondary/60 mb-1">Număr etaje</p>
-                  <p className="font-bold text-secondary text-lg">{order.floors} {parseInt(order.floors) === 1 ? 'etaj' : 'etaje'}</p>
+                  <p className="font-bold text-secondary text-lg">{order.floors} {parseInt(order.floors, 10) === 1 ? 'etaj' : 'etaje'}</p>
                 </div>
+              )}
+              {order.cake2Type && (
+                <>
+                  <p className="text-sm font-bold text-secondary/80 pt-2 border-t border-primary/20">Tort 2</p>
+                  <div className="bg-primary/50 p-4 rounded-2xl">
+                    <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
+                    <p className="font-bold text-secondary text-lg">{order.cake2Type}</p>
+                  </div>
+                  <div className="bg-primary/50 p-4 rounded-2xl">
+                    <p className="text-sm text-secondary/60 mb-1">Greutate</p>
+                    <p className="font-bold text-secondary text-lg">
+                      {order.cake2Weight === 'ALTĂ GREUTATE' ? order.cake2CustomWeight : order.cake2Weight}
+                    </p>
+                  </div>
+                  {order.cake2Shape && (
+                    <div className="bg-primary/50 p-4 rounded-2xl">
+                      <p className="text-sm text-secondary/60 mb-1">Formă</p>
+                      <p className="font-bold text-secondary text-lg">{order.cake2Shape}</p>
+                    </div>
+                  )}
+                  {order.cake2Floors && (
+                    <div className="bg-primary/50 p-4 rounded-2xl">
+                      <p className="text-sm text-secondary/60 mb-1">Număr etaje</p>
+                      <p className="font-bold text-secondary text-lg">
+                        {order.cake2Floors} {parseInt(order.cake2Floors, 10) === 1 ? 'etaj' : 'etaje'}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
               {order.otherProducts && (
                 <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
@@ -277,20 +313,30 @@ function UserOrderDetails() {
             <div className="card-neumorphic space-y-4 lg:col-span-2">
               <h2 className="text-3xl font-bold text-gradient mb-6">📄 Foaie de zahar</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {foaieDeZaharPhotos.map((photo, index) => (
-                  <div key={photo.id || index} className="shadow-neumorphic rounded-2xl overflow-hidden group">
-                    <img
-                      src={getAbsoluteUrl(photo.url)}
-                      alt={`Foaie de zahar ${index + 1}`}
-                      className="w-full h-64 object-contain bg-primary/20 group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        console.error('Error loading image:', photo.url, 'Full URL:', getAbsoluteUrl(photo.url))
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                      }}
-                    />
-                  </div>
-                ))}
+                {foaieDeZaharPhotos.map((photo, index) => {
+                  const fullUrl = getAbsoluteUrl(photo.url)
+                  return (
+                    <a
+                      key={photo.id || index}
+                      href={fullUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shadow-neumorphic rounded-2xl overflow-hidden group block"
+                      title="Deschide imaginea într-un tab nou"
+                    >
+                      <img
+                        src={fullUrl}
+                        alt={`Foaie de zahar ${index + 1}`}
+                        className="w-full h-64 object-contain bg-primary/20 group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          console.error('Error loading image:', photo.url, 'Full URL:', fullUrl)
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                        }}
+                      />
+                    </a>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -300,20 +346,30 @@ function UserOrderDetails() {
             <div className="card-neumorphic space-y-4 lg:col-span-2">
               <h2 className="text-3xl font-bold text-gradient mb-6">📸 Poze încărcate ({regularPhotos.length})</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {regularPhotos.map((photo, index) => (
-                  <div key={photo.id || index} className="shadow-neumorphic rounded-2xl overflow-hidden group">
-                    <img
-                      src={getAbsoluteUrl(photo.url)}
-                      alt={`Poza ${index + 1}`}
-                      className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
-                      onError={(e) => {
-                        console.error('Error loading image:', photo.url, 'Full URL:', getAbsoluteUrl(photo.url))
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                      }}
-                    />
-                  </div>
-                ))}
+                {regularPhotos.map((photo, index) => {
+                  const fullUrl = getAbsoluteUrl(photo.url)
+                  return (
+                    <a
+                      key={photo.id || index}
+                      href={fullUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shadow-neumorphic rounded-2xl overflow-hidden group block"
+                      title="Deschide imaginea într-un tab nou"
+                    >
+                      <img
+                        src={fullUrl}
+                        alt={`Poza ${index + 1}`}
+                        className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
+                        onError={(e) => {
+                          console.error('Error loading image:', photo.url, 'Full URL:', fullUrl)
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                        }}
+                      />
+                    </a>
+                  )
+                })}
               </div>
             </div>
           )}

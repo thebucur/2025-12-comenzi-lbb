@@ -7,18 +7,21 @@ interface ProgressStepperProps {
 
 const steps = [
   { number: 1, label: 'Ridicare', icon: '📦' },
-  { number: 2, label: 'Sortiment', icon: '🎂' },
+  { number: 2, label: 'Produse', icon: '🎂' },
   { number: 3, label: 'Decor', icon: '🎨' },
   { number: 4, label: 'Finalizare', icon: '✓' },
 ]
 
 function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {
   const { order } = useOrder()
+  const hasAnyCake = order.cakes.some(
+    (c) => c.cakeType || c.weight || c.customWeight?.trim() || c.shape || c.floors,
+  )
   return (
     <div className="flex items-center justify-center mb-12 px-2 sm:px-4 pt-8 max-w-full overflow-hidden">
       {steps.map((step, index) => {
-        // Check if this step should be skipped (step 3 when noCake is true)
-        const isSkipped = step.number === 3 && order.noCake
+        // Step 3 (decor) is skipped when no cake is selected on the order
+        const isSkipped = step.number === 3 && !hasAnyCake
         
         return (
           <div key={step.number} className="flex items-center">

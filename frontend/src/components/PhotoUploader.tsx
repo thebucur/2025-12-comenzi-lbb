@@ -4,7 +4,8 @@ import api from '../services/api'
 import { useOrder } from '../context/OrderContext'
 import { getLocalNetworkUrl, getLocalNetworkIP } from '../utils/network'
 
-const MAX_PHOTOS = 3
+const MAX_CAKE_PHOTOS = 3
+const MAX_OTHER_PRODUCT_PHOTOS = 2
 
 const buildAbsoluteUrl = (relativeUrl: string): string => {
   if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
@@ -66,6 +67,7 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
 
   const photoList = isOtherProducts ? order.otherProductPhotos : order.photos
   const photosField = isOtherProducts ? 'otherProductPhotos' as const : 'photos' as const
+  const maxPhotos = isOtherProducts ? MAX_OTHER_PRODUCT_PHOTOS : MAX_CAKE_PHOTOS
 
   const ensureSession = (): string => {
     let sessionId = localStorage.getItem('currentUploadSession')
@@ -99,7 +101,8 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
           return !deletedPaths.has(norm) && !existingPaths.has(norm)
         })
         if (newOnes.length > 0) {
-          updateOrder({ [photosField]: [...photoList, ...newOnes] })
+          const merged = [...photoList, ...newOnes].slice(0, maxPhotos)
+          updateOrder({ [photosField]: merged })
         }
       } catch {
         // Session may not exist yet; ignore.
@@ -142,11 +145,14 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
     const files = event.target.files
     if (!files || files.length === 0) return
 
+    const remainingSlots = maxPhotos - photoList.length
+    if (remainingSlots <= 0) return
+
     const sessionId = ensureSession()
     setIsUploading(true)
     try {
       const formData = new FormData()
-      for (const file of Array.from(files)) {
+      for (const file of Array.from(files).slice(0, remainingSlots)) {
         formData.append('photos', file, file.name)
       }
       const uploadPath = isOtherProducts
@@ -165,7 +171,7 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
 
       const unique = urls.filter((url) => !photoList.includes(url))
       if (unique.length > 0) {
-        updateOrder({ [photosField]: [...photoList, ...unique] })
+        updateOrder({ [photosField]: [...photoList, ...unique].slice(0, maxPhotos) })
       }
     } catch (err) {
       console.error('Local upload failed', err)
@@ -222,7 +228,7 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
     updateOrder({ [photosField]: photoList.filter((_, i) => i !== index) })
   }
 
-  const reachedLimit = photoList.length >= MAX_PHOTOS
+  const reachedLimit = photoList.length >= maxPhotos
 
   return (
     <div className="card-neumorphic">
@@ -250,7 +256,7 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
             : 'btn-active hover:scale-105'
         }`}
       >
-        {isUploading ? 'Se încarcă...' : `📸 ÎNCARCĂ POZE (${photoList.length}/${MAX_PHOTOS})`}
+        {isUploading ? 'Se încarcă...' : `📸 ÎNCARCĂ POZE (${photoList.length}/${maxPhotos})`}
       </button>
 
       {showPickerModal && (
@@ -258,7 +264,7 @@ function PhotoUploader({ title = '📸 Poze', description, isOtherProducts = fal
           <div className="glass-card max-w-md w-full p-8 animate-float">
             <h3 className="text-2xl font-bold text-gradient mb-6 text-center">📸 Încarcă Poze</h3>
             <p className="text-center text-secondary/70 mb-6">
-              Alege metoda de încărcare (max {MAX_PHOTOS} poze, {MAX_PHOTOS - photoList.length} disponibile)
+              Alege metoda de încărcare (max {maxPhotos} poze, {maxPhotos - photoList.length} disponibile)
             </p>
             <div className="flex flex-col gap-4">
               <button

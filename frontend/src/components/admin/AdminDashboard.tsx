@@ -1,11 +1,12 @@
 import axios from 'axios'
 import { useEffect, useState, useRef, useMemo, Fragment } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import JSZip from 'jszip'
 import api from '../../services/api'
 import { getInventoriesByDate } from '../../services/inventory.api'
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import { getTodayString, formatBucharestDate, formatBucharestDateTime, formatBucharestTime, toBucharestDateString } from '../../utils/date'
+import { formatPhoneDisplay } from '../../utils/phone'
 import InventoryProductsManager from './InventoryProductsManager'
 import ReportsView from './ReportsView'
 
@@ -64,11 +65,20 @@ interface Order {
     username: string
   } | null
   photos?: Photo[]
-  cakeType?: string | null
+  cakes?: Array<{
+    id?: string
+    position?: number
+    cakeType: string | null
+    weight: string | null
+    customWeight: string | null
+    shape: string | null
+    floors: string | null
+  }>
   otherProducts?: string | null
   decorType?: string | null
   decorDetails?: string | null
   observations?: string | null
+  hasPastry?: boolean
 }
 
 interface User {
@@ -535,6 +545,7 @@ function AdminDashboard() {
   )
   const [orders, setOrders] = useState<Order[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterDeliveryToday, setFilterDeliveryToday] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [globalConfigs, setGlobalConfigs] = useState<GlobalConfig[]>([])
   const [inventoryDataByDate, setInventoryDataByDate] = useState<Map<string, any>>(new Map())
@@ -577,38 +588,7 @@ function AdminDashboard() {
   const getPhoneSearchVariants = (phoneValue: string | null | undefined) => {
     const digits = String(phoneValue || '').replace(/\D/g, '')
     if (!digits) return []
-
-    const variants = new Set<string>()
-    variants.add(digits)
-
-    // Stored formats can vary (8 digits, 9 digits with 0, full 10 digits with 07)
-    if (digits.length === 8) {
-      variants.add(`0${digits}`)
-      variants.add(`07${digits}`)
-      variants.add(`40${digits}`)
-      variants.add(`407${digits}`)
-    } else if (digits.length === 9 && digits.startsWith('0')) {
-      const withoutLeadingZero = digits.slice(1)
-      variants.add(withoutLeadingZero)
-      variants.add(`7${withoutLeadingZero}`)
-      variants.add(`40${withoutLeadingZero}`)
-      variants.add(`4${digits}`)
-    } else if (digits.length === 10 && digits.startsWith('07')) {
-      const last8 = digits.slice(2)
-      variants.add(last8)
-      variants.add(`0${last8}`)
-      variants.add(`40${last8}`)
-      variants.add(`4${digits}`)
-    } else if (digits.startsWith('40')) {
-      const maybeLocal = digits.replace(/^40/, '')
-      variants.add(maybeLocal)
-      if (maybeLocal.length === 8) {
-        variants.add(`07${maybeLocal}`)
-        variants.add(`0${maybeLocal}`)
-      }
-    }
-
-    return Array.from(variants)
+    return [digits]
   }
 
   const handleAdminLogout = () => {
@@ -662,10 +642,19 @@ function AdminDashboard() {
   }
 
   const filteredOrders = useMemo(() => {
-    if (!searchQuery.trim()) return orders
+    let result = orders
+
+    if (filterDeliveryToday) {
+      const todayStr = getTodayString()
+      result = result.filter(
+        (order) => order.pickupDate && toBucharestDateString(order.pickupDate) === todayStr
+      )
+    }
+
+    if (!searchQuery.trim()) return result
     const query = normalizeSearchText(searchQuery.trim())
     const compactQuery = normalizeCompactSearchText(searchQuery.trim())
-    return orders.filter((order) => {
+    return result.filter((order) => {
       const searchableValues = (function collectValues(obj: any): string[] {
         const vals: string[] = []
         for (const val of Object.values(obj)) {
@@ -681,7 +670,7 @@ function AdminDashboard() {
         return vals
       })(order)
 
-      // Add extra phone variants so searches like "07...", "07 12...", "0712-..." work.
+      // Extra phone variants (national / international digit forms) for compact search
       searchableValues.push(...getPhoneSearchVariants(order.phoneNumber))
 
       return searchableValues.some((value) => {
@@ -689,7 +678,7 @@ function AdminDashboard() {
         return value.includes(query) || (compactQuery.length > 0 && compactValue.includes(compactQuery))
       })
     })
-  }, [orders, searchQuery])
+  }, [orders, searchQuery, filterDeliveryToday])
 
   const productSuggestions = useMemo(() => {
     const trimmedQuery = searchQuery.trim()
@@ -715,7 +704,7 @@ function AdminDashboard() {
     }
 
     orders.forEach((order) => {
-      addIfMatch(order.cakeType)
+      order.cakes?.forEach((cake) => addIfMatch(cake.cakeType))
       addIfMatch(order.otherProducts)
       addIfMatch(order.decorType)
       addIfMatch(order.decorDetails)
@@ -1332,7 +1321,17 @@ function AdminDashboard() {
                       : 'Selectați comenzi pentru descărcare'}
                   </p>
                 </div>
-                <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+                <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
+                  <button
+                    onClick={() => setFilterDeliveryToday((prev) => !prev)}
+                    className={`px-4 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm md:text-base hover:scale-105 transition-all flex-1 sm:flex-none ${
+                      filterDeliveryToday
+                        ? 'btn-active scale-105'
+                        : 'btn-neumorphic text-secondary'
+                    }`}
+                  >
+                    CU LIVRARE AZI
+                  </button>
                   <button
                     onClick={handleBulkDownloadPDFs}
                     disabled={selectedOrders.size === 0 || isDownloading}
@@ -1416,13 +1415,29 @@ function AdminDashboard() {
               ) : filteredOrders.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="text-6xl mb-4">🔍</div>
-                  <p className="text-xl font-bold text-secondary/50">Niciun rezultat pentru „{searchQuery}"</p>
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="mt-4 btn-neumorphic px-4 py-2 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all"
-                  >
-                    Șterge căutarea
-                  </button>
+                  <p className="text-xl font-bold text-secondary/50">
+                    {filterDeliveryToday && !searchQuery.trim()
+                      ? 'Nicio comandă cu livrare astăzi'
+                      : `Niciun rezultat pentru „${searchQuery}"`}
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {filterDeliveryToday && (
+                      <button
+                        onClick={() => setFilterDeliveryToday(false)}
+                        className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all"
+                      >
+                        Arată toate comenzile
+                      </button>
+                    )}
+                    {searchQuery.trim() && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="btn-neumorphic px-4 py-2 rounded-xl font-bold text-sm text-secondary hover:scale-105 transition-all"
+                      >
+                        Șterge căutarea
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -1515,7 +1530,7 @@ function AdminDashboard() {
                               <tr key={order.id} className="hover:bg-primary/30 transition-colors">
                                 <td className="px-1 sm:px-2 py-1.5 sm:py-2 font-bold text-accent-purple text-xs whitespace-nowrap">#{order.orderNumber}</td>
                                 <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs truncate max-w-[100px] sm:max-w-none">{order.clientName}</td>
-                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap">07{order.phoneNumber}</td>
+                                <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs whitespace-nowrap">{formatPhoneDisplay(order.phoneNumber)}</td>
                                 <td className="hidden md:table-cell px-1 sm:px-2 py-1.5 sm:py-2 text-secondary text-xs">
                                   <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-bold inline-block whitespace-nowrap ${
                                     order.deliveryMethod === 'ridicare' 
@@ -1538,12 +1553,12 @@ function AdminDashboard() {
                                 </td>
                                 <td className="px-1 sm:px-2 py-2">
                                   <div className="flex gap-1 sm:gap-2 items-center">
-                                    <button
-                                      onClick={() => navigate(`/orders/${order.id}`)}
-                                      className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all whitespace-nowrap"
+                                    <Link
+                                      to={`/orders/${order.id}`}
+                                      className="btn-active px-2 py-1 rounded-lg text-xs font-bold hover:scale-105 transition-all whitespace-nowrap inline-block"
                                     >
                                       Vezi
-                                    </button>
+                                    </Link>
                                     {hasFoaieDeZahar && (
                                       <button
                                         onClick={() => handleDownloadFoaieDeZahar(order.id, order.orderNumber)}
@@ -1834,13 +1849,13 @@ function AdminDashboard() {
           <div className="space-y-6">
             <div className="card-neumorphic">
               <h2 className="text-xl sm:text-2xl font-bold text-secondary mb-2">Configurație globală</h2>
-              <p className="text-secondary/60 text-sm sm:text-base">Gestionează elementele disponibile pentru sortiment și decor</p>
+              <p className="text-secondary/60 text-sm sm:text-base">Gestionează elementele disponibile pentru produse și decor</p>
             </div>
 
             <div className="space-y-6">
-              {/* Sortiment Section */}
+              {/* Produse Section */}
               <div className="card-neumorphic">
-                <h3 className="text-xl sm:text-2xl font-bold text-gradient mb-4 sm:mb-6">🎂 Sortiment</h3>
+                <h3 className="text-xl sm:text-2xl font-bold text-gradient mb-4 sm:mb-6">🎂 Produse</h3>
                 <SortimentDecorManager
                   category="sortiment"
                   configs={globalConfigs.filter((c) => c.category === 'sortiment')}

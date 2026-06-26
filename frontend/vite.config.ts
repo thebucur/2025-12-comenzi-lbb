@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { tmpdir } from 'os'
+
+// Outside project folder (e.g. Dropbox) so sync locks don't break Vite dependency pre-bundling (EBUSY).
+const viteCacheDir = join(tmpdir(), 'vite-cache-comenzi-lbb')
 
 // Plugin to generate admin manifest
 function generateAdminManifest(): Plugin {
@@ -88,6 +92,7 @@ function removeMainSWFromAdmin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  cacheDir: viteCacheDir,
   build: {
     rollupOptions: {
       input: {
@@ -187,7 +192,8 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0', // Listen on all network interfaces
-    port: 3000,
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:5000',

@@ -5,6 +5,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 import { formatBucharestDate } from '../../utils/date'
+import { formatPhoneDisplay, normalizePhoneDigits } from '../../utils/phone'
+import { isCakeStarted, isCakeValid } from '../../utils/cakeOrder'
 
 interface ModalState {
   visible: boolean
@@ -64,9 +66,10 @@ function Screen4Finalizare() {
     fetchPdfSettings()
   }, [])
 
-  const handleEdit = (step: number) => {
-    // Mark edit mode so the wizard knows to show the quick return button
-    setSearchParams({ step: step.toString(), edit: '1' })
+  const handleEdit = (step: number, tab?: 'tort' | 'alte-produse') => {
+    const params: Record<string, string> = { step: step.toString(), edit: '1' }
+    if (tab) params.tab = tab
+    setSearchParams(params)
   }
 
   // Helper function to convert relative URL to absolute (same as PhotoUpload)
@@ -107,20 +110,23 @@ function Screen4Finalizare() {
       if (!order.deliveryMethod) missingFields.push('Metodă de livrare')
       if (!order.staffName) missingFields.push('Nume angajat')
       if (!order.clientName?.trim()) missingFields.push('Nume client')
-      if (!order.phoneNumber?.trim()) missingFields.push('Număr telefon')
       if (!order.pickupDate) missingFields.push('Data ridicării')
       
-      // Only validate cake fields if noCake is false
-      if (!order.noCake) {
-        if (!order.cakeType) missingFields.push('Tip tort')
-        if (!order.weight) missingFields.push('Greutate')
+      const startedCakes = order.cakes.filter(isCakeStarted)
+      const hasAnyCake = startedCakes.length > 0
+
+      if (hasAnyCake) {
+        startedCakes.forEach((cake) => {
+          if (!isCakeValid(cake)) {
+            missingFields.push('Detalii tort (tip, greutate, formă, etaje)')
+          }
+        })
         if (!order.coating) missingFields.push('Îmbrăcăminte')
         if (!order.decorType) missingFields.push('Tip decor')
-      } else {
-        // If noCake is true, validate otherProducts
-        if (!order.otherProducts?.trim()) missingFields.push('Alte produse')
+      } else if (!order.otherProducts?.trim()) {
+        missingFields.push('Alte produse (sau adăugați un tort)')
       }
-      
+
       if (missingFields.length > 0) {
         showModal('warning', 'Câmpuri obligatorii lipsă', [
           ...missingFields,
@@ -147,6 +153,16 @@ function Screen4Finalizare() {
       // Get username from localStorage (user who is logged in)
       const createdByUsername = localStorage.getItem('authToken') || null
       
+      // Only send fully-valid cakes (started but invalid cakes are blocked by validation above)
+      const validCakes = order.cakes.filter(isCakeValid).map((c, idx) => ({
+        position: idx + 1,
+        cakeType: c.cakeType || null,
+        weight: c.weight || null,
+        customWeight: c.customWeight || null,
+        shape: c.shape || null,
+        floors: c.floors || null,
+      }))
+
       // Prepare order data with proper formatting
       const orderData = {
         idempotencyKey: order.idempotencyKey,
@@ -155,23 +171,19 @@ function Screen4Finalizare() {
         address: order.address || null,
         staffName: order.staffName,
         clientName: order.clientName.trim(),
-        phoneNumber: order.phoneNumber.trim(),
+        phoneNumber: normalizePhoneDigits(order.phoneNumber.trim()),
         pickupDate: pickupDate,
         pickupTime: order.pickupTime || null,
         tomorrowVerification: order.tomorrowVerification || false,
         advance: order.advance ? Number(order.advance) : null,
-        noCake: order.noCake || false,
-        cakeType: order.cakeType,
-        weight: order.weight,
-        customWeight: order.customWeight || null,
-        shape: order.shape || null,
-        floors: order.floors || null,
+        cakes: validCakes,
         otherProducts: order.otherProducts || null,
-        coating: order.coating,
-        colors: Array.isArray(order.colors) ? order.colors : [],
-        decorType: order.decorType,
-        decorDetails: order.decorDetails || null,
-        observations: order.observations || null,
+        coating: validCakes.length > 0 ? order.coating : null,
+        colors: validCakes.length > 0 && Array.isArray(order.colors) ? order.colors : [],
+        decorType: validCakes.length > 0 ? order.decorType : null,
+        decorDetails: validCakes.length > 0 ? order.decorDetails || null : null,
+        observations: validCakes.length > 0 ? order.observations || null : null,
+        hasPastry: Boolean(order.hasPastry),
         uploadSessionId: uploadSessionId || null,
         createdByUsername: createdByUsername,
       }
@@ -364,7 +376,7 @@ function Screen4Finalizare() {
           {order.phoneNumber && (
             <div className="bg-primary/50 p-4 rounded-2xl">
               <p className="text-sm text-secondary/60 mb-1">Telefon</p>
-              <p className="font-bold text-secondary">07{order.phoneNumber}</p>
+              <p className="font-bold text-secondary">{formatPhoneDisplay(order.phoneNumber)}</p>
             </div>
           )}
           
@@ -387,64 +399,129 @@ function Screen4Finalizare() {
         </div>
       </div>
 
-      {/* Summary Card 2: Tort */}
+      {/* Summary Card 2: Produse */}
       <div className="card-neumorphic relative">
         <button
-          onClick={() => handleEdit(2)}
+          onClick={() => handleEdit(2, 'tort')}
           className="absolute top-6 right-6 btn-neumorphic px-4 py-2 rounded-xl font-bold text-accent-purple hover:scale-105 transition-all duration-300"
         >
           ✏️ EDITEAZĂ
         </button>
-        <h3 className="text-2xl font-bold text-gradient mb-6">🎂 Sortiment</h3>
+        <h3 className="text-2xl font-bold text-gradient mb-6">🎂 Produse</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {order.noCake ? (
+          {order.cakes.filter(isCakeValid).length === 0 ? (
             <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
               <p className="text-sm text-secondary/60 mb-1">Tort</p>
               <p className="font-bold text-secondary">🚫 NU ARE TORT</p>
             </div>
           ) : (
-            <>
-              {order.cakeType && (
-                <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
-                  <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
-                  <p className="font-bold text-secondary">{order.cakeType}</p>
+            order.cakes.filter(isCakeValid).map((cake) => (
+              <div key={cake.id} className="md:col-span-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {cake.cakeType && (
+                    <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
+                      <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
+                      <p className="font-bold text-secondary">{cake.cakeType}</p>
+                    </div>
+                  )}
+                  {cake.weight && (
+                    <div className="bg-primary/50 p-4 rounded-2xl">
+                      <p className="text-sm text-secondary/60 mb-1">Greutate</p>
+                      <p className="font-bold text-secondary">
+                        {cake.weight === 'ALTĂ GREUTATE' ? cake.customWeight : cake.weight}
+                      </p>
+                    </div>
+                  )}
+                  {cake.shape && (
+                    <div className="bg-primary/50 p-4 rounded-2xl">
+                      <p className="text-sm text-secondary/60 mb-1">Formă</p>
+                      <p className="font-bold text-secondary">{cake.shape}</p>
+                    </div>
+                  )}
+                  {cake.floors && (
+                    <div className="bg-primary/50 p-4 rounded-2xl">
+                      <p className="text-sm text-secondary/60 mb-1">Etaje</p>
+                      <p className="font-bold text-secondary">
+                        {cake.floors} {parseInt(String(cake.floors), 10) === 1 ? 'etaj' : 'etaje'}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-              
-              {order.weight && (
-                <div className="bg-primary/50 p-4 rounded-2xl">
-                  <p className="text-sm text-secondary/60 mb-1">Greutate</p>
-                  <p className="font-bold text-secondary">{order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight}</p>
-                </div>
-              )}
-              
-              {order.shape && (
-                <div className="bg-primary/50 p-4 rounded-2xl">
-                  <p className="text-sm text-secondary/60 mb-1">Formă</p>
-                  <p className="font-bold text-secondary">{order.shape}</p>
-                </div>
-              )}
-              
-              {order.floors && (
-                <div className="bg-primary/50 p-4 rounded-2xl">
-                  <p className="text-sm text-secondary/60 mb-1">Etaje</p>
-                  <p className="font-bold text-secondary">{order.floors} {parseInt(order.floors) === 1 ? 'etaj' : 'etaje'}</p>
-                </div>
-              )}
-            </>
+              </div>
+            ))
           )}
-          
-          {order.otherProducts && (
-            <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
-              <p className="text-sm text-secondary/60 mb-1">Alte produse</p>
-              <p className="font-bold text-secondary">{order.otherProducts}</p>
+        </div>
+
+        {/* Decor photos (from step 3) */}
+        {order.photos.length > 0 && (
+          <div className="mt-6">
+            <p className="text-sm text-secondary/60 mb-3">Poze încărcate ({order.photos.length})</p>
+            <div className="grid grid-cols-4 gap-4">
+              {order.photos.map((photo, index) => (
+                <div key={index} className="shadow-neumorphic rounded-2xl overflow-hidden">
+                  <img
+                    src={getAbsoluteUrl(photo)}
+                    alt={`Poza ${index + 1}`}
+                    className="w-full h-24 object-cover"
+                    onError={(e) => {
+                      console.error('Error loading image:', photo, 'Full URL:', getAbsoluteUrl(photo))
+                      const target = e.target as HTMLImageElement
+                      target.style.border = '2px solid red'
+                      target.alt = `Eroare la încărcarea pozei ${index + 1}`
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Summary Card: Alte produse */}
+      {(order.otherProducts?.trim() || order.otherProductPhotos.length > 0) && (
+        <div className="card-neumorphic relative">
+          <button
+            onClick={() => handleEdit(2, 'alte-produse')}
+            className="absolute top-6 right-6 btn-neumorphic px-4 py-2 rounded-xl font-bold text-accent-purple hover:scale-105 transition-all duration-300"
+          >
+            ✏️ EDITEAZĂ
+          </button>
+          <h3 className="text-2xl font-bold text-gradient mb-6">🍰 Alte produse</h3>
+          {order.otherProducts?.trim() && (
+            <div className="bg-primary/50 p-4 rounded-2xl">
+              <p className="text-sm text-secondary/60 mb-1">Produse comandate</p>
+              <p className="font-bold text-secondary whitespace-pre-wrap">{order.otherProducts}</p>
+            </div>
+          )}
+          {order.otherProductPhotos.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm text-secondary/60 mb-3">
+                Poze alte produse ({order.otherProductPhotos.length})
+              </p>
+              <div className="grid grid-cols-4 gap-4">
+                {order.otherProductPhotos.map((photo, index) => (
+                  <div key={index} className="shadow-neumorphic rounded-2xl overflow-hidden">
+                    <img
+                      src={getAbsoluteUrl(photo)}
+                      alt={`Poza alte produse ${index + 1}`}
+                      className="w-full h-24 object-cover"
+                      onError={(e) => {
+                        console.error('Error loading image:', photo, 'Full URL:', getAbsoluteUrl(photo))
+                        const target = e.target as HTMLImageElement
+                        target.style.border = '2px solid red'
+                        target.alt = `Eroare la încărcarea pozei ${index + 1}`
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Summary Card 3: Decor - Hidden when noCake */}
-      {!order.noCake && (
+      {/* Summary Card 3: Decor - Hidden when no cake */}
+      {order.cakes.some(isCakeValid) && (
         <div className="card-neumorphic relative">
           <button
             onClick={() => handleEdit(3)}
@@ -501,32 +578,27 @@ function Screen4Finalizare() {
               <p className="font-bold text-secondary">{order.observations}</p>
             </div>
           )}
-          
-          {order.photos.length > 0 && (
-            <div className="md:col-span-2">
-              <p className="text-sm text-secondary/60 mb-3">Poze încărcate ({order.photos.length})</p>
-              <div className="grid grid-cols-4 gap-4">
-                {order.photos.map((photo, index) => (
-                  <div key={index} className="shadow-neumorphic rounded-2xl overflow-hidden">
-                    <img
-                      src={getAbsoluteUrl(photo)}
-                      alt={`Poza ${index + 1}`}
-                      className="w-full h-24 object-cover"
-                      onError={(e) => {
-                        console.error('Error loading image:', photo, 'Full URL:', getAbsoluteUrl(photo))
-                        const target = e.target as HTMLImageElement
-                        target.style.border = '2px solid red'
-                        target.alt = `Eroare la încărcarea pozei ${index + 1}`
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
         </div>
       )}
+
+      {/* Patiserie toggle */}
+      <div className="card-neumorphic">
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={Boolean(order.hasPastry)}
+            onChange={(e) => updateOrder({ hasPastry: e.target.checked })}
+            className="mt-1 w-5 h-5 cursor-pointer accent-accent-purple"
+          />
+          <span>
+            <span className="block font-bold text-secondary">🥐 Are și patiserie</span>
+            <span className="block text-secondary/70 text-sm mt-1">
+              Bifează pentru a trimite emailul la print de două ori (o foaie și pentru patiserie).
+            </span>
+          </span>
+        </label>
+      </div>
 
       {/* Submit Button */}
       <div className="flex justify-center mt-12">

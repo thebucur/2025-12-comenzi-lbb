@@ -110,13 +110,7 @@ function Screen1Ridicare() {
   }
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    if (value.startsWith('07')) {
-      value = value.substring(2)
-    }
-    if (value.length > 8) {
-      value = value.substring(0, 8)
-    }
+    const value = e.target.value.replace(/\D/g, '')
     updateOrder({ phoneNumber: value })
   }
 
@@ -303,22 +297,17 @@ function Screen1Ridicare() {
 
         <div>
           <label className="block mb-3 font-bold text-secondary">
-            Număr de telefon <span className="text-red-500">*</span>
+            Număr de telefon
           </label>
-          <div className="flex items-center gap-2">
-            <div className="btn-neumorphic px-6 py-4 rounded-2xl font-bold text-secondary">07</div>
-            <input
-              type="text"
-              value={order.phoneNumber}
-              onChange={handlePhoneChange}
-              className="input-neumorphic flex-1 text-secondary placeholder:text-secondary/40"
-              placeholder="12345678"
-              maxLength={8}
-            />
-          </div>
-          {order.phoneNumber && order.phoneNumber.length < 8 && (
-            <p className="mt-2 text-sm text-red-500 font-semibold">⚠️ Număr de telefon incomplet</p>
-          )}
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={order.phoneNumber}
+            onChange={handlePhoneChange}
+            className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
+            placeholder="Telefon"
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

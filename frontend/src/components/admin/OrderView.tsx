@@ -6,6 +6,7 @@ import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import { formatBucharestDate, formatBucharestTime } from '../../utils/date'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
+import { formatPhoneDisplay, normalizePhoneDigits } from '../../utils/phone'
 
 const defaultCakeTypes = ['MOUSSE DE CIOCOLATĂ NEAGRĂ', 'MOUSSE DE FRUCTE', 'MOUSSE DE VANILIE', 'MOUSSE DE CAFEA', 'MOUSSE DE LĂMÂIE', 'MOUSSE DE COCO', 'MOUSSE DE MENTĂ', 'MOUSSE DE ZMEURĂ', 'MOUSSE DE CĂPȘUNI', 'MOUSSE DE ANANAS', 'MOUSSE DE MANGOSTEEN', 'MOUSSE DE PISTACHIO', 'MOUSSE DE CARAMEL', 'MOUSSE DE BANANĂ', 'MOUSSE DE CIREȘE', 'MOUSSE DE PORTOCALĂ', 'MOUSSE DE MIRABELLE', 'ALT TIP']
 const defaultWeights = ['1 KG', '1.5 KG', '2 KG', '2.5 KG', '3 KG', 'ALTĂ GREUTATE']
@@ -22,7 +23,61 @@ interface Photo {
   url: string
   path: string | null
   isFoaieDeZahar: boolean
+  isOtherProducts: boolean
   createdAt: string
+}
+
+function PhotoGrid({
+  photos,
+  altPrefix,
+  objectFit = 'cover',
+}: {
+  photos: Photo[]
+  altPrefix: string
+  objectFit?: 'cover' | 'contain'
+}) {
+  if (photos.length === 0) return null
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {photos.map((photo, index) => {
+        const fullUrl = getAbsoluteUrl(photo.url)
+        return (
+          <a
+            key={photo.id || index}
+            href={fullUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shadow-neumorphic rounded-2xl overflow-hidden group block"
+            title="Deschide imaginea într-un tab nou"
+          >
+            <img
+              src={fullUrl}
+              alt={`${altPrefix} ${index + 1}`}
+              className={`w-full h-48 group-hover:scale-110 transition-transform duration-300 ${
+                objectFit === 'contain' ? 'object-contain bg-primary/20' : 'object-cover'
+              }`}
+              onError={(e) => {
+                console.error('Error loading image:', photo.url, 'Full URL:', fullUrl)
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+              }}
+            />
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
+interface CakeData {
+  id?: string
+  position?: number
+  cakeType: string | null
+  weight: string | null
+  customWeight: string | null
+  shape: string | null
+  floors: string | null
 }
 
 interface OrderData {
@@ -38,17 +93,14 @@ interface OrderData {
   pickupDate: string
   pickupTime: string | null
   advance: number | null
-  cakeType: string
-  weight: string
-  customWeight: string | null
-  shape: string | null
-  floors: string | null
+  cakes: CakeData[]
   otherProducts: string | null
   coating: string
   colors: string[]
   decorType: string
   decorDetails: string
   observations: string
+  hasPastry: boolean
   photos: Photo[]
   createdAt: string
 }
@@ -125,16 +177,26 @@ function AdminOrderView() {
       pickupDate: pickupDateStr,
       pickupTime: order.pickupTime ?? '',
       advance: order.advance ?? undefined,
-      cakeType: order.cakeType ?? '',
-      weight: order.weight ?? '',
-      shape: order.shape ?? '',
-      floors: order.floors ?? '',
+      cakes: [
+        (() => {
+          const c = order.cakes?.[0]
+          return {
+            position: 1,
+            cakeType: c?.cakeType ?? '',
+            weight: c?.weight ?? '',
+            customWeight: c?.customWeight ?? '',
+            shape: c?.shape ?? '',
+            floors: c?.floors ?? '',
+          }
+        })(),
+      ],
       otherProducts: order.otherProducts ?? '',
       coating: order.coating ?? '',
       colors: order.colors ?? [],
       decorType: order.decorType ?? '',
       decorDetails: order.decorDetails ?? '',
       observations: order.observations ?? '',
+      hasPastry: Boolean(order.hasPastry),
     })
     setShowEditModal(true)
   }
@@ -165,25 +227,39 @@ function AdminOrderView() {
 
   const handleSaveEdit = async () => {
     if (!id || !order) return
+    const phoneDigits = normalizePhoneDigits(String(editForm.phoneNumber ?? ''))
     setSaving(true)
     try {
+      const cakes = (editForm.cakes ?? [])
+        .map((c, idx) => ({
+          position: idx + 1,
+          cakeType: c.cakeType || null,
+          weight: c.weight || null,
+          customWeight: c.customWeight || null,
+          shape: c.shape || null,
+          floors: c.floors || null,
+        }))
+        .filter((c) => c.cakeType || c.weight || c.customWeight || c.shape || c.floors)
+
       const payload = {
-        ...editForm,
+        clientName: editForm.clientName,
+        deliveryMethod: editForm.deliveryMethod,
+        staffName: editForm.staffName,
+        tomorrowVerification: undefined,
+        phoneNumber: phoneDigits,
         pickupDate: editForm.pickupDate ? new Date(editForm.pickupDate as string).toISOString() : order.pickupDate,
         advance: editForm.advance != null ? Number(editForm.advance) : null,
         createdByUsername: editForm.createdByUsername || null,
         location: editForm.location || null,
         address: editForm.address || null,
         pickupTime: editForm.pickupTime || null,
-        cakeType: editForm.cakeType || null,
-        weight: editForm.weight || null,
-        shape: editForm.shape || null,
-        floors: editForm.floors || null,
+        cakes,
         otherProducts: editForm.otherProducts || null,
         coating: editForm.coating || null,
         decorType: editForm.decorType || null,
         decorDetails: editForm.decorDetails || null,
         observations: editForm.observations || null,
+        hasPastry: Boolean(editForm.hasPastry),
         colors: Array.isArray(editForm.colors) ? editForm.colors : (typeof editForm.colors === 'string' ? (editForm.colors as string).split(',').map((c) => c.trim()).filter(Boolean) : []),
       }
       const { data } = await api.put(`/admin/orders/${id}`, payload)
@@ -298,6 +374,11 @@ function AdminOrderView() {
   const createdDateClass = getDateRecencyClass(order.createdAt)
   const pickupDateClass = getDateRecencyClass(order.pickupDate)
 
+  const cakePhotos = order.photos.filter((p) => !p.isFoaieDeZahar && !p.isOtherProducts)
+  const otherProductPhotos = order.photos.filter((p) => !p.isFoaieDeZahar && p.isOtherProducts)
+  const foaieDeZaharPhotos = order.photos.filter((p) => p.isFoaieDeZahar)
+  const hasAnyPhotos = cakePhotos.length > 0 || otherProductPhotos.length > 0 || foaieDeZaharPhotos.length > 0
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-purple-50 to-primary">
       <div className="absolute top-20 right-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl animate-float"></div>
@@ -353,7 +434,7 @@ function AdminOrderView() {
               </div>
               <div className="bg-primary/50 p-4 rounded-2xl">
                 <p className="text-sm text-secondary/60 mb-1">Telefon</p>
-                <p className="font-bold text-secondary text-lg">07{order.phoneNumber}</p>
+                <p className="font-bold text-secondary text-lg">{formatPhoneDisplay(order.phoneNumber)}</p>
               </div>
               {order.createdByUsername && (
                 <div className="bg-primary/50 p-4 rounded-2xl">
@@ -405,30 +486,58 @@ function AdminOrderView() {
           <div className="card-neumorphic space-y-4">
             <h2 className="text-3xl font-bold text-gradient mb-6">🎂 Detalii tort</h2>
             <div className="space-y-3">
-              <div className="bg-primary/50 p-4 rounded-2xl">
-                <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
-                <p className="font-bold text-secondary text-lg">{order.cakeType}</p>
-              </div>
-              <div className="bg-primary/50 p-4 rounded-2xl">
-                <p className="text-sm text-secondary/60 mb-1">Greutate</p>
-                <p className="font-bold text-secondary text-lg">{order.weight === 'ALTĂ GREUTATE' ? order.customWeight : order.weight}</p>
-              </div>
-              {order.shape && (
+              {(order.cakes ?? []).length === 0 ? (
                 <div className="bg-primary/50 p-4 rounded-2xl">
-                  <p className="text-sm text-secondary/60 mb-1">Formă</p>
-                  <p className="font-bold text-secondary text-lg">{order.shape}</p>
+                  <p className="font-bold text-secondary text-lg">🚫 NU ARE TORT</p>
                 </div>
-              )}
-              {order.floors && (
-                <div className="bg-primary/50 p-4 rounded-2xl">
-                  <p className="text-sm text-secondary/60 mb-1">Număr etaje</p>
-                  <p className="font-bold text-secondary text-lg">{order.floors} {parseInt(order.floors) === 1 ? 'etaj' : 'etaje'}</p>
-                </div>
+              ) : (
+                (order.cakes ?? []).map((cake, idx) => (
+                  <div key={cake.id ?? idx} className="space-y-3">
+                    {(order.cakes ?? []).length > 1 && (
+                      <p className={`text-sm font-bold text-secondary/80${idx > 0 ? ' pt-2 border-t border-primary/20' : ''}`}>
+                        Tort {idx + 1}
+                      </p>
+                    )}
+                    {cake.cakeType && (
+                      <div className="bg-primary/50 p-4 rounded-2xl">
+                        <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
+                        <p className="font-bold text-secondary text-lg">{cake.cakeType}</p>
+                      </div>
+                    )}
+                    {cake.weight && (
+                      <div className="bg-primary/50 p-4 rounded-2xl">
+                        <p className="text-sm text-secondary/60 mb-1">Greutate</p>
+                        <p className="font-bold text-secondary text-lg">
+                          {cake.weight === 'ALTĂ GREUTATE' ? cake.customWeight : cake.weight}
+                        </p>
+                      </div>
+                    )}
+                    {cake.shape && (
+                      <div className="bg-primary/50 p-4 rounded-2xl">
+                        <p className="text-sm text-secondary/60 mb-1">Formă</p>
+                        <p className="font-bold text-secondary text-lg">{cake.shape}</p>
+                      </div>
+                    )}
+                    {cake.floors && (
+                      <div className="bg-primary/50 p-4 rounded-2xl">
+                        <p className="text-sm text-secondary/60 mb-1">Număr etaje</p>
+                        <p className="font-bold text-secondary text-lg">
+                          {cake.floors} {parseInt(String(cake.floors), 10) === 1 ? 'etaj' : 'etaje'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
               {order.otherProducts && (
-                <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
+                <div className="bg-primary/50 p-4 rounded-2xl">
                   <p className="text-sm text-secondary/60 mb-1">Alte produse</p>
                   <p className="font-bold text-secondary text-lg">{order.otherProducts}</p>
+                </div>
+              )}
+              {order.hasPastry && (
+                <div className="bg-yellow-500/20 border-2 border-yellow-500/50 p-4 rounded-2xl">
+                  <p className="font-bold text-secondary text-lg">🥐 Are și patiserie (foaie suplimentară)</p>
                 </div>
               )}
             </div>
@@ -482,43 +591,40 @@ function AdminOrderView() {
           </div>
 
           {/* Photos */}
-          {order.photos.filter(p => !p.isFoaieDeZahar).length > 0 && (
-            <div className="card-neumorphic space-y-4 lg:col-span-2">
-              <h2 className="text-3xl font-bold text-gradient mb-6">📸 Poze încărcate ({order.photos.filter(p => !p.isFoaieDeZahar).length})</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {order.photos.filter(p => !p.isFoaieDeZahar).map((photo, index) => (
-                  <div key={photo.id || index} className="shadow-neumorphic rounded-2xl overflow-hidden group">
-                    <img
-                      src={getAbsoluteUrl(photo.url)}
-                      alt={`Poza ${index + 1}`}
-                      className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
-                      onError={(e) => {
-                        console.error('Error loading image:', photo.url, 'Full URL:', getAbsoluteUrl(photo.url))
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                      }}
-                    />
+          {hasAnyPhotos && (
+            <div className="card-neumorphic space-y-8 lg:col-span-2">
+              {cakePhotos.length > 0 && (
+                <div>
+                  <h2 className="text-3xl font-bold text-gradient mb-6">🎂 Poze tort ({cakePhotos.length})</h2>
+                  <PhotoGrid photos={cakePhotos} altPrefix="Poza tort" />
+                </div>
+              )}
+              {otherProductPhotos.length > 0 && (
+                <div>
+                  <h2 className="text-3xl font-bold text-gradient mb-6">🍰 Poze alte produse ({otherProductPhotos.length})</h2>
+                  <PhotoGrid photos={otherProductPhotos} altPrefix="Poza alte produse" />
+                </div>
+              )}
+              {foaieDeZaharPhotos.length > 0 && (
+                <div>
+                  <h2 className="text-3xl font-bold text-gradient mb-6">📄 Poza foaie de zahar</h2>
+                  <PhotoGrid photos={foaieDeZaharPhotos} altPrefix="Foaie de zahar" objectFit="contain" />
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      onClick={handleDownloadFoaieDeZahar}
+                      className="bg-yellow-500/20 border-2 border-yellow-500/50 px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 inline-flex items-center gap-3 text-yellow-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Descarcă foaie de zahar
+                    </button>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* Foaie de Zahar Download */}
-        {order.photos.some(p => p.isFoaieDeZahar) && (
-          <div className="mt-12 flex justify-center gap-4 flex-wrap">
-            <button
-              onClick={handleDownloadFoaieDeZahar}
-              className="bg-yellow-500/20 border-2 border-yellow-500/50 px-12 py-6 rounded-3xl font-bold text-2xl hover:scale-105 transition-all duration-300 inline-flex items-center gap-3 text-yellow-600"
-            >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              📄 Descarcă Foaie de Zahar
-            </button>
-          </div>
-        )}
 
         {/* Print confirmation modal */}
         {showPrintModal && (
@@ -611,10 +717,15 @@ function AdminOrderView() {
                       <label className="block text-sm font-medium text-secondary/80 mb-1">Telefon *</label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editForm.phoneNumber ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, '').slice(0, 10)
+                          setEditForm((f) => ({ ...f, phoneNumber: v }))
+                        }}
                         className="input-neumorphic w-full text-secondary min-w-0"
-                        placeholder="07..."
+                        placeholder="10 cifre"
+                        maxLength={10}
                       />
                     </div>
                     <div className="min-w-0">
@@ -702,60 +813,91 @@ function AdminOrderView() {
                 </div>
                 <div>
                   <h4 className="text-lg font-bold text-secondary mb-3">🎂 Detalii tort</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                  <div className="space-y-4 min-w-0">
+                    {(() => {
+                      const cake = (editForm.cakes ?? [])[0] ?? {
+                        cakeType: '',
+                        weight: '',
+                        customWeight: '',
+                        shape: '',
+                        floors: '',
+                      }
+                      const patchCake = (patch: Partial<typeof cake>) =>
+                        setEditForm((f) => ({
+                          ...f,
+                          cakes: [{ ...(f.cakes?.[0] ?? cake), ...patch }],
+                        }))
+                      return (
+                        <div className="border border-primary/30 rounded-2xl p-3 sm:p-4 space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                            <div className="min-w-0">
+                              <label className="block text-sm font-medium text-secondary/80 mb-1">Tip tort</label>
+                              <select
+                                value={cake.cakeType ?? ''}
+                                onChange={(e) => patchCake({ cakeType: e.target.value || null })}
+                                className="input-neumorphic w-full text-secondary min-w-0"
+                              >
+                                <option value="">— Selectează —</option>
+                                {cakeTypes.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="min-w-0">
+                              <label className="block text-sm font-medium text-secondary/80 mb-1">Greutate</label>
+                              <select
+                                value={cake.weight ?? ''}
+                                onChange={(e) => patchCake({ weight: e.target.value || null })}
+                                className="input-neumorphic w-full text-secondary min-w-0"
+                              >
+                                <option value="">— Selectează —</option>
+                                {weights.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="min-w-0">
+                              <label className="block text-sm font-medium text-secondary/80 mb-1">Greutate personalizată</label>
+                              <input
+                                type="text"
+                                value={cake.customWeight ?? ''}
+                                onChange={(e) => patchCake({ customWeight: e.target.value })}
+                                className="input-neumorphic w-full text-secondary min-w-0"
+                                placeholder="dacă e ALTĂ GREUTATE"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <label className="block text-sm font-medium text-secondary/80 mb-1">Formă</label>
+                              <select
+                                value={cake.shape ?? ''}
+                                onChange={(e) => patchCake({ shape: e.target.value || null })}
+                                className="input-neumorphic w-full text-secondary min-w-0"
+                              >
+                                <option value="">— Selectează —</option>
+                                {shapes.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="min-w-0">
+                              <label className="block text-sm font-medium text-secondary/80 mb-1">Etaje</label>
+                              <select
+                                value={cake.floors ?? ''}
+                                onChange={(e) => patchCake({ floors: e.target.value || null })}
+                                className="input-neumorphic w-full text-secondary min-w-0"
+                              >
+                                <option value="">— Selectează —</option>
+                                {floors.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     <div className="min-w-0">
-                      <label className="block text-sm font-medium text-secondary/80 mb-1">Tip tort</label>
-                      <select
-                        value={editForm.cakeType ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, cakeType: e.target.value || undefined }))}
-                        className="input-neumorphic w-full text-secondary min-w-0"
-                      >
-                        <option value="">— Selectează —</option>
-                        {cakeTypes.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="min-w-0">
-                      <label className="block text-sm font-medium text-secondary/80 mb-1">Greutate</label>
-                      <select
-                        value={editForm.weight ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value || undefined }))}
-                        className="input-neumorphic w-full text-secondary min-w-0"
-                      >
-                        <option value="">— Selectează —</option>
-                        {weights.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="min-w-0">
-                      <label className="block text-sm font-medium text-secondary/80 mb-1">Formă</label>
-                      <select
-                        value={editForm.shape ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, shape: e.target.value || undefined }))}
-                        className="input-neumorphic w-full text-secondary min-w-0"
-                      >
-                        <option value="">— Selectează —</option>
-                        {shapes.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="min-w-0">
-                      <label className="block text-sm font-medium text-secondary/80 mb-1">Etaje</label>
-                      <select
-                        value={editForm.floors ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, floors: e.target.value || undefined }))}
-                        className="input-neumorphic w-full text-secondary min-w-0"
-                      >
-                        <option value="">— Selectează —</option>
-                        {floors.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2 min-w-0">
                       <label className="block text-sm font-medium text-secondary/80 mb-1">Alte produse</label>
                       <textarea
                         value={editForm.otherProducts ?? ''}
@@ -764,6 +906,21 @@ function AdminOrderView() {
                         rows={2}
                       />
                     </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editForm.hasPastry)}
+                        onChange={(e) => setEditForm((f) => ({ ...f, hasPastry: e.target.checked }))}
+                        className="mt-1 w-5 h-5 cursor-pointer accent-accent-purple"
+                      />
+                      <span>
+                        <span className="block font-bold text-secondary">🥐 Are și patiserie</span>
+                        <span className="block text-secondary/70 text-sm mt-1">
+                          La print, emailul se trimite de două ori (foaie separată pentru patiserie).
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 </div>
                 <div>

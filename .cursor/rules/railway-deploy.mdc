@@ -1,0 +1,34 @@
+---
+description: Railway deployment requirements - Docker, Prisma, Supabase
+globs: Dockerfile, backend/prisma/schema.prisma, railway.json
+alwaysApply: false
+---
+
+# Railway Deploy Requirements
+
+## Dockerfile
+
+- Base image: `node:20-bookworm-slim`
+- MUST install openssl before Prisma generate: `RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*`
+- Without openssl, Prisma cannot establish SSL connections to Supabase and the app fails at startup (wait-for-db retries 30x then exits)
+- CMD runs: `wait-for-db.js` → `prisma db push` → `node dist/server.js`
+
+## Prisma Schema
+
+- Generator MUST include `binaryTargets = ["native", "debian-openssl-3.0.x"]` for the Debian container
+- Without this, Prisma defaults to openssl-1.1.x which doesn't match the bookworm-slim image
+
+## Environment
+
+- DATABASE_URL on Railway points to Supabase (pooler, SSL required)
+- Local .env uses localhost — never commit local DB URLs to Railway
+- Storage paths use `/app/storage` (Railway volume mount), not `./uploads`
+
+## Common Deploy Failures
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| wait-for-db retries 30x | Missing openssl in Docker | Add `apt-get install -y openssl` step |
+| Prisma "failed to detect libssl" | Wrong/missing binaryTargets | Add `debian-openssl-3.0.x` to schema |
+| Build exit 137 (OOM) | Railpack apt step | Use custom Dockerfile instead of Railpack |
+| OpenAI crash on startup | Missing OPENAI_API_KEY | Use lazy init pattern in ai.service.ts |

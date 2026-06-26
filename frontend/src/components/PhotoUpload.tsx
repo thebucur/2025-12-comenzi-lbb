@@ -33,6 +33,7 @@ function PhotoUpload() {
   const uploadType = searchParams.get('type') // 'foaie-de-zahar', 'other-products', or null for cake photos
   const isFoaieDeZahar = uploadType === 'foaie-de-zahar'
   const isOtherProducts = uploadType === 'other-products'
+  const maxPhotos = isFoaieDeZahar ? 1 : isOtherProducts ? 2 : 3
   
   const [photos, setPhotos] = useState<string[]>([])
   const [foaieDeZaharUrl, setFoaieDeZaharUrl] = useState<string | null>(null)
@@ -148,12 +149,11 @@ function PhotoUpload() {
         alert('Ai ales prea multe fișiere. Se va încărca doar primul fișier.')
       }
     } else {
-      // For regular photos: max 3 files
       const existingCount = photos.length
-      const remainingSlots = 3 - existingCount
+      const remainingSlots = maxPhotos - existingCount
 
       if (remainingSlots <= 0) {
-        alert('Poți încărca maximum 3 poze.')
+        alert(`Poți încărca maximum ${maxPhotos} poze.`)
         if (fileInputRef.current) {
           fileInputRef.current.value = ''
         }
@@ -166,8 +166,8 @@ function PhotoUpload() {
     }
 
     const filesToProcess = isFoaieDeZahar 
-      ? Array.from(files).slice(0, 1) // Only first file for foaie de zahar
-      : Array.from(files).slice(0, 3 - photos.length) // Up to remaining slots for photos
+      ? Array.from(files).slice(0, 1)
+      : Array.from(files).slice(0, maxPhotos - photos.length)
 
     if (!sessionId) {
       alert('Eroare: ID sesiune lipsă')
@@ -418,14 +418,14 @@ function PhotoUpload() {
             accept="image/*"
             multiple={!isFoaieDeZahar}
             onChange={handleFileSelect}
-            disabled={uploading || (isFoaieDeZahar && foaieDeZaharUrl !== null)}
+            disabled={uploading || (isFoaieDeZahar && foaieDeZaharUrl !== null) || (!isFoaieDeZahar && photos.length >= maxPhotos)}
             className="hidden"
             id="file-input"
           />
           <label
             htmlFor="file-input"
             className={`block w-full py-4 px-6 text-center rounded-lg cursor-pointer transition-all ${
-              uploading || (isFoaieDeZahar && foaieDeZaharUrl !== null)
+              uploading || (isFoaieDeZahar && foaieDeZaharUrl !== null) || (!isFoaieDeZahar && photos.length >= maxPhotos)
                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 : 'bg-neon-pink hover:bg-neon-pink/90'
             }`}
@@ -437,7 +437,7 @@ function PhotoUpload() {
               ? foaieDeZaharUrl !== null 
                 ? 'Foaie de zahar încărcată (1/1)' 
                 : 'O singură imagine, necomprimată (0/1)'
-              : `Maxim 3 poze (mai poți adăuga ${Math.max(3 - photos.length, 0)})`
+              : `Maxim ${maxPhotos} poze (mai poți adăuga ${Math.max(maxPhotos - photos.length, 0)})`
             }
           </p>
         </div>
