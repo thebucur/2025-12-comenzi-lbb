@@ -231,6 +231,17 @@ export const uploadPhoto = async (req: Request, res: Response) => {
   }
 }
 
+export async function sessionHasOtherProductPhotos(sessionId: string | null | undefined): Promise<boolean> {
+  if (!sessionId || String(sessionId).trim() === '') return false
+  const count = await prisma.uploadPhoto.count({
+    where: {
+      uploadSessionId: String(sessionId).trim(),
+      isOtherProducts: true,
+    },
+  })
+  return count > 0
+}
+
 export const linkSessionToOrder = async (sessionId: string, orderId: string) => {
   console.log(`Linking session ${sessionId} to order ${orderId}`)
 

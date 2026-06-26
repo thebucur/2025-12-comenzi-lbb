@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
-import { linkSessionToOrder } from './upload.controller'
+import { linkSessionToOrder, sessionHasOtherProductPhotos } from './upload.controller'
 import type { AuthRequest } from '../middleware/auth.middleware'
 import { getBucharestTodayString } from '../utils/date'
 import { normalizePhoneDigits } from '../utils/phone'
@@ -14,29 +14,54 @@ interface IncomingCake {
   position?: number
 }
 
-function normalizeCakes(raw: unknown): IncomingCake[] {
+const REQUIRED_FIELD_LABELS: Record<string, string> = {
+  deliveryMethod: 'Metodă de livrare',
+  staffName: 'Nume angajat',
+  clientName: 'Nume client',
+  pickupDate: 'Data ridicării',
+  coating: 'Îmbrăcăminte',
+  decorType: 'Tip decor',
+  otherProducts: 'Alte produse',
+}
+
+function normalizeCakeFields(v: Record<string, unknown>, position: number): IncomingCake | null {
+  const cakeType = v.cakeType != null && String(v.cakeType).trim() !== '' ? String(v.cakeType) : null
+  const weight = v.weight != null && String(v.weight).trim() !== '' ? String(v.weight) : null
+  const customWeight = v.customWeight != null && String(v.customWeight).trim() !== '' ? String(v.customWeight) : null
+  const shape = v.shape != null && String(v.shape).trim() !== '' ? String(v.shape) : null
+  const floors = v.floors != null && String(v.floors).trim() !== '' ? String(v.floors) : null
+  if (!cakeType && !weight && !customWeight && !shape && !floors) return null
+  return {
+    cakeType,
+    weight,
+    customWeight,
+    shape,
+    floors,
+    position: typeof v.position === 'number' ? v.position : position,
+  }
+}
+
+function normalizeCakesFromArray(raw: unknown): IncomingCake[] {
   if (!Array.isArray(raw)) return []
   return raw
-    .map((c, idx): IncomingCake | null => {
-      if (!c || typeof c !== 'object') return null
-      const v = c as Record<string, unknown>
-      const cakeType = v.cakeType != null && String(v.cakeType).trim() !== '' ? String(v.cakeType) : null
-      const weight = v.weight != null && String(v.weight).trim() !== '' ? String(v.weight) : null
-      const customWeight = v.customWeight != null && String(v.customWeight).trim() !== '' ? String(v.customWeight) : null
-      const shape = v.shape != null && String(v.shape).trim() !== '' ? String(v.shape) : null
-      const floors = v.floors != null && String(v.floors).trim() !== '' ? String(v.floors) : null
-      // Drop empty entries
-      if (!cakeType && !weight && !customWeight && !shape && !floors) return null
-      return {
-        cakeType,
-        weight,
-        customWeight,
-        shape,
-        floors,
-        position: typeof v.position === 'number' ? v.position : idx + 1,
-      }
-    })
+    .map((c, idx) => (c && typeof c === 'object' ? normalizeCakeFields(c as Record<string, unknown>, idx + 1) : null))
     .filter((c): c is IncomingCake => c !== null)
+}
+
+/** Accepts multi-cake `cakes[]` and legacy single-cake root fields from older frontends. */
+function normalizeCakes(orderData: Record<string, unknown>): IncomingCake[] {
+  const fromArray = normalizeCakesFromArray(orderData.cakes)
+  if (fromArray.length > 0) return fromArray
+
+  const legacyNoCake =
+    orderData.noCake === true ||
+    orderData.noCake === 'true' ||
+    orderData.noCake === 1 ||
+    orderData.noCake === '1'
+  if (legacyNoCake) return []
+
+  const legacy = normalizeCakeFields(orderData, 1)
+  return legacy ? [legacy] : []
 }
 
 export const createOrder = async (req: Request, res: Response) => {
@@ -45,7 +70,7 @@ export const createOrder = async (req: Request, res: Response) => {
     
     console.log('Received order data:', JSON.stringify(orderData, null, 2))
 
-    const cakes = normalizeCakes(orderData.cakes)
+    const cakes = normalizeCakes(orderData as Record<string, unknown>)
     const hasAnyCake = cakes.length > 0
 
     // Validate required fields
@@ -65,17 +90,23 @@ export const createOrder = async (req: Request, res: Response) => {
       return value === null || value === undefined || value === ''
     })
 
-    if (!hasAnyCake && (!orderData.otherProducts || String(orderData.otherProducts).trim() === '')) {
+    const hasOtherProductsText = Boolean(
+      orderData.otherProducts && String(orderData.otherProducts).trim() !== '',
+    )
+    const hasOtherProductPhotos = await sessionHasOtherProductPhotos(orderData.uploadSessionId)
+
+    if (!hasAnyCake && !hasOtherProductsText && !hasOtherProductPhotos) {
       missingFields = [...missingFields, 'otherProducts']
     }
 
     if (missingFields.length > 0) {
       console.error('Missing required fields:', missingFields)
       console.error('Order data received:', JSON.stringify(orderData, null, 2))
+      const missingLabels = missingFields.map((f) => REQUIRED_FIELD_LABELS[f] ?? f)
       return res.status(400).json({
         error: 'Missing required fields',
         missingFields,
-        message: `Lipsesc câmpuri obligatorii: ${missingFields.join(', ')}`,
+        message: `Lipsesc câmpuri obligatorii: ${missingLabels.join(', ')}`,
       })
     }
 

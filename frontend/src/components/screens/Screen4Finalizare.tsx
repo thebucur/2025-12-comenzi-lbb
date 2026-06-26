@@ -6,7 +6,17 @@ import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 import { formatBucharestDate } from '../../utils/date'
 import { formatPhoneDisplay, normalizePhoneDigits } from '../../utils/phone'
-import { isCakeStarted, isCakeValid } from '../../utils/cakeOrder'
+import { hasOtherProductsContent, isCakeStarted, isCakeValid } from '../../utils/cakeOrder'
+
+const REQUIRED_FIELD_LABELS: Record<string, string> = {
+  deliveryMethod: 'Metodă de livrare',
+  staffName: 'Nume angajat',
+  clientName: 'Nume client',
+  pickupDate: 'Data ridicării',
+  coating: 'Îmbrăcăminte',
+  decorType: 'Tip decor',
+  otherProducts: 'Alte produse',
+}
 
 interface ModalState {
   visible: boolean
@@ -123,7 +133,7 @@ function Screen4Finalizare() {
         })
         if (!order.coating) missingFields.push('Îmbrăcăminte')
         if (!order.decorType) missingFields.push('Tip decor')
-      } else if (!order.otherProducts?.trim()) {
+      } else if (!hasOtherProductsContent(order)) {
         missingFields.push('Alte produse (sau adăugați un tort)')
       }
 
@@ -272,7 +282,8 @@ function Screen4Finalizare() {
           const serverError = responseData?.error || responseData?.message
           
           if (responseData?.missingFields) {
-            errorMessage = `Lipsesc câmpuri obligatorii:\n${responseData.missingFields.join('\n')}`
+            const labels = responseData.missingFields.map((f) => REQUIRED_FIELD_LABELS[f] ?? f)
+            errorMessage = `Lipsesc câmpuri obligatorii:\n${labels.join('\n')}`
           } else if (serverError) {
             errorMessage = `Eroare server: ${serverError}`
           } else if (error.response.status === 400) {

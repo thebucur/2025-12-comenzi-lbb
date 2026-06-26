@@ -39,10 +39,15 @@ export function isCakeValid(cake: OrderCake): boolean {
   )
 }
 
+/** Text or uploaded photos count as "alte produse" content. */
+export function hasOtherProductsContent(order: Order): boolean {
+  return Boolean(order.otherProducts?.trim()) || order.otherProductPhotos.length > 0
+}
+
 /**
  * Step 2 is valid if:
  *  - there is at least one fully-valid cake (started cakes must be fully completed), OR
- *  - there are no started cakes but `otherProducts` is non-empty.
+ *  - there are no started cakes but other products content exists (text or photos).
  *
  * Started-but-incomplete cakes always fail validation.
  */
@@ -50,7 +55,7 @@ export function orderStep2SortimentValid(order: Order): boolean {
   const started = order.cakes.filter(isCakeStarted)
 
   if (started.length === 0) {
-    return Boolean(order.otherProducts?.trim())
+    return hasOtherProductsContent(order)
   }
 
   // Every started cake must be fully valid
