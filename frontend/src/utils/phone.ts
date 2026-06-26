@@ -12,7 +12,14 @@ export function isCompletePhoneNumber(_value: string): boolean {
   return true
 }
 
-/** Show stored value as digits only */
+/**
+ * Show stored phone for display/PDF.
+ * Legacy orders stored only 8 digits (UI showed a fixed "07" prefix separately).
+ */
 export function formatPhoneDisplay(value: string): string {
-  return normalizePhoneDigits(value)
+  const digits = normalizePhoneDigits(value)
+  if (!digits) return digits
+  if (digits.startsWith('07')) return digits
+  if (digits.length === 8) return `07${digits}`
+  return digits
 }

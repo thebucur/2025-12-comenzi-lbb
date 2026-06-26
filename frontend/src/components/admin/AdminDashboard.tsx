@@ -588,7 +588,8 @@ function AdminDashboard() {
   const getPhoneSearchVariants = (phoneValue: string | null | undefined) => {
     const digits = String(phoneValue || '').replace(/\D/g, '')
     if (!digits) return []
-    return [digits]
+    const displayed = formatPhoneDisplay(digits)
+    return displayed === digits ? [digits] : [digits, displayed]
   }
 
   const handleAdminLogout = () => {
