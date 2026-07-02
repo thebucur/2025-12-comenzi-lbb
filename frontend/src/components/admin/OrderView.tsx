@@ -6,7 +6,7 @@ import { getAbsoluteImageUrl } from '../../utils/imageUrl'
 import { getDateRecencyClass } from '../../utils/dateRecency'
 import { formatBucharestDate, formatBucharestTime } from '../../utils/date'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
-import { formatPhoneDisplay, normalizePhoneDigits } from '../../utils/phone'
+import { formatPhoneDisplay, getPhoneValidationError, isCompletePhoneNumber, normalizePhoneDigits } from '../../utils/phone'
 
 const defaultCakeTypes = ['MOUSSE DE CIOCOLATĂ NEAGRĂ', 'MOUSSE DE FRUCTE', 'MOUSSE DE VANILIE', 'MOUSSE DE CAFEA', 'MOUSSE DE LĂMÂIE', 'MOUSSE DE COCO', 'MOUSSE DE MENTĂ', 'MOUSSE DE ZMEURĂ', 'MOUSSE DE CĂPȘUNI', 'MOUSSE DE ANANAS', 'MOUSSE DE MANGOSTEEN', 'MOUSSE DE PISTACHIO', 'MOUSSE DE CARAMEL', 'MOUSSE DE BANANĂ', 'MOUSSE DE CIREȘE', 'MOUSSE DE PORTOCALĂ', 'MOUSSE DE MIRABELLE', 'ALT TIP']
 const defaultWeights = ['1 KG', '1.5 KG', '2 KG', '2.5 KG', '3 KG', 'ALTĂ GREUTATE']
@@ -228,6 +228,13 @@ function AdminOrderView() {
   const handleSaveEdit = async () => {
     if (!id || !order) return
     const phoneDigits = normalizePhoneDigits(String(editForm.phoneNumber ?? ''))
+    if (!isCompletePhoneNumber(phoneDigits)) {
+      setPrintResult({
+        type: 'error',
+        message: getPhoneValidationError(phoneDigits) || 'Număr de telefon invalid',
+      })
+      return
+    }
     setSaving(true)
     try {
       const cakes = (editForm.cakes ?? [])
@@ -724,9 +731,14 @@ function AdminOrderView() {
                           setEditForm((f) => ({ ...f, phoneNumber: v }))
                         }}
                         className="input-neumorphic w-full text-secondary min-w-0"
-                        placeholder="10 cifre"
+                        placeholder="07XXXXXXXX"
                         maxLength={10}
                       />
+                      {getPhoneValidationError(editForm.phoneNumber ?? '') && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {getPhoneValidationError(editForm.phoneNumber ?? '')}
+                        </p>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <label className="block text-sm font-medium text-secondary/80 mb-1">Locație preluare</label>

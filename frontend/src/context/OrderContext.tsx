@@ -2,11 +2,13 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import { Order, OrderCake } from '../types/order.types'
 import { orderStep2SortimentValid } from '../utils/cakeOrder'
+import { isCompletePhoneNumber } from '../utils/phone'
 
 export function makeEmptyCake(): OrderCake {
   return {
     id: crypto.randomUUID(),
     cakeType: null,
+    customCakeType: '',
     weight: null,
     customWeight: '',
     shape: null,
@@ -75,6 +77,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         if (order.deliveryMethod === 'livrare' && !order.address.trim()) return false
         if (!order.staffName) return false
         if (!order.clientName.trim()) return false
+        if (!isCompletePhoneNumber(order.phoneNumber)) return false
         if (!order.pickupDate) return false
         return true
       case 2:

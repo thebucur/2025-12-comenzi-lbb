@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma'
-import { normalizePhoneDigits } from '../utils/phone'
+import { normalizePhoneDigits, isValidTenDigitPhone } from '../utils/phone'
 
 console.log('Admin controller loaded, prisma:', prisma ? 'initialized' : 'UNDEFINED')
 
@@ -75,6 +75,12 @@ export const updateOrder = async (req: Request, res: Response) => {
       }
       if (key === 'phoneNumber') {
         const digits = normalizePhoneDigits(String(body[key] ?? ''))
+        if (digits && !isValidTenDigitPhone(digits)) {
+          return res.status(400).json({
+            error: 'Invalid phoneNumber',
+            message: 'Numărul de telefon trebuie să înceapă cu 07 și să aibă 10 cifre.',
+          })
+        }
         updateData[key] = digits
         continue
       }

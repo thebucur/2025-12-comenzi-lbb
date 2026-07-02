@@ -3,13 +3,29 @@ export function normalizePhoneDigits(value: string): string {
   return String(value ?? '').replace(/\D/g, '')
 }
 
+/** Romanian mobile: 07 + 8 more digits = 10 total */
+export const ROMANIAN_MOBILE_PHONE_REGEX = /^07\d{8}$/
+
+export function isValidPhoneDigits(digits: string): boolean {
+  return ROMANIAN_MOBILE_PHONE_REGEX.test(normalizePhoneDigits(digits))
+}
+
 /**
- * Phone is considered "complete" if it has at least one digit OR is empty.
- * Validation length was removed by request — staff can enter any number of digits
- * (or leave it empty) when taking orders.
+ * Phone is valid if empty (optional) or matches 07XXXXXXXX (10 digits).
  */
-export function isCompletePhoneNumber(_value: string): boolean {
-  return true
+export function isCompletePhoneNumber(value: string): boolean {
+  const digits = normalizePhoneDigits(value)
+  if (!digits) return true
+  return isValidPhoneDigits(digits)
+}
+
+export function getPhoneValidationError(value: string): string | null {
+  const digits = normalizePhoneDigits(value)
+  if (!digits) return null
+  if (!isValidPhoneDigits(digits)) {
+    return 'Numărul trebuie să înceapă cu 07 și să aibă 10 cifre'
+  }
+  return null
 }
 
 /**

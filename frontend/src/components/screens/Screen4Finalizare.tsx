@@ -5,8 +5,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
 import { resolveColorValue } from '../../constants/colors'
 import { formatBucharestDate } from '../../utils/date'
-import { formatPhoneDisplay, normalizePhoneDigits } from '../../utils/phone'
-import { hasOtherProductsContent, isCakeStarted, isCakeValid } from '../../utils/cakeOrder'
+import { formatPhoneDisplay, getPhoneValidationError, isCompletePhoneNumber, normalizePhoneDigits } from '../../utils/phone'
+import { displayCakeType, hasOtherProductsContent, isCakeStarted, isCakeValid, resolveCakeType } from '../../utils/cakeOrder'
 
 const REQUIRED_FIELD_LABELS: Record<string, string> = {
   deliveryMethod: 'Metodă de livrare',
@@ -120,6 +120,9 @@ function Screen4Finalizare() {
       if (!order.deliveryMethod) missingFields.push('Metodă de livrare')
       if (!order.staffName) missingFields.push('Nume angajat')
       if (!order.clientName?.trim()) missingFields.push('Nume client')
+      if (!isCompletePhoneNumber(order.phoneNumber)) {
+        missingFields.push(getPhoneValidationError(order.phoneNumber) || 'Număr de telefon invalid')
+      }
       if (!order.pickupDate) missingFields.push('Data ridicării')
       
       const startedCakes = order.cakes.filter(isCakeStarted)
@@ -166,7 +169,7 @@ function Screen4Finalizare() {
       // Only send fully-valid cakes (started but invalid cakes are blocked by validation above)
       const validCakes = order.cakes.filter(isCakeValid).map((c, idx) => ({
         position: idx + 1,
-        cakeType: c.cakeType || null,
+        cakeType: resolveCakeType(c.cakeType, c.customCakeType),
         weight: c.weight || null,
         customWeight: c.customWeight || null,
         shape: c.shape || null,
@@ -432,7 +435,7 @@ function Screen4Finalizare() {
                   {cake.cakeType && (
                     <div className="bg-primary/50 p-4 rounded-2xl md:col-span-2">
                       <p className="text-sm text-secondary/60 mb-1">Tip tort</p>
-                      <p className="font-bold text-secondary">{cake.cakeType}</p>
+                      <p className="font-bold text-secondary">{displayCakeType(cake)}</p>
                     </div>
                   )}
                   {cake.weight && (

@@ -1,13 +1,31 @@
 import type { CakeType, Floors, Order, OrderCake, Shape, Weight } from '../types/order.types'
 
+export const ALT_CAKE_TYPE = 'ALT TIP'
+
+export function resolveCakeType(
+  cakeType: CakeType | string | null | undefined,
+  customCakeType: string,
+): string | null {
+  if (!cakeType) return null
+  if (cakeType === ALT_CAKE_TYPE) return customCakeType?.trim() || null
+  return String(cakeType)
+}
+
+export function displayCakeType(cake: OrderCake): string {
+  if (cake.cakeType === ALT_CAKE_TYPE) return cake.customCakeType?.trim() || ALT_CAKE_TYPE
+  return cake.cakeType || ''
+}
+
 export function validateCakeSortimentBlock(
   cakeType: CakeType | string | null | undefined,
+  customCakeType: string,
   weight: Weight | string | null | undefined,
   customWeight: string,
   shape: Shape | string | null | undefined,
   floors: Floors | string | null | undefined,
 ): boolean {
   if (!cakeType || !weight) return false
+  if (cakeType === ALT_CAKE_TYPE && !customCakeType?.trim()) return false
   if (weight === 'ALTĂ GREUTATE' && !customWeight?.trim()) return false
   const showShape =
     weight === '2 KG' || weight === '2.5 KG' || weight === '3 KG' || weight === 'ALTĂ GREUTATE'
@@ -32,6 +50,7 @@ export function isCakeStarted(cake: OrderCake): boolean {
 export function isCakeValid(cake: OrderCake): boolean {
   return validateCakeSortimentBlock(
     cake.cakeType,
+    cake.customCakeType,
     cake.weight,
     cake.customWeight,
     cake.shape,

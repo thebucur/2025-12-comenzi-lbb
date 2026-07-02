@@ -3,7 +3,7 @@ import prisma from '../lib/prisma'
 import { linkSessionToOrder, sessionHasOtherProductPhotos } from './upload.controller'
 import type { AuthRequest } from '../middleware/auth.middleware'
 import { getBucharestTodayString } from '../utils/date'
-import { normalizePhoneDigits } from '../utils/phone'
+import { normalizePhoneDigits, isValidTenDigitPhone } from '../utils/phone'
 
 interface IncomingCake {
   cakeType?: string | null
@@ -111,6 +111,12 @@ export const createOrder = async (req: Request, res: Response) => {
     }
 
     const phoneDigits = normalizePhoneDigits(String(orderData.phoneNumber ?? ''))
+    if (phoneDigits && !isValidTenDigitPhone(phoneDigits)) {
+      return res.status(400).json({
+        error: 'Invalid phoneNumber',
+        message: 'Numărul de telefon trebuie să înceapă cu 07 și să aibă 10 cifre.',
+      })
+    }
 
     // Validate colors is an array
     if (orderData.colors && !Array.isArray(orderData.colors)) {

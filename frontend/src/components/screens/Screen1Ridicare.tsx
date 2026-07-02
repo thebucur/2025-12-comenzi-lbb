@@ -3,6 +3,7 @@ import { useOrder } from '../../context/OrderContext'
 import { getTodayString, toBucharestDateString } from '../../utils/date'
 import api from '../../services/api'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
+import { getPhoneValidationError } from '../../utils/phone'
 
 const defaultLocations = ['TIMKEN', 'WINMARKT', 'AFI PLOIESTI', 'REPUBLICII', 'CARAIMAN']
 const defaultStaffNames = ['ALINA', 'DANA', 'MIRELA', 'LIVIA']
@@ -110,9 +111,11 @@ function Screen1Ridicare() {
   }
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '')
+    const value = e.target.value.replace(/\D/g, '').slice(0, 10)
     updateOrder({ phoneNumber: value })
   }
+
+  const phoneError = getPhoneValidationError(order.phoneNumber)
 
   const handleAddStaff = () => {
     if (newStaffName.trim() && !staffNames.includes(newStaffName.trim().toUpperCase())) {
@@ -305,9 +308,13 @@ function Screen1Ridicare() {
             autoComplete="tel"
             value={order.phoneNumber}
             onChange={handlePhoneChange}
-            className="input-neumorphic w-full text-secondary placeholder:text-secondary/40"
-            placeholder="Telefon"
+            className={`input-neumorphic w-full text-secondary placeholder:text-secondary/40 ${
+              phoneError ? 'ring-2 ring-red-400' : ''
+            }`}
+            placeholder="07XXXXXXXX"
+            maxLength={10}
           />
+          {phoneError && <p className="mt-2 text-sm text-red-500 font-medium">{phoneError}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

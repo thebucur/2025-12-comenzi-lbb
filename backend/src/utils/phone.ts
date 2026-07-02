@@ -2,12 +2,11 @@ export function normalizePhoneDigits(value: string): string {
   return String(value ?? '').replace(/\D/g, '')
 }
 
-/**
- * Length validation was removed by request — staff can enter any number of
- * digits (or leave it empty) when taking orders.
- */
-export function isValidTenDigitPhone(_digits: string): boolean {
-  return true
+/** Romanian mobile: 07 + 8 more digits = 10 total */
+export const ROMANIAN_MOBILE_PHONE_REGEX = /^07\d{8}$/
+
+export function isValidTenDigitPhone(digits: string): boolean {
+  return ROMANIAN_MOBILE_PHONE_REGEX.test(normalizePhoneDigits(digits))
 }
 
 /**

@@ -38,6 +38,7 @@ export type DecorType = string
 export interface OrderCake {
   id: string
   cakeType: CakeType | string | null
+  customCakeType: string
   weight: Weight | null
   customWeight: string
   shape: Shape | string | null

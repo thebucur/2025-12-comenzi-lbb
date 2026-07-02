@@ -4,6 +4,7 @@ import { useOrder } from '../../context/OrderContext'
 import { CakeType, Weight, Shape, Floors, OrderCake } from '../../types/order.types'
 import { useInstallationConfig } from '../../hooks/useInstallationConfig'
 import PhotoUploader from '../PhotoUploader'
+import { ALT_CAKE_TYPE } from '../../utils/cakeOrder'
 
 // Default values (fallback if config not available)
 const defaultCakeTypes: CakeType[] = [
@@ -65,6 +66,10 @@ function Screen2Sortiment() {
   )
 
   const cakeTypes = (config?.sortiment?.cakeTypes as CakeType[]) || defaultCakeTypes
+  const predefinedCakeTypes = useMemo(() => {
+    const types = cakeTypes.filter((t) => t !== ALT_CAKE_TYPE)
+    return types
+  }, [cakeTypes])
   const weights = sortedWeights
   const shapes = (config?.sortiment?.shapes as Shape[]) || defaultShapes
   const floors = (config?.sortiment?.floors as Floors[]) || defaultFloors
@@ -91,6 +96,14 @@ function Screen2Sortiment() {
       patch.floors = null
     } else if (weight !== '3 KG' && weight !== 'ALTĂ GREUTATE') {
       patch.floors = null
+    }
+    updateCake(patch)
+  }
+
+  const setCakeType = (type: CakeType | string) => {
+    const patch: Partial<OrderCake> = { cakeType: type }
+    if (type !== ALT_CAKE_TYPE) {
+      patch.customCakeType = ''
     }
     updateCake(patch)
   }
@@ -135,11 +148,11 @@ function Screen2Sortiment() {
               <div>
                 <h3 className="text-xl font-bold text-secondary mb-6">🎂 Tipuri de torturi</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {cakeTypes.map((type) => (
+                  {predefinedCakeTypes.map((type) => (
                     <button
                       key={type}
                       type="button"
-                      onClick={() => updateCake({ cakeType: type })}
+                      onClick={() => setCakeType(type)}
                       className={`p-4 rounded-2xl font-semibold transition-all duration-300 text-sm ${
                         type === 'MOUSSE DE CIOCOLATĂ NEAGRĂ' ? 'md:col-span-2' : ''
                       } ${cake.cakeType === type ? 'btn-active scale-105' : 'btn-neumorphic hover:scale-102'}`}
@@ -147,6 +160,27 @@ function Screen2Sortiment() {
                       {type}
                     </button>
                   ))}
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setCakeType(ALT_CAKE_TYPE)}
+                    className={`w-full p-4 rounded-2xl font-semibold transition-all duration-300 text-sm ${
+                      cake.cakeType === ALT_CAKE_TYPE ? 'btn-active scale-105' : 'btn-neumorphic hover:scale-102'
+                    }`}
+                  >
+                    ✨ ALT TIP DE TORT
+                  </button>
+                  {cake.cakeType === ALT_CAKE_TYPE && (
+                    <input
+                      type="text"
+                      value={cake.customCakeType}
+                      onChange={(e) => updateCake({ customCakeType: e.target.value })}
+                      placeholder="Specificați tipul de tort"
+                      className="input-neumorphic mt-4 w-full text-secondary placeholder:text-secondary/40"
+                      autoFocus
+                    />
+                  )}
                 </div>
               </div>
 
